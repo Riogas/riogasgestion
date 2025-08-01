@@ -121,7 +121,7 @@ export const importarLocalidades = async (departamento: string) => {
     `;
 
     const response = await overpassApi.post(
-      "https://overpass-api.de/api/interpreter",
+      "http://overpass.riogas.uy/api/interpreter",
       overpassQuery,
       {
         headers: { "Content-Type": "text/plain" },
@@ -173,7 +173,7 @@ export const importarCalles = async (
       out tags;
     `;
     const response = await overpassApi.post(
-      "https://overpass-api.de/api/interpreter",
+      "http://overpass.riogas.uy/api/interpreter",
       overpassQuery,
       {
         headers: { "Content-Type": "text/plain" },
@@ -205,7 +205,7 @@ export const importarDepartamentos = async () => {
       out body;
     `;
     const response = await overpassApi.post(
-      "https://overpass-api.de/api/interpreter",
+      "http://overpass.riogas.uy/api/interpreter",
       overpassQuery,
       {
         headers: { "Content-Type": "text/plain" },
@@ -370,7 +370,7 @@ export const obtenerCallesDesdeCoordenadas = async (
         out ids tags;
       `;
 
-      const relResponse = await fetch("https://overpass-api.de/api/interpreter", {
+      const relResponse = await fetch("http://overpass.riogas.uy/api/interpreter", {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: buscarRelacionQuery,
@@ -386,7 +386,7 @@ export const obtenerCallesDesdeCoordenadas = async (
             out tags center;
           `;
           const callesResponse = await fetch(
-            "https://overpass-api.de/api/interpreter",
+            "http://overpass.riogas.uy/api/interpreter",
             {
               method: "POST",
               headers: { "Content-Type": "text/plain" },
@@ -422,7 +422,7 @@ export const obtenerCallesDesdeCoordenadas = async (
         area["name"="${nombre}"]["admin_level"="8"];
         out ids tags;
       `;
-      let areaResponse = await fetch("https://overpass-api.de/api/interpreter", {
+      let areaResponse = await fetch("http://overpass.riogas.uy/api/interpreter", {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: buscarAreaQuery,
@@ -438,7 +438,7 @@ export const obtenerCallesDesdeCoordenadas = async (
           area["name"="${nombre}"]["admin_level"="4"];
           out ids tags;
         `;
-        areaResponse = await fetch("https://overpass-api.de/api/interpreter", {
+        areaResponse = await fetch("http://overpass.riogas.uy/api/interpreter", {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
           body: buscarArea4Query,
@@ -456,7 +456,7 @@ export const obtenerCallesDesdeCoordenadas = async (
           out tags center;
         `;
         const callesResponse = await fetch(
-          "https://overpass-api.de/api/interpreter",
+          "http://overpass.riogas.uy/api/interpreter",
           {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
@@ -506,7 +506,7 @@ export const obtenerCallesDesdeCoordenadas = async (
         `;
 
         const callesResponse = await fetch(
-          "https://overpass-api.de/api/interpreter",
+          "http://overpass.riogas.uy/api/interpreter",
           {
             method: "POST",
             headers: { "Content-Type": "text/plain" },

@@ -19,6 +19,8 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
+import { clearAuthToken } from "@/lib/authToken";
 
 const user =
   typeof window !== "undefined"
@@ -57,6 +59,7 @@ export function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [puestos, setPuestos] = useState<any[]>([]);
   const [puestoActual, setPuestoActual] = useState<any>(null);
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -86,6 +89,23 @@ export function Navbar() {
       // Opcional: actualizar cookie
       document.cookie = `puestoId=${nuevo.puestoId}; path=/; max-age=${60 * 60 * 24 * 30}`;
       document.cookie = `PuestoDsc=${nuevo.PuestoDsc}; path=/; max-age=${60 * 60 * 24 * 30}`;
+    }
+  };
+
+  const handleLogout = () => {
+    try {
+      clearAuthToken();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("user");
+        localStorage.removeItem("puesto");
+        localStorage.removeItem("puestos");
+        localStorage.removeItem("puestoActual");
+      }
+      // limpiar cookies relacionadas
+      document.cookie = "puestoId=; path=/; max-age=0";
+      document.cookie = "PuestoDsc=; path=/; max-age=0";
+    } finally {
+      router.push("/login");
     }
   };
 
@@ -141,7 +161,7 @@ export function Navbar() {
               ))}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => console.log("Cerrar sesión")}>
+          <DropdownMenuItem onClick={handleLogout}>
             Cerrar sesión
           </DropdownMenuItem>
         </DropdownMenuContent>

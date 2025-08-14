@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getAuthToken } from "./authToken";
 
 // Instancia para el backend de GeneXus (usa proxy: /api -> http://192.168.1.72:8082/puestos/gestion/)
 const api = axios.create({
@@ -7,6 +8,20 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+// Adjuntar token automáticamente si existe
+api.interceptors.request.use((config) => {
+  try {
+    const token = getAuthToken();
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {
+    // noop
+  }
+  return config;
 });
 
 // Instancia para Overpass

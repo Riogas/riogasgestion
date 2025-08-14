@@ -1,5 +1,6 @@
 import { api, overpassApi } from "@/lib/axios";
 import { withApiLogging, setSentryUser, clearSentryUser } from "@/lib/sentryHelpers";
+import { setAuthToken } from "@/lib/authToken";
 
 // Tipos globales
 export type Role = "admin" | "user";
@@ -15,83 +16,88 @@ export interface MenuItem {
   label: string;
   icon: string;
   path: string;
+  // Campos opcionales que puede devolver el backend
+  order?: number;
+  key?: string;
 }
 
-// ✅ Función de login (mockeada por ahora)
+// ✅ Función de login real
 export const apiLogin = async (
   email: string,
   password: string,
 ): Promise<{ data: { success: boolean; user: User } }> => {
   return withApiLogging(
-    "/auth/login",
+    "/login",
     async () => {
-      // TODO: Descomentá esto cuando tengas backend
-      // return api.post("/auth/login", { email, password });
+      // Llamada real al backend
+      const body = {
+        UserName: email, // el front pasaba email/usuario; el backend espera UserName
+        Password: password,
+      };
 
-      // Mock temporal
-      const result = await new Promise<{ data: { success: boolean; user: User } }>((resolve) =>
-        setTimeout(() => {
-          const user = {
-            name: "Julio Gómez",
-            email: "julio.gomez@riogas.com.uy",
-            role: "admin" as Role, // Cambiar a "user" si querés simular otro perfil
-            token: "fake-jwt-token-12345",
-          };
+      const { data } = await api.post("/login", body);
 
-          // Configurar usuario en Sentry después del login exitoso
-          setSentryUser({
-            id: user.email,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-          });
+      // La API devuelve { RespuestaLogin: "{...json...}" }
+      const parsed = JSON.parse(data?.RespuestaLogin ?? "{}");
 
-          resolve({
-            data: {
-              success: true,
-              user,
-            },
-          });
-        }, 1000)
-      );
-      
-      return result;
+      if (!parsed?.success) {
+        throw new Error(parsed?.message || "Credenciales inválidas");
+      }
+
+      // Persistir token
+      const token: string = parsed?.token;
+      if (token) setAuthToken(token);
+
+      // Mapear user para el front
+      const gxUser = parsed?.user || {};
+      const user: User = {
+        name: gxUser?.nombre || gxUser?.username || "",
+        email: gxUser?.email || "",
+        role: (gxUser?.isRoot === "S" ? "admin" : "user") as Role,
+        token,
+      };
+
+      // Configurar usuario en Sentry
+      setSentryUser({
+        id: gxUser?.username || gxUser?.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      });
+
+      return { data: { success: true, user } };
     },
     "POST",
-    { email, password: "[HIDDEN]" } // No loggear la contraseña real
+    { email, password: "[HIDDEN]" }
   );
 };
 
-// ✅ Mock de menús según rol
+// ✅ Menú por rol desde backend
 export const apiGetMenuByRole = async (role: Role): Promise<MenuItem[]> => {
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  return withApiLogging(
+    "/menuApp",
+    async () => {
+      const body = { AplicacionNombre: "GOYA" };
+      const { data } = await api.post("/menuApp", body);
+      const parsed = JSON.parse(data?.RespuestaLogin ?? "{}");
 
-  const menusByRole: Record<Role, MenuItem[]> = {
-    admin: [
-      { label: "Clientes", icon: "users", path: "/dashboard/clientes" },
-      { label: "Pedidos", icon: "package", path: "/dashboard/pedidos" },
-      { label: "Moviles", icon: "truck", path: "/dashboard/moviles" },
-      { label: "Zonas", icon: "map", path: "/dashboard/mapa" },
-      {
-        label: "Configuración",
-        icon: "settings",
-        path: "/dashboard/configuracion",
-      },
-      { label: "Reportes", icon: "bar-chart", path: "/dashboard/reportes" },
-      { label: "Perfil", icon: "user", path: "/dashboard/perfil" },
-      {
-        label: "Normalizar Calles",
-        icon: "map",
-        path: "/dashboard/normalizar-calles",
-      },
-    ],
-    user: [
-      { label: "Menu 1", icon: "file-text", path: "/dashboard/menu1" },
-      { label: "Menu 2", icon: "list", path: "/dashboard/menu2" },
-    ],
-  };
+      const items = Array.isArray(parsed?.sdtPuntosMenu)
+        ? parsed.sdtPuntosMenu
+        : [];
 
-  return menusByRole[role] || [];
+      return items
+        .map((m: any) => ({
+          label: m.label,
+          icon: m.icon,
+          path: m.path,
+          order: m.order,
+          key: m.key,
+        }))
+        .sort((a: MenuItem, b: MenuItem) => (a.order ?? 0) - (b.order ?? 0));
+    },
+    "POST",
+    { AplicacionNombre: "GOYA" }
+  );
 };
 
 // ✅ Funciones reales (cuando el backend esté listo)

@@ -73,32 +73,57 @@ export const apiLogin = async (
 };
 
 // ✅ Menú por rol desde backend
+// 👇 si esto corre en el cliente, SOLO vas a ver NEXT_PUBLIC_*
+const APP_ID = Number(process.env.NEXT_PUBLIC_APLICACION_ID ?? 0);
+
+// (opcional) si querés fallar fuerte cuando no hay APP_ID válido:
+function assertAppId(): number {
+  if (!Number.isFinite(APP_ID) || APP_ID <= 0) {
+    // Podés hacer un console.warn en prod si no querés romper
+    throw new Error('APP_ID no configurado. Define NEXT_PUBLIC_APLICACION_ID en .env.local');
+  }
+  return APP_ID;
+}
+
 export const apiGetMenuByRole = async (role: Role): Promise<MenuItem[]> => {
+  const appId = assertAppId(); // valida y obtiene
+
   return withApiLogging(
     "/menuApp",
     async () => {
-      const body = { AplicacionNombre: "GOYA" };
+      // 👇 el backend espera { AplicacionId: number }
+      const body = { AplicacionId: appId };
+
       const { data } = await api.post("/menuApp", body);
-      const parsed = JSON.parse(data?.RespuestaLogin ?? "{}");
+
+      // data?.RespuestaLogin podría ser undefined o un JSON inválido
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(data?.RespuestaLogin ?? "{}");
+      } catch {
+        parsed = {};
+      }
 
       const items = Array.isArray(parsed?.sdtPuntosMenu)
         ? parsed.sdtPuntosMenu
         : [];
 
       return items
-        .map((m: any) => ({
-          label: m.label,
-          icon: m.icon,
-          path: m.path,
-          order: m.order,
-          key: m.key,
+        .map((m: any): MenuItem => ({
+          label: m?.label ?? "",
+          icon: m?.icon ?? "",
+          path: m?.path ?? "#",
+          order: m?.order ?? 0,
+          key: m?.key ?? m?.path ?? "",
         }))
         .sort((a: MenuItem, b: MenuItem) => (a.order ?? 0) - (b.order ?? 0));
     },
     "POST",
-    { AplicacionNombre: "GOYA" }
+    // meta extra para logging/observabilidad
+    { AplicacionId: appId, Role: role }
   );
 };
+
 
 // ✅ Funciones reales (cuando el backend esté listo)
 export const apiGetCurrentUser = () =>
@@ -755,19 +780,29 @@ export const apiABMTipoCapa = async (
 };
 
 // ✅ Servicios para ABM Puestos
-export const apiABMPuesto = async (
+export function apiABMPuesto(body: any): Promise<any>;
+export function apiABMPuesto(
   modo: string,
   puestoId: number,
   descripcion: string,
   estado: string
-) => {
+): Promise<any>;
+export async function apiABMPuesto(
+  a: any,
+  b?: number,
+  c?: string,
+  d?: string
+): Promise<any> {
   try {
-    const response = await api.post("/ABMPuesto", {
-      Modo: modo,
-      PuestoId: puestoId,
-      PuestoDsc: descripcion,
-      PuestoEstado: estado,
-    });
+    const payload = typeof a === "object"
+      ? a
+      : {
+          Modo: a,
+          PuestoId: b,
+          PuestoDsc: c,
+          PuestoEstado: d,
+        };
+    const response = await api.post("/ABMPuesto", payload);
     return response.data;
   } catch (error: any) {
     console.error(
@@ -827,5 +862,48 @@ export const apiCheckPermiso = async (ruta: string, token: string): Promise<bool
   } catch (error) {
     console.error("Error al chequear permisos:", error);
     return false;
+  }
+};
+
+// =====================
+// ✅ Servicio: Listado de usuarios (POST /usuarios)
+// Mismo formato que apiValidarPermiso, sin tipos adicionales
+// =====================
+export const apiUsuarios = async (
+  payload: any,
+  opts?: { signal?: AbortSignal },
+) => {
+  try {
+    const res = await api.post("/usuarios", payload, {
+      signal: opts?.signal,
+      withCredentials: true,
+    });
+    return res.data;
+  } catch (error: any) {
+    const status = error?.response?.status;
+
+    if (status === 401) {
+      try {
+        clearSentryUser();
+      } catch {}
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("user");
+          localStorage.removeItem("token");
+        }
+        if (typeof document !== "undefined") {
+          document.cookie = "token=; path=/; max-age=0";
+        }
+      } catch {}
+      const e = new Error("UNAUTHORIZED");
+      (e as any).status = 401;
+      throw e;
+    }
+
+    if (status === 403) {
+      return error?.response?.data || { reason: "FORBIDDEN" };
+    }
+
+    throw error;
   }
 };

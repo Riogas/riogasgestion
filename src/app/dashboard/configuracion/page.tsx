@@ -23,8 +23,9 @@ import Puestos from "@/components/configuracion/Puestos";
 export default function ConfiguracionPage() {
   return (
     <div className="p-4">
-      <Tabs defaultValue="usuarios" className="w-full">
+      <Tabs defaultValue="puestos" className="w-full">
         <TabsList>
+          <TabsTrigger value="puestos">Puestos</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="permisos">Permisos</TabsTrigger>
@@ -32,11 +33,22 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="localidades">Localidades</TabsTrigger>
           <TabsTrigger value="calles">Calles</TabsTrigger>
           <TabsTrigger value="zonificacion">Zonificación</TabsTrigger>
-          <TabsTrigger value="puestos">Puestos</TabsTrigger>
           <TabsTrigger value="tipos-capa">Tipos de Capa</TabsTrigger>
           <TabsTrigger value="capas">Capas</TabsTrigger>
           <TabsTrigger value="zonas">Zonas</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="puestos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Puestos</CardTitle>
+              <CardDescription>Administración de puestos de trabajo.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Puestos />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="usuarios">
           <Card>
@@ -137,21 +149,6 @@ export default function ConfiguracionPage() {
             </CardContent>
             <CardFooter>
               <div>Footer de Zonificación</div>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="puestos">
-          <Card>
-            <CardHeader>
-              <CardTitle>Puestos</CardTitle>
-              <CardDescription>Administración de puestos de trabajo.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Puestos />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Puestos</div>
             </CardFooter>
           </Card>
         </TabsContent>

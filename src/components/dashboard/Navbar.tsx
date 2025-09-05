@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Info } from "lucide-react";
+import { Moon, Sun, Info, Monitor, Hash, User2, CalendarClock, MapPin, Clipboard, ClipboardCheck } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"; // <-- shadcn/ui dialog
+import Image from "next/image";
 
 /* ===== Props que llegan desde NavbarServer (Server Component) ===== */
 type NavbarProps = {
@@ -62,6 +63,7 @@ export function Navbar({
   const [puestos, setPuestos] = useState<any[]>([]);
   const [puestoActual, setPuestoActual] = useState<any>(null);
   const [openInfo, setOpenInfo] = useState(false);
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
 
   // Usuario efectivo: prioriza lo que viene del middleware (server)
@@ -126,6 +128,8 @@ export function Navbar({
   const copiarDetalles = async () => {
     try {
       await navigator.clipboard.writeText(detallesParaCopiar);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
     } catch {
       // Fallback: descarga .txt si falla clipboard (navegadores raros)
       const blob = new Blob([detallesParaCopiar], { type: "text/plain" });
@@ -133,28 +137,16 @@ export function Navbar({
       const a = document.createElement("a");
       a.href = url; a.download = "detalles_pantalla.txt"; a.click();
       URL.revokeObjectURL(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
     }
   };
 
   return (
     <header className="h-16 px-6 flex items-center justify-between border-b bg-card gap-4">
-      {/* IZQUIERDA: info de la pantalla actual (del middleware vía NavbarServer) */}
-      <div className="flex items-center gap-3 text-xs md:text-sm text-muted-foreground">
-        {routeName && (
-          <span className="px-2 py-1 rounded border bg-secondary/40">
-            Pantalla: <span className="font-medium text-foreground">{routeName}</span>
-          </span>
-        )}
-        {codeWithApp && (
-          <span className="px-2 py-1 rounded border bg-secondary/40">
-            Código: <code className="font-mono">{codeWithApp}</code>
-          </span>
-        )}
-        {dateTime && (
-          <span className="px-2 py-1 rounded border bg-secondary/40">
-            {dateTime}
-          </span>
-        )}
+      {/* IZQUIERDA: logo */}
+      <div className="flex items-center">
+        <Image src="/logogoya.png" alt="Logo" width={120} height={32} className="h-8 w-auto" />
       </div>
 
       {/* DERECHA: acciones, info de permisos (modal), puestos y usuario */}
@@ -168,7 +160,7 @@ export function Navbar({
                 <Info className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-200">
               <DialogHeader>
                 <DialogTitle>Información de esta pantalla</DialogTitle>
                 <DialogDescription>
@@ -176,34 +168,74 @@ export function Navbar({
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Pantalla</span>
-                  <span className="font-medium">{routeName || "—"}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Código</span>
-                  <code className="font-mono">{codeWithApp || routeCode || "—"}</code>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Usuario</span>
-                  <span className="font-medium">{effectiveUserName || "—"}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Fecha/Hora</span>
-                  <span className="font-medium">{dateTime || "—"}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Puesto</span>
-                  <span className="font-medium">
-                    {puestoActual?.PuestoDsc ?? (mounted && puestos.length === 1 ? puestos[0].PuestoDsc : "—")}
-                  </span>
+              {/* Nuevo diseño más presentable */}
+              <div className="space-y-4">
+                <div className="rounded-xl border bg-muted/30 p-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Monitor className="h-4 w-4" />
+                      </span>
+                      <div className="text-sm">
+                        <div className="text-muted-foreground">Pantalla</div>
+                        <div className="font-medium">{routeName || "—"}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Hash className="h-4 w-4" />
+                      </span>
+                      <div className="text-sm">
+                        <div className="text-muted-foreground">Código</div>
+                        <code className="font-mono text-xs">{codeWithApp || routeCode || "—"}</code>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <User2 className="h-4 w-4" />
+                      </span>
+                      <div className="text-sm">
+                        <div className="text-muted-foreground">Usuario</div>
+                        <div className="font-medium">{effectiveUserName || "—"}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <CalendarClock className="h-4 w-4" />
+                      </span>
+                      <div className="text-sm">
+                        <div className="text-muted-foreground">Fecha/Hora</div>
+                        <div className="font-medium">{dateTime || "—"}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 sm:col-span-2">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <MapPin className="h-4 w-4" />
+                      </span>
+                      <div className="text-sm">
+                        <div className="text-muted-foreground">Puesto</div>
+                        <div className="font-medium">{puestoActual?.PuestoDsc ?? (mounted && puestos.length === 1 ? puestos[0].PuestoDsc : "—")}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <DialogFooter className="mt-4">
                 <Button variant="secondary" onClick={copiarDetalles}>
-                  Copiar detalles
+                  {copied ? (
+                    <>
+                      <ClipboardCheck className="h-4 w-4 mr-1" /> Copiado
+                    </>
+                  ) : (
+                    <>
+                      <Clipboard className="h-4 w-4 mr-1" /> Copiar
+                    </>
+                  )}
                 </Button>
                 <Button onClick={() => setOpenInfo(false)}>Cerrar</Button>
               </DialogFooter>

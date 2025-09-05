@@ -123,6 +123,7 @@ import {
   Trophy,
   Flag,
   Anchor,
+  LayoutGrid,
 } from "lucide-react";
 
 export const iconMap = {
@@ -249,4 +250,5 @@ export const iconMap = {
   truck: Truck,
   "file-text": FileText,
   list: List,
+  layoutGrid: LayoutGrid,
 };

@@ -19,6 +19,12 @@ export interface MenuItem {
   // Campos opcionales que puede devolver el backend
   order?: number;
   key?: string;
+  // Nuevos campos del backend
+  enabled?: boolean;
+  visible?: boolean;
+  type?: string;
+  style?: string;
+  children?: MenuItem[];
 }
 
 // ✅ Función de login real
@@ -76,47 +82,138 @@ export const apiLogin = async (
 // 👇 si esto corre en el cliente, SOLO vas a ver NEXT_PUBLIC_*
 const APP_ID = Number(process.env.NEXT_PUBLIC_APLICACION_ID ?? 0);
 
-// (opcional) si querés fallar fuerte cuando no hay APP_ID válido:
-function assertAppId(): number {
+function getAppIdSafe(): number {
   if (!Number.isFinite(APP_ID) || APP_ID <= 0) {
-    // Podés hacer un console.warn en prod si no querés romper
-    throw new Error('APP_ID no configurado. Define NEXT_PUBLIC_APLICACION_ID en .env.local');
+    console.warn("[api.menuApp] NEXT_PUBLIC_APLICACION_ID no configurado. Usando 0.");
+    return 0;
   }
   return APP_ID;
 }
 
+function normalizeBool(v: any): boolean | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v === "boolean") return v;
+  const s = String(v).toLowerCase();
+  return s === "true" || s === "1" || s === "s" || s === "yes";
+}
+
+function toNumber(n: any, d: number = 0): number {
+  const v = Number(n);
+  return Number.isFinite(v) ? v : d;
+}
+
+function mapMenuItem(raw: any): MenuItem {
+  const childrenRaw = Array.isArray(raw?.children) ? raw.children : [];
+  const mappedChildren = childrenRaw
+    .map(mapMenuItem)
+    .sort((a: MenuItem, b: MenuItem) => (a.order ?? 0) - (b.order ?? 0));
+  return {
+    label: raw?.label ?? "",
+    icon: raw?.icon ?? "list",
+    path: raw?.path ?? "#",
+    key: raw?.key ?? raw?.path ?? raw?.label ?? undefined,
+    order: toNumber(raw?.order, 0),
+    enabled: normalizeBool(raw?.enabled),
+    visible: normalizeBool(raw?.visible),
+    type: raw?.type ?? undefined,
+    style: raw?.style ?? undefined,
+    children: mappedChildren,
+  };
+}
+
+function sanitizeChildren(raw: string): string {
+  return raw
+    .replace(/"children"\s*:\s*}/g, '"children":[]}')
+    .replace(/"children"\s*:\s*,/g, '"children":[],');
+}
+
+function tryParseJson(raw: string, ctx: string): any {
+  const log = (...args: any[]) => console.log("[api.menuApp]", ...args);
+  try {
+    const parsed = JSON.parse(raw);
+    log(`JSON.parse OK (${ctx}). keys=`, Object.keys(parsed || {}));
+    return parsed;
+  } catch (e1) {
+    log(`JSON.parse FAILED (${ctx}). Trying sanitize...`, (e1 as any)?.message);
+    try {
+      const parsed2 = JSON.parse(sanitizeChildren(raw));
+      log(`Sanitized parse OK (${ctx}). keys=`, Object.keys(parsed2 || {}));
+      return parsed2;
+    } catch (e2) {
+      log(`Sanitized parse FAILED (${ctx}).`, (e2 as any)?.message);
+      return {};
+    }
+  }
+}
+
+function safeParseMenuEnvelope(data: any): any {
+  const log = (...args: any[]) => console.log("[api.menuApp]", ...args);
+  let level1: any = {};
+  try {
+    if (typeof data?.RespuestaLogin === "string") {
+      const raw = data.RespuestaLogin as string;
+      log("RespuestaLogin len=", raw.length);
+      level1 = tryParseJson(raw, "RespuestaLogin");
+    } else if (typeof data === "object" && data) {
+      log("Direct object response. keys=", Object.keys(data));
+      level1 = data;
+    }
+  } catch (e) {
+    console.warn("[api.menuApp] Unexpected parse error:", (e as any)?.message);
+    level1 = {};
+  }
+
+  // Algunos backends envuelven el menú en 'resp' como string JSON
+  if (level1 && typeof level1.resp === "string") {
+    const inner = tryParseJson(level1.resp as string, "resp");
+    // Si el inner contiene 'menu', devolvemos ese nivel; si no, devolvemos level1
+    if (inner && (Array.isArray(inner.menu) || Array.isArray(inner.sdtPuntosMenu))) {
+      return inner;
+    }
+  }
+
+  return level1 || {};
+}
+
 export const apiGetMenuByRole = async (role: Role): Promise<MenuItem[]> => {
-  const appId = assertAppId(); // valida y obtiene
+  // No uses assert sin promesa: evita throw sin catch
+  const appId = getAppIdSafe();
 
   return withApiLogging(
     "/menuApp",
     async () => {
-      // 👇 el backend espera { AplicacionId: number }
       const body = { AplicacionId: appId };
+      console.log("[api.menuApp] POST /menuApp body=", body, "role=", role);
 
       const { data } = await api.post("/menuApp", body);
+      console.log("[api.menuApp] raw axios data keys=", typeof data === "object" ? Object.keys(data || {}) : typeof data);
 
-      // data?.RespuestaLogin podría ser undefined o un JSON inválido
-      let parsed: any = {};
-      try {
-        parsed = JSON.parse(data?.RespuestaLogin ?? "{}");
-      } catch {
-        parsed = {};
+      const parsed = safeParseMenuEnvelope(data);
+      console.log("[api.menuApp] parsed.errid=", parsed?.errid, "mensaje=", parsed?.mensaje);
+
+      const rawItems: any[] = Array.isArray(parsed?.menu)
+        ? parsed.menu
+        : Array.isArray(parsed?.sdtPuntosMenu)
+          ? parsed.sdtPuntosMenu
+          : [];
+      console.log("[api.menuApp] rawItems length=", rawItems.length);
+
+      const items: MenuItem[] = rawItems
+        .map(mapMenuItem)
+        .sort((a: MenuItem, b: MenuItem) => (a.order ?? 0) - (b.order ?? 0));
+
+      console.log("[api.menuApp] mapped items length=", items.length);
+      if (items.length) {
+        console.log("[api.menuApp] first item sample=", {
+          label: items[0].label,
+          path: items[0].path,
+          icon: items[0].icon,
+          order: items[0].order,
+          children: items[0].children?.length ?? 0,
+        });
       }
 
-      const items = Array.isArray(parsed?.sdtPuntosMenu)
-        ? parsed.sdtPuntosMenu
-        : [];
-
-      return items
-        .map((m: any): MenuItem => ({
-          label: m?.label ?? "",
-          icon: m?.icon ?? "",
-          path: m?.path ?? "#",
-          order: m?.order ?? 0,
-          key: m?.key ?? m?.path ?? "",
-        }))
-        .sort((a: MenuItem, b: MenuItem) => (a.order ?? 0) - (b.order ?? 0));
+      return items;
     },
     "POST",
     // meta extra para logging/observabilidad

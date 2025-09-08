@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,9 @@ import { Pager } from "@/components/abm/Pager";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { X, Filter } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
+const DynamicMapa = dynamic(() => import("@/components/mapa/OpenStreetMap"), { ssr: false });
 
 // Tipo base (puedes ajustar luego según API)
 export type Pedido = {
@@ -32,6 +36,17 @@ export type Pedido = {
   estado: string;
   campania?: string;
   importe?: number;
+  direccionCompleta?: string;
+  observaciones?: string;
+  // nuevos campos de direccion detallada
+  departamento?: string;
+  localidad?: string;
+  calle?: string;
+  nroPuerta?: string;
+  esquina1?: string;
+  esquina2?: string;
+  block?: string;
+  apto?: string;
 };
 
 const mockPedidos: Pedido[] = Array.from({ length: 12 }).map((_, i) => ({
@@ -53,12 +68,42 @@ const mockPedidos: Pedido[] = Array.from({ length: 12 }).map((_, i) => ({
   estado: i % 2 ? "Activo" : "Pendiente",
   campania: i % 3 ? "Promo" : "",
   importe: 1000 + i * 50,
+  // direccion compuesta
+  departamento: i % 2 === 0 ? "Montevideo" : "Canelones",
+  localidad: i % 2 === 0 ? "Montevideo" : "Las Piedras",
+  calle: i % 2 === 0 ? "Av. Italia" : "Av. Artigas",
+  nroPuerta: String(1200 + i),
+  esquina1: i % 2 === 0 ? "Bvar. Artigas" : "18 de Julio",
+  esquina2: i % 2 === 0 ? "Mateo Vidal" : "Ejido",
+  block: i % 3 === 0 ? "B" : i % 3 === 1 ? "A" : "",
+  apto: i % 4 === 0 ? "1202" : i % 4 === 1 ? "3B" : "",
+  direccionCompleta: `Av. Italia ${1200 + i}, Montevideo, Uruguay`,
+  observaciones: i % 2 === 0 ? "Dejar en portería. Cliente con perro." : "Sin observaciones",
 }));
 
 const ALL = "__all__"; // sentinel para "Todos"
 
 function unique<T extends string | number | undefined>(arr: (T | null | undefined)[]) {
   return Array.from(new Set(arr.filter(Boolean) as T[]));
+}
+
+function parseDireccionCompleta(dc?: string) {
+  let direccion = "";
+  let nroPuerta = "";
+  let localidad = "";
+  let departamento = "";
+  if (!dc) return { direccion, nroPuerta, localidad, departamento };
+  const parts = dc.split(",").map((s) => s.trim());
+  const first = parts[0];
+  const second = parts[1];
+  const third = parts[2];
+  if (first) {
+    const m = first.match(/^(.*)\s+(\d+[A-Za-z\/]*)$/);
+    if (m) { direccion = m[1]; nroPuerta = m[2]; } else { direccion = first; }
+  }
+  if (second) localidad = second;
+  if (third && third.toLowerCase() !== "uruguay") departamento = third;
+  return { direccion, nroPuerta, localidad, departamento };
 }
 
 export default function Pedidos() {
@@ -68,6 +113,16 @@ export default function Pedidos() {
   const [pageSize, setPageSize] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
   const onCreate = () => { /* TODO: Crear Pedido */ };
+  // New: info of hovered row to show above the table
+  const [hoverInfo, setHoverInfo] = useState<{ direccion?: string; obs?: string } | null>(null);
+  // New: modal state for row click
+  const [selected, setSelected] = useState<Pedido | null>(null);
+  const [open, setOpen] = useState(false);
+  const parsed = useMemo(() => parseDireccionCompleta(selected?.direccionCompleta || ""), [selected?.direccionCompleta]);
+  const mapDepartamento = selected?.departamento || parsed.departamento;
+  const mapLocalidad = selected?.localidad || parsed.localidad;
+  const mapDireccion = selected?.calle || parsed.direccion;
+  const mapNro = selected?.nroPuerta || parsed.nroPuerta;
 
   // Filtros avanzados (colapsables)
   const [filters, setFilters] = useState({
@@ -358,7 +413,28 @@ export default function Pedidos() {
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      {/* Hover info bar above the table (fixed height to avoid layout shift) */}
+      <div className="mb-2 rounded border border-border bg-muted/20 px-3 h-10 flex items-center">
+        {hoverInfo?.direccion || hoverInfo?.obs ? (
+          <div className="flex gap-6 min-w-0 w-full items-center">
+            <div className="min-w-0 truncate">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-2">Dirección</span>
+              <span className="text-sm text-foreground font-medium leading-tight">{hoverInfo?.direccion || "—"}</span>
+            </div>
+            {hoverInfo?.obs && (
+              <div className="min-w-0 truncate">
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-2">Obs.</span>
+                <span className="text-sm text-foreground leading-tight">{hoverInfo.obs}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          // keep space reserved so layout doesn't move
+          <span className="opacity-0 text-sm">placeholder</span>
+        )}
+      </div>
+
+      <div className="overflow-x-auto" onMouseLeave={() => setHoverInfo(null)}>
         <Table className="text-sm min-w-[1000px]">
           <TableHeader>
             <TableRow>
@@ -383,7 +459,12 @@ export default function Pedidos() {
           </TableHeader>
           <TableBody>
             {paged.map((p) => (
-              <TableRow key={p.id} className="hover:bg-muted/40">
+              <TableRow
+                key={p.id}
+                className="hover:bg-muted/40 cursor-pointer"
+                onMouseEnter={() => setHoverInfo({ direccion: p.direccionCompleta, obs: p.observaciones })}
+                onClick={() => { setSelected(p); setOpen(true); }}
+              >
                 <TableCell className="font-medium whitespace-nowrap">{p.nroPedido}</TableCell>
                 <TableCell className="whitespace-nowrap">{new Date(p.fechaPara).toLocaleString()}</TableCell>
                 <TableCell className="whitespace-nowrap">{p.telefono}</TableCell>
@@ -415,6 +496,133 @@ export default function Pedidos() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Details modal */}
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSelected(null); }}>
+        <DialogContent className="p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-3 border-b">
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span>Pedido {selected?.nroPedido}</span>
+                {selected?.subEstado && (
+                  <Badge variant="secondary" className="text-xs">{selected.subEstado}</Badge>
+                )}
+              </div>
+            </DialogTitle>
+            <DialogDescription>
+              {selected?.fechaPara ? new Date(selected.fechaPara).toLocaleString() : ""}
+            </DialogDescription>
+            {selected?.telefono && (
+              <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground mr-1">Teléfono</span>
+                  <span className="font-medium">{selected.telefono}</span>
+                </div>
+                {selected?.movil && (
+                  <div>
+                    <span className="text-muted-foreground mr-1">Móvil</span>
+                    <span className="font-medium">{selected.movil}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogHeader>
+
+          <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left: main info */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Dirección</div>
+                <div className="space-y-1">
+                  <div className="text-base font-medium">
+                    {mapDireccion || mapNro ? (
+                      <>
+                        <span>{mapDireccion || "—"}</span>{" "}
+                        {mapNro && <span>{mapNro}</span>}
+                      </>
+                    ) : (
+                      selected?.direccionCompleta || "—"
+                    )}
+                  </div>
+                  {(() => {
+                    const parts: string[] = [];
+                    if (selected?.esquina1 || selected?.esquina2) {
+                      parts.push(`Entre ${selected?.esquina1 || "—"} y ${selected?.esquina2 || "—"}`);
+                    }
+                    const extras = [
+                      selected?.block ? `Block ${selected.block}` : "",
+                      selected?.apto ? `Apto ${selected.apto}` : "",
+                    ].filter(Boolean).join(" · ");
+                    if (extras) parts.push(extras);
+                    const loc = [mapLocalidad || "", mapDepartamento || ""].filter(Boolean).join(", ");
+                    if (loc) parts.push(loc);
+                    return parts.length ? (
+                      <div className="text-sm text-muted-foreground">{parts.join(" · ")}</div>
+                    ) : null;
+                  })()}
+                </div>
+              </div>
+
+              <div className="rounded-md border overflow-hidden">
+                <div className="px-4 py-2 border-b bg-muted/30 text-[11px] uppercase tracking-wide text-muted-foreground">Ubicación</div>
+                <DynamicMapa
+                  departamento={mapDepartamento}
+                  localidad={mapLocalidad}
+                  direccion={mapDireccion}
+                  nroPuerta={mapNro}
+                  zonas={[]}
+                  mapHeightPx={280}
+                />
+              </div>
+
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Observaciones</div>
+                <div className="text-sm whitespace-pre-line leading-relaxed">{selected?.observaciones || "—"}</div>
+              </div>
+            </div>
+
+            {/* Right: summary */}
+            <div className="space-y-4">
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-3">Detalle</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="text-muted-foreground">Producto</div><div className="font-medium">{selected?.producto}</div>
+                  <div className="text-muted-foreground">Cantidad</div><div className="font-medium">{selected?.cant}</div>
+                  <div className="text-muted-foreground">Servicio</div>
+                  <div>
+                    <Badge className={selected?.servicio === "Urgente" ? "bg-red-500 text-white" : selected?.servicio === "Especial" ? "bg-amber-500 text-white" : ""}>{selected?.servicio || "Normal"}</Badge>
+                  </div>
+                  <div className="text-muted-foreground">Forma de pago</div><div className="font-medium">{selected?.formaPago || "—"}</div>
+                  <div className="text-muted-foreground">Importe</div><div className="font-medium">{selected?.importe?.toLocaleString() ?? "—"}</div>
+                  <div className="text-muted-foreground">Estado</div><div className="font-medium">{selected?.estado || "—"}</div>
+                  <div className="text-muted-foreground">SubEstado</div><div className="font-medium">{selected?.subEstado || "—"}</div>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-3">Tiempos</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="text-muted-foreground">Fecha para</div><div className="font-medium">{selected?.fechaPara ? new Date(selected.fechaPara).toLocaleString() : "—"}</div>
+                  <div className="text-muted-foreground">Atraso</div><div className="font-medium">{selected?.atraso ?? "—"}</div>
+                  <div className="text-muted-foreground">Demora zona</div><div className="font-medium">{selected?.demoraZona ?? "—"}</div>
+                  <div className="text-muted-foreground">Prioridad</div><div className="font-medium">{String(selected?.prioridad ?? "—")}</div>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-3">Origen</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="text-muted-foreground">Canal</div><div className="font-medium">{selected?.canal || "—"}</div>
+                  <div className="text-muted-foreground">Zona</div><div className="font-medium">{selected?.zona || "—"}</div>
+                  <div className="text-muted-foreground">Campaña</div><div className="font-medium">{selected?.campania || "—"}</div>
+                  <div className="text-muted-foreground">Móvil</div><div className="font-medium">{selected?.movil || "—"}</div>
+                  <div className="text-muted-foreground">Teléfono</div><div className="font-medium">{selected?.telefono}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Pager
         page={safePage}

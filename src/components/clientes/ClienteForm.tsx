@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Fragment, useEffect, useState } from "react";
 import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import {
 
 import dynamic from "next/dynamic";
 import { Dialog, Transition } from "@headlessui/react";
-import { Fragment } from "react";
 import { Pencil, Trash } from "lucide-react";
 import { Combobox } from "@headlessui/react";
 import Mapa from "@/components/mapa/OpenStreetMap";
@@ -34,6 +33,10 @@ import { GenexusFeatureCollectionToGeoJson } from "@/lib/convertirGeoJson";
 import { point as turfPoint } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { toast } from "sonner"; // Para notificaciones visuales
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TelefonosTable, Telefono } from "./TelefonosTable";
+import { DireccionesTable, DireccionRow } from "./DireccionesTable";
+import { DireccionEditor, Direccion } from "./DireccionEditor";
 
 // Cargamos el mapa dinámicamente (por ahora sin SSR)
 const DynamicMapa = dynamic(() => import("@/components/mapa/OpenStreetMap"), {
@@ -108,10 +111,10 @@ const departamentos = [
   { nombre: "Salto", localidades: ["Salto"] },
 ];
 
-
 // Corrige todos los Feature Polygon/MultiPolygon en una FeatureCollection
 function fixPolygonCoords(featureCollection: any): any {
-  if (!featureCollection || featureCollection.type !== "FeatureCollection") return featureCollection;
+  if (!featureCollection || featureCollection.type !== "FeatureCollection")
+    return featureCollection;
 
   // Invertir coordenadas en todos los features
   return {
@@ -149,13 +152,10 @@ function fixPolygonCoords(featureCollection: any): any {
   };
 }
 
-
-
-
-
 // Helper para asegurar que los polígonos estén en formato [lng, lat]
 function ensurePolygonsLngLat(geojson: any): any {
-  if (!geojson || geojson.type !== "FeatureCollection" || !Array.isArray(geojson.features)) return geojson;
+  if (!geojson || geojson.type !== "FeatureCollection" || !Array.isArray(geojson.features))
+    return geojson;
   return {
     ...geojson,
     features: geojson.features.map((feature: any) => {
@@ -255,8 +255,6 @@ function getPuestoActual() {
   return null;
 }
 
-
-
 export default function ClienteForm({ clienteId }: ClienteFormProps) {
   const [coords, setCoords] = useState({ lat: "", lng: "" });
   const [loading, setLoading] = useState(false);
@@ -276,6 +274,11 @@ export default function ClienteForm({ clienteId }: ClienteFormProps) {
   const [runTour, setRunTour] = useState(false);
   const [capas, setCapas] = useState<any[]>([]);
   const [capasGeoJson, setCapasGeoJson] = useState<any[]>([]);
+  const [tab, setTab] = useState("datos");
+  const [telefonosRows, setTelefonosRows] = useState<Telefono[]>([]);
+  const [direcciones, setDirecciones] = useState<DireccionRow[]>([]);
+  const [editingDirId, setEditingDirId] = useState<string | undefined>(undefined);
+  const [dirDraft, setDirDraft] = useState<Direccion>({});
 
   const steps: Step[] = [
     {
@@ -319,60 +322,75 @@ export default function ClienteForm({ clienteId }: ClienteFormProps) {
   ];
 
   useEffect(() => {
-  if (!coords.lat || !coords.lng || capasGeoJson.length === 0) return;
+    if (!coords.lat || !coords.lng || capasGeoJson.length === 0) return;
 
-  // Asegurate que el punto sea [lng, lat]
-  const pt = turfPoint([parseFloat(coords.lng), parseFloat(coords.lat)]);
-  let inZone = false;
+    // Asegurate que el punto sea [lng, lat]
+    const pt = turfPoint([parseFloat(coords.lng), parseFloat(coords.lat)]);
+    let inZone = false;
 
-  console.log("[ZONA DEBUG] === Comprobando punto:", pt);
+    console.log("[ZONA DEBUG] === Comprobando punto:", pt);
 
-  capasGeoJson.forEach((zona, idx) => {
-    // Log primer coordenada del polígono
-    if (
-      zona &&
-      zona.features &&
-      zona.features.length > 0 &&
-      zona.features[0].geometry &&
-      zona.features[0].geometry.coordinates &&
-      zona.features[0].geometry.coordinates[0] &&
-      zona.features[0].geometry.coordinates[0][0]
-    ) {
-      console.log("[ZONA DEBUG] Primer punto del polígono antes:", zona.features[0].geometry.coordinates[0][0]); // [lng, lat]
-    }
+    capasGeoJson.forEach((zona, idx) => {
+      // Log primer coordenada del polígono
+      if (
+        zona &&
+        zona.features &&
+        zona.features.length > 0 &&
+        zona.features[0].geometry &&
+        zona.features[0].geometry.coordinates &&
+        zona.features[0].geometry.coordinates[0] &&
+        zona.features[0].geometry.coordinates[0][0]
+      ) {
+        console.log(
+          "[ZONA DEBUG] Primer punto del polígono antes:",
+          zona.features[0].geometry.coordinates[0][0]
+        ); // [lng, lat]
+      }
 
-    if (zona.type === "FeatureCollection" && Array.isArray(zona.features)) {
-      zona.features.forEach((feature: any, i: number) => {
-        const nombre = feature.properties?.name || feature.properties?.id || `[sin nombre]`;
-        try {
-          const inside = booleanPointInPolygon(pt, feature);
-          console.log(
-            `[ZONA DEBUG] ¿El punto está en el polígono '${nombre}'? -> ${inside}`,
-            { feature }
-          );
-          if (inside) {
-            inZone = true;
-            console.log(`[ZONA DEBUG] El punto está DENTRO de '${nombre}' (feature #${i} de la zona #${idx})`);
+      if (zona.type === "FeatureCollection" && Array.isArray(zona.features)) {
+        zona.features.forEach((feature: any, i: number) => {
+          const nombre =
+            feature.properties?.name ||
+            feature.properties?.id ||
+            `[sin nombre]`;
+          try {
+            const inside = booleanPointInPolygon(pt, feature);
+            console.log(
+              `[ZONA DEBUG] ¿El punto está en el polígono '${nombre}'? -> ${inside}`,
+              { feature }
+            );
+            if (inside) {
+              inZone = true;
+              console.log(
+                `[ZONA DEBUG] El punto está DENTRO de '${nombre}' (feature #${i} de la zona #${idx})`
+              );
+            }
+          } catch (e) {
+            console.warn(
+              "[ZONA DEBUG] Error en booleanPointInPolygon (feature)",
+              e,
+              feature
+            );
           }
-        } catch (e) {
-          console.warn("[ZONA DEBUG] Error en booleanPointInPolygon (feature)", e, feature);
-        }
+        });
+      }
+    });
+
+    // Resultado final
+    if (inZone) {
+      console.log("[ZONA DEBUG] ✅ El cliente está en zona");
+      toast.success("Cliente en zona", {
+        duration: Infinity,
+        closeButton: true,
+      });
+    } else {
+      console.log("[ZONA DEBUG] ❌ El cliente está fuera de zona");
+      toast.error("Cliente fuera de zona", {
+        duration: Infinity,
+        closeButton: true,
       });
     }
-  });
-
-  // Resultado final
-  if (inZone) {
-    console.log("[ZONA DEBUG] ✅ El cliente está en zona");
-    toast.success("Cliente en zona", { duration: Infinity, closeButton: true });
-  } else {
-    console.log("[ZONA DEBUG] ❌ El cliente está fuera de zona");
-    toast.error("Cliente fuera de zona", { duration: Infinity, closeButton: true });
-  }
-}, [coords, capasGeoJson]);
-
-
-
+  }, [coords, capasGeoJson]);
 
   useEffect(() => {
     // Obtener el puesto actual
@@ -383,19 +401,24 @@ export default function ClienteForm({ clienteId }: ClienteFormProps) {
           const capasArr = data?.sdtCapasGoya || [];
           setCapas(capasArr);
           // Convertir cada capa a GeoJSON válido
-          const geojsons = capasArr.map((capa: any) => {
-            let parsed = null;
-            try {
-              parsed = typeof capa.CapaGeoJson === "string" ? JSON.parse(capa.CapaGeoJson) : capa.CapaGeoJson;
-            } catch {
-              parsed = null;
-            }
-            // Si es FeatureCollection con coords {lng,lat}, convertir a GeoJSON válido
-            if (parsed && parsed.type === "FeatureCollection") {
-              return GenexusFeatureCollectionToGeoJson(parsed);
-            }
-            return null;
-          }).filter(Boolean);
+          const geojsons = capasArr
+            .map((capa: any) => {
+              let parsed = null;
+              try {
+                parsed =
+                  typeof capa.CapaGeoJson === "string"
+                    ? JSON.parse(capa.CapaGeoJson)
+                    : capa.CapaGeoJson;
+              } catch {
+                parsed = null;
+              }
+              // Si es FeatureCollection con coords {lng,lat}, convertir a GeoJSON válido
+              if (parsed && parsed.type === "FeatureCollection") {
+                return GenexusFeatureCollectionToGeoJson(parsed);
+              }
+              return null;
+            })
+            .filter(Boolean);
           setCapasGeoJson(geojsons);
         })
         .catch((err) => {
@@ -441,426 +464,268 @@ export default function ClienteForm({ clienteId }: ClienteFormProps) {
     console.log("Localidad seleccionada:", localidad);
   };
 
+  // Mostrar editor de dirección si:
+  // - el usuario presionó "Nueva" o "Editar" en la tabla
+  const showDireccionEditor = editingDirId !== undefined;
+
+  const startNewDireccion = () => {
+    setEditingDirId("new");
+    setDirDraft({ departamento: "", localidad: "", calle: "", nroPuerta: "" });
+    // collapse list by switching focus to editor section (list remains above but compact)
+  };
+  const startEditDireccion = (id?: string) => {
+    const row = direcciones.find((d) => (d.id ?? "") === (id ?? ""));
+    setEditingDirId(id);
+    setDirDraft({
+      departamento: "",
+      localidad: "",
+      calle: row?.calle || "",
+      nroPuerta: row?.nro || "",
+      esquina1: row?.esquina1 || "",
+      esquina2: row?.esquina2 || "",
+      nivel: row?.nivel || "",
+      local: row?.local || "",
+      lat: row?.lat || "",
+      lng: row?.lng || "",
+    });
+  };
+  const cancelDireccion = () => {
+    setEditingDirId(undefined);
+    setDirDraft({});
+  };
+  const saveDireccion = () => {
+    const toRow: DireccionRow = {
+      id:
+        editingDirId && editingDirId !== "new"
+          ? editingDirId
+          : crypto.randomUUID(),
+      calle: dirDraft.calle,
+      nro: dirDraft.nroPuerta,
+      esquina1: dirDraft.esquina1,
+      esquina2: dirDraft.esquina2,
+      nivel: dirDraft.nivel,
+      local: dirDraft.local,
+      lat: dirDraft.lat,
+      lng: dirDraft.lng,
+    };
+    if (editingDirId && editingDirId !== "new") {
+      setDirecciones((prev) =>
+        prev.map((d) => (d.id === editingDirId ? toRow : d))
+      );
+    } else {
+      setDirecciones((prev) => [toRow, ...prev]);
+    }
+    cancelDireccion();
+  };
+  const deleteDireccion = (id?: string) =>
+    setDirecciones((prev) => prev.filter((d) => d.id !== id));
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-      <Joyride
-        steps={steps}
-        run={runTour}
-        continuous
-        showSkipButton
-        showProgress
-        styles={{
-          options: {
-            zIndex: 10000,
-            primaryColor: "#2563eb",
-            textColor: "#222",
-            backgroundColor: "#fff",
-          },
-        }}
-        callback={handleJoyrideCallback}
-        locale={{
-          last: "Finalizar",
-          skip: "Saltar",
-          next: "Siguiente",
-          back: "Atrás",
-        }}
-      />
-      {/* Acciones */}
-      <div className="col-span-full flex justify-end gap-4 mb-6">
-        <Button variant="outline" className="flex items-center gap-2">
-          <span>Cancelar</span>
-        </Button>
-        <Button
-          className="flex items-center gap-2"
-          onClick={() => setLoading(true)}
-        >
-          <span>Guardar Cliente</span>
-          {loading && (
-            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-blue-500"></div>
-          )}
-        </Button>
-      </div>
+    <Card>
+      <CardHeader className="border-b space-y-3">
+        <CardTitle>Cliente</CardTitle>
+        <div className="flex items-center justify-between">
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList>
+              <TabsTrigger value="datos">Datos</TabsTrigger>
+              <TabsTrigger value="telefonos">Teléfonos</TabsTrigger>
+              <TabsTrigger value="direcciones">Direcciones</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" className="flex items-center gap-2">
+              <span>Cancelar</span>
+            </Button>
+            <Button className="flex items-center gap-2" onClick={() => setLoading(true)}>
+              <span>Guardar Cliente</span>
+              {loading && (
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-blue-500"></div>
+              )}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Joyride
+         steps={steps}
+         run={runTour}
+         continuous
+         showSkipButton
+         showProgress
+         styles={{
+           options: {
+             zIndex: 10000,
+             primaryColor: "#2563eb",
+             textColor: "#222",
+             backgroundColor: "#fff",
+           },
+         }}
+         callback={handleJoyrideCallback}
+         locale={{
+           last: "Finalizar",
+           skip: "Saltar",
+           next: "Siguiente",
+           back: "Atrás",
+         }}
+       />
+        <Tabs value={tab} onValueChange={setTab}>
+           <TabsContent value="datos">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+               <CollapsibleCard title="Información Básica" defaultOpen={true}>
+                 <CardContent className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">Teléfono Principal</Label>
+                     <Input className="h-8 text-xs" placeholder="46326008" />
+                   </div>
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">Nombre</Label>
+                     <Input className="h-8 text-xs" placeholder="DIEGO" />
+                   </div>
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">Apellido</Label>
+                     <Input className="h-8 text-xs" placeholder="MEDAGLIA" />
+                   </div>
+                   <div className="md:col-span-3">
+                     <Label className="text-xs">Obs. Cliente</Label>
+                     <Input className="h-8 text-xs" placeholder="Observaciones" />
+                   </div>
+                   <div className="md:col-span-3">
+                     <Label className="text-xs">Email</Label>
+                     <Input className="h-8 text-xs" placeholder="example@mail.com" />
+                   </div>
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">Tipo Cliente</Label>
+                     <Select>
+                       <SelectTrigger className="h-8 text-xs"><span>Seleccionar</span></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="domesticos">DOMÉSTICOS</SelectItem>
+                         <SelectItem value="empresarial">COMERCIAL</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                 </CardContent>
+               </CollapsibleCard>
 
-      <div className="col-span-4 space-y-6">
-        {/* Información Básica */}
-        <CollapsibleCard title="Información Básica" defaultOpen={true}>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Primera línea */}
-            <div>
-              <Label>Teléfono Principal</Label>
-              <Input placeholder="46326008" />
-            </div>
-            <div>
-              <Label>Nombre</Label>
-              <Input placeholder="DIEGO" />
-            </div>
-            <div>
-              <Label>Apellido</Label>
-              <Input placeholder="MEDAGLIA" />
-            </div>
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-base">Observaciones</CardTitle>
+                 </CardHeader>
+                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                   <div>
+                     <Label className="text-xs">Obs. General</Label>
+                     <Input className="h-8 text-xs" placeholder="Observaciones varias" />
+                   </div>
+                   <div>
+                     <Label className="text-xs">Obs. Comercial</Label>
+                     <Input className="h-8 text-xs" placeholder="Cliente moroso en 2023" />
+                   </div>
+                 </CardContent>
+               </Card>
 
-            {/* Segunda línea */}
-            <div>
-              <Label>Obs. Cliente</Label>
-              <Input placeholder="Observaciones" />
-            </div>
-            <div>
-              <Label>Email</Label>
-              <Input placeholder="example@mail.com" />
-            </div>
-            {/* Tercera línea */}
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-base">Información Adicional</CardTitle>
+                 </CardHeader>
+                 <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">RUT o CI</Label>
+                     <Input className="h-8 text-xs" placeholder="0" />
+                   </div>
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">GCI Nº</Label>
+                     <Input className="h-8 text-xs" placeholder="GCI Nº" />
+                   </div>
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">Tipo de cliente</Label>
+                     <Select>
+                       <SelectTrigger className="h-8 text-xs"><span>Seleccionar</span></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="residencial">Residencial</SelectItem>
+                         <SelectItem value="comercial">Comercial</SelectItem>
+                         <SelectItem value="industrial">Industrial</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <div className="md:col-span-2">
+                     <Label className="text-xs">Privilegio</Label>
+                     <Input className="h-8 text-xs" placeholder="Ej: VIP" />
+                   </div>
+                 </CardContent>
+               </Card>
 
-            <div>
-              <Label>Tipo Cliente</Label>
-              <Select>
-                <SelectTrigger>
-                  <span>Seleccionar</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="domesticos">DOMÉSTICOS</SelectItem>
-                  <SelectItem value="empresarial">COMERCIAL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </CollapsibleCard>
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-base">Historial</CardTitle>
+                 </CardHeader>
+                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                   <div>
+                     <Label className="text-xs">Fecha Alta</Label>
+                     <Input className="h-8 text-xs" value="22/04/2013 00:00" readOnly />
+                   </div>
+                   <div>
+                     <Label className="text-xs">Ult. Modificación</Label>
+                     <Input className="h-8 text-xs" value="22/04/2013 00:00" readOnly />
+                   </div>
+                   <div>
+                     <Label className="text-xs">Ult. Compra</Label>
+                     <Input className="h-8 text-xs" value="/ / 00:00" readOnly />
+                   </div>
+                 </CardContent>
+               </Card>
+             </div>
+           </TabsContent>
 
-        {/* Dirección + Mapa */}
-        <CollapsibleCard title="Dirección y Geolocalización" defaultOpen={true}>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-              {/* Departamento y Localidad */}
-              <div className="md:col-span-3 w-full tour-departamento">
-                <Label>Departamento</Label>
-                <Select onValueChange={handleDepartamentoChange}>
-                  <SelectTrigger className="w-full">
-                    <span>{selectedDepartamento || "Seleccionar"}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departamentos.map((depto) => (
-                      <SelectItem key={depto.nombre} value={depto.nombre}>
-                        {depto.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-3 w-full tour-localidad">
-                <Label>Localidad</Label>
-                <Select onValueChange={handleLocalidadChange}>
-                  <SelectTrigger className="w-full">
-                    <span>{selectedLocalidad || "Seleccionar"}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {localidades.map((localidad) => (
-                      <SelectItem key={localidad} value={localidad}>
-                        {localidad}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+           <TabsContent value="telefonos">
+             <Card>
+               <CardHeader>
+                 <CardTitle>Teléfonos</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <TelefonosTable
+                   value={telefonosRows}
+                   onChange={setTelefonosRows}
+                 />
+               </CardContent>
+             </Card>
+           </TabsContent>
 
-              {/* Dirección */}
-              <div className="col-span-full tour-direccion">
-                <Label>Dirección</Label>
-                <div className="relative w-full">
-                  <Combobox
-                    value={direccion}
-                    onChange={(value) => setDireccion(value ?? "")}
-                  >
-                    <Combobox.Input
-                      placeholder="Ej: Av. Italia"
-                      onBlur={(e) => setDireccion(e.target.value)}
-                      className="w-full border border-gray-700 bg-gray-900 text-white rounded-md p-2"
-                    />
-                    <Combobox.Options className="absolute z-10 mt-1 w-full bg-gray-800 border border-gray-700 rounded-md shadow-md">
-                      {mockStreets.map((street) => (
-                        <Combobox.Option
-                          key={street}
-                          value={street}
-                          className="px-3 py-2 text-white hover:bg-gray-700 cursor-pointer"
-                        >
-                          {street}
-                        </Combobox.Option>
-                      ))}
-                    </Combobox.Options>
-                  </Combobox>
-                </div>
-              </div>
+           <TabsContent value="direcciones">
+             <div className="space-y-2">
+               <Card>
+                 <CardHeader className="py-2">
+                   <div className="flex items-center justify-between">
+                     <CardTitle className="text-base">Direcciones</CardTitle>
+                     <Button size="sm" variant="outline" onClick={startNewDireccion}>Nueva</Button>
+                   </div>
+                 </CardHeader>
+                 <CardContent className="pt-0 pb-2">
+                   {editingDirId === undefined && (
+                     <DireccionesTable
+                       value={direcciones}
+                       onEdit={(id) => startEditDireccion(id)}
+                       onDelete={(id) => deleteDireccion(id)}
+                       onNew={startNewDireccion}
+                     />
+                   )}
+                 </CardContent>
+               </Card>
 
-              {/* Nº Puerta, Apto, Block/Solar, Nivel, Local, Manzana */}
-              <div className="tour-nro-puerta">
-                <Label>Nº Puerta</Label>
-                <Input
-                  placeholder="1234"
-                  value={nroPuerta}
-                  onChange={(e) => setNroPuerta(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Apto</Label>
-                <Input placeholder="" />
-              </div>
-              <div>
-                <Label>Block</Label>
-                <Input placeholder="Block/Solar" />
-              </div>
-              <div>
-                <Label>Nivel</Label>
-                <Input placeholder="" />
-              </div>
-              <div>
-                <Label>Local</Label>
-                <Input placeholder="" />
-              </div>
-              <div>
-                <Label>Manzana</Label>
-                <Input placeholder="" />
-              </div>
-
-              {/* Esquina 1 y Esquina 2 */}
-              <div className="md:col-span-3">
-                <Label>Esquina 1</Label>
-                <Input
-                  placeholder=""
-                  value={esquina1}
-                  onChange={(e) => setEsquina1(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-3">
-                <Label>Esquina 2</Label>
-                <Input
-                  placeholder=""
-                  value={esquina2}
-                  onChange={(e) => setEsquina2(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-3 tour-latitud">
-                <Label>Latitud</Label>
-                <Input placeholder="" value={coords.lat} readOnly />
-              </div>
-              <div className="md:col-span-3 tour-longitud">
-                <Label>Longitud</Label>
-                <Input placeholder="" value={coords.lng} readOnly />
-              </div>
-            </div>
-            <div className="tour-mapa">
-              <DynamicMapa
-                onChange={(data) => {
-                  if (data.address && data.address !== direccion) {
-                    setDireccion(data.address);
+               {showDireccionEditor && (
+                 <DireccionEditor
+                  value={dirDraft}
+                  onChange={(patch) => setDirDraft((prev) => ({ ...prev, ...patch }))}
+                  footer={
+                    <>
+                      <Button variant="secondary" onClick={cancelDireccion}>Cancelar</Button>
+                      <Button onClick={saveDireccion}>Guardar dirección</Button>
+                    </>
                   }
-                  if (data.houseNumber && data.houseNumber !== nroPuerta) {
-                    setNroPuerta(data.houseNumber);
-                  }
-                  if (data.lat && data.lng) {
-                    setCoords({ lat: data.lat, lng: data.lng });
-                  }
-                  console.log("Datos recibidos del mapa:", data);
-                }}
-                departamento={selectedDepartamento}
-                localidad={selectedLocalidad || ""}
-                direccion={direccion}
-                nroPuerta={nroPuerta}
-                esquina1={esquina1}
-                esquina2={esquina2}
-                zonas={capasGeoJson}
-              />
-            </div>
-          </CardContent>
-        </CollapsibleCard>
-
-        {/* Observaciones */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Observaciones</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Obs. General</Label>
-              <Input placeholder="Observaciones varias" />
-            </div>
-            <div>
-              <Label>Obs. Comercial</Label>
-              <Input placeholder="Cliente moroso en 2023" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Contacto */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Contacto</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <div className="flex justify-between items-center">
-                <Label>Teléfonos Alternativos</Label>
-                <Button variant="outline" onClick={() => setShowModal(true)}>
-                  + Agregar
-                </Button>
-              </div>
-
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Teléfono</TableHead>
-                    <TableHead>Observación</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {telefonos.map((telefono, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{telefono.numero}</TableCell>
-                      <TableCell>{telefono.observacion}</TableCell>
-                      <TableCell className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(index)}
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(index)}
-                        >
-                          <Trash className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)}>
-              <div className="space-y-4">
-                <div>
-                  <Label>Teléfono</Label>
-                  <Input
-                    value={newTelefono.numero}
-                    onChange={(e) =>
-                      setNewTelefono({ ...newTelefono, numero: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Observación</Label>
-                  <Input
-                    value={newTelefono.observacion}
-                    onChange={(e) =>
-                      setNewTelefono({
-                        ...newTelefono,
-                        observacion: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="flex justify-end gap-4">
-                  <Button variant="outline" onClick={() => setShowModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleAdd}>Confirmar</Button>
-                </div>
-              </div>
-            </Modal>
-          </CardContent>
-        </Card>
-
-        {/* Info Adicional */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Información Adicional</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>RUT o CI</Label>
-              <Input placeholder="0" />
-            </div>
-            <div>
-              <Label>GCI Nº</Label>
-              <Input placeholder="GCI Nº" />
-            </div>
-            <div>
-              <Label>Tipo de cliente</Label>
-              <Select>
-                <SelectTrigger>
-                  <span>Seleccionar</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="residencial">Residencial</SelectItem>
-                  <SelectItem value="comercial">Comercial</SelectItem>
-                  <SelectItem value="industrial">Industrial</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Privilegio</Label>
-              <Input placeholder="Ej: VIP" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="col-span-1">
-        {/* Historial */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Historial</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Fecha Alta</Label>
-              <Input value="22/04/2013 00:00" readOnly />
-            </div>
-            <div>
-              <Label>Ult. Modificación</Label>
-              <Input value="22/04/2013 00:00" readOnly />
-            </div>
-            <div>
-              <Label>Ult. Compra</Label>
-              <Input value="/ / 00:00" readOnly />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pedidos Pendientes */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Pedidos Pendientes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Movil</TableHead>
-                  <TableHead>Pedidos</TableHead>
-                  <TableHead>C/Atraso</TableHead>
-                  <TableHead>Dem.Prom</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>Movil 1</TableCell>
-                  <TableCell>5</TableCell>
-                  <TableCell>2</TableCell>
-                  <TableCell>30 min</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Movil 2</TableCell>
-                  <TableCell>3</TableCell>
-                  <TableCell>1</TableCell>
-                  <TableCell>45 min</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
+                />
+               )}
+             </div>
+           </TabsContent>
+         </Tabs>
+       </CardContent>
+     </Card>
+   );
+ }

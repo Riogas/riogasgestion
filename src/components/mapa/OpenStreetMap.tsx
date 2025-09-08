@@ -4,10 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import axios from "axios";
-import { Modal } from "@/components/ui/modal"; // Importar componente Modal
 import { Crosshair, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button"; // si estás usando ShadCN
-import MapaModal from "./MapaModal";
 import MapaGoogle from "./MapaGoogle";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -33,6 +31,7 @@ type Props = {
   esquina1?: string;
   esquina2?: string;
   zonas?: any[]; // Array of GeoJSON FeatureCollections or Features
+  mapHeightPx?: number; // Optional height for the map container (px)
 };
 
 export default function OpenStreetMap({
@@ -44,6 +43,7 @@ export default function OpenStreetMap({
   esquina1,
   esquina2,
   zonas = [],
+  mapHeightPx = 400,
 }: Props) {
 
   const mapRef = useRef<HTMLDivElement>(null);
@@ -52,10 +52,9 @@ export default function OpenStreetMap({
   const polygonLayerRef = useRef<L.LayerGroup | null>(null); // For zonas polygons
   const mainMapInstanceRef = useRef<L.Map | null>(null);
   const modalMapRef = useRef<HTMLDivElement>(null);
-  const modalMapInstanceRef = useRef<L.Map | null>(null); // Fix: modal map instance
 
   const [isLoading, setIsLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false); // Estado para el modal
+  const [isModalOpen, setIsModalOpen] = useState(false); // Estado para el modal (no usado ahora)
   const [statusMessage, setStatusMessage] = useState("");
   const [isManualLocationActive, setIsManualLocationActive] = useState(false); // Estado para ubicación manual
   const [formData, setFormData] = useState({
@@ -261,6 +260,8 @@ export default function OpenStreetMap({
     updateMap();
   }, [departamento, localidad, direccion, nroPuerta, esquina1, esquina2]);
 
+  // Modal deshabilitado por ahora
+  /*
   useEffect(() => {
     if (isModalOpen) {
       setTimeout(() => {
@@ -286,6 +287,7 @@ export default function OpenStreetMap({
       }
     }
   }, [isModalOpen]); // Reaccionar al estado del modal
+  */
 
   useEffect(() => {
     if (!formData.address && formData.lat && formData.lng) {
@@ -348,98 +350,29 @@ export default function OpenStreetMap({
   };
 
   return (
-    <>
-      <div className="relative w-full h-[400px]">
-        <div ref={mapRef} className="w-full h-full rounded-md shadow-md z-10" />
+    <div className="relative w-full" style={{ height: mapHeightPx }}>
+      <div ref={mapRef} className="w-full h-full rounded-md shadow-md z-10" />
 
-        {isLoading && direccion && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
-            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-
-        {statusMessage && (
-          <div className="absolute text-black top-2 left-2 bg-white bg-opacity-90 text-sm px-3 py-1 rounded shadow z-10">
-            {statusMessage}
-          </div>
-        )}
-
-        <button
-          className="absolute top-2 right-2 bg-blue-500 text-white px-4 py-2 rounded z-20"
-          onClick={() => setIsModalOpen(true)}
-        >
-          Utilizar Mapa
-        </button>
-      </div>
-
-      {isModalOpen && (
-        <Modal onClose={() => setIsModalOpen(false)}>
-          <MapaGoogle onLocationChange={handleLocationChange} />
-          <div style={{ display: "flex", gap: "10px" }}>
-            <div style={{ flex: 2 }}>
-              <label>Dirección:</label>
-              <input
-                type="text"
-                value={formData.address}
-                readOnly
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ flex: 1, display: "flex", gap: "10px" }}>
-              <div>
-                <label>Latitud:</label>
-                <input
-                  type="text"
-                  value={formData.lat}
-                  readOnly
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <div>
-                <label>Longitud:</label>
-                <input
-                  type="text"
-                  value={formData.lng}
-                  readOnly
-                  style={{ width: "100%" }}
-                />
-              </div>
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "10px",
-              marginTop: "10px",
-            }}
-          >
-            <Button
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={() => setIsModalOpen(false)}
-            >
-              <span>Volver</span>
-            </Button>
-            <Button
-              className="flex items-center gap-2"
-              onClick={() => {
-                setLoading(true);
-                setTimeout(() => {
-                  setLoading(false);
-                  setIsModalOpen(false);
-                }, 1000);
-              }}
-            >
-              <span>Confirmar</span>
-              {loading && (
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-blue-500"></div>
-              )}
-            </Button>
-          </div>
-        </Modal>
+      {isLoading && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
       )}
-    </>
+
+      {statusMessage && (
+        <div className="absolute text-black top-2 left-2 bg-white bg-opacity-90 text-sm px-3 py-1 rounded shadow z-10">
+          {statusMessage}
+        </div>
+      )}
+
+      {/* Botón para modal deshabilitado por ahora */}
+      {/* <button
+        onClick={() => setIsModalOpen(true)}
+        className="absolute top-2 right-2 bg-blue-500 text-white px-4 py-2 rounded z-20"
+      >
+        Utilizar Mapa
+      </button> */}
+    </div>
   );
 }
 

@@ -22,7 +22,8 @@ export function ListHeader({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
       <h1 className="text-2xl font-bold">{title}</h1>
-      <div className="flex gap-2 w-full sm:w-auto">
+      <div className="flex gap-2 w-full sm:w-auto justify-end items-center">
+        {rightExtra}
         <Input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
@@ -30,11 +31,10 @@ export function ListHeader({
           className="sm:w-80"
         />
         {onCreate && (
-          <Button onClick={onCreate} className="ml-auto">
+          <Button onClick={onCreate}>
             {createLabel}
           </Button>
         )}
-        {rightExtra}
       </div>
     </div>
   );

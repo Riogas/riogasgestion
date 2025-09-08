@@ -141,17 +141,43 @@ export default function Pedidos() {
     campania: "",
   });
 
+  type PedidoFilters = typeof filters;
+  type PedidoPreset = { id: string; name: string; filters: Omit<PedidoFilters, "fechaDesde" | "fechaHasta"> };
+  const [presets, setPresets] = useState<PedidoPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+
+  const formatDtLocal = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  };
+  const setTodayIfEmpty = () => {
+    if (!filters.fechaDesde && !filters.fechaHasta) {
+      const now = new Date();
+      const start = new Date(now); start.setHours(0, 0, 0, 0);
+      const end = new Date(now); end.setHours(23, 59, 0, 0);
+      setFilters((f) => ({ ...f, fechaDesde: formatDtLocal(start), fechaHasta: formatDtLocal(end) }));
+    }
+  };
+
   // Persistencia (opcional)
   useEffect(() => {
     try {
       const raw = localStorage.getItem("pedidos_filters");
       const open = localStorage.getItem("pedidos_filters_open");
       const sq = localStorage.getItem("pedidos_q");
+      const pr = localStorage.getItem("pedidos_filter_presets");
       if (raw) setFilters(JSON.parse(raw));
       if (open) setShowFilters(open === "1");
       if (sq) setQ(sq);
+      if (pr) setPresets(JSON.parse(pr));
     } catch {}
   }, []);
+  useEffect(() => { setTodayIfEmpty(); /* set default range only when empty */ }, [filters.fechaDesde, filters.fechaHasta]);
   useEffect(() => {
     try { localStorage.setItem("pedidos_filters", JSON.stringify(filters)); } catch {}
   }, [filters]);
@@ -161,6 +187,29 @@ export default function Pedidos() {
   useEffect(() => {
     try { localStorage.setItem("pedidos_q", q); } catch {}
   }, [q]);
+  useEffect(() => {
+    try { localStorage.setItem("pedidos_filter_presets", JSON.stringify(presets)); } catch {}
+  }, [presets]);
+
+  const saveCurrentAsPreset = () => {
+    const name = typeof window !== "undefined" ? window.prompt("Nombre del preset de filtros:") : null;
+    if (!name) return;
+    const { fechaDesde, fechaHasta, ...rest } = filters;
+    const id = `${Date.now()}`;
+    const preset: PedidoPreset = { id, name, filters: rest };
+    setPresets((ps) => [...ps, preset]);
+    setSelectedPresetId(id);
+  };
+  const applyPreset = (id: string) => {
+    setSelectedPresetId(id);
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    setFilters((prev) => ({ ...prev, ...p.filters }));
+  };
+  const deletePreset = (id: string) => {
+    setPresets((ps) => ps.filter((x) => x.id !== id));
+    if (selectedPresetId === id) setSelectedPresetId("");
+  };
 
   const options = useMemo(() => ({
     productos: unique(items.map(i => i.producto)),
@@ -257,6 +306,26 @@ export default function Pedidos() {
       {/* Zona de filtros avanzada colapsable */}
       {showFilters && (
         <div className="mb-3 rounded-md border border-border/40 p-3 bg-background/50">
+          {/* Presets de filtros */}
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Preset</Label>
+              <Select value={selectedPresetId || ""} onValueChange={applyPreset}>
+                <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Seleccionar preset" /></SelectTrigger>
+                <SelectContent>
+                  {presets.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={saveCurrentAsPreset}>Guardar actual</Button>
+              {selectedPresetId && (
+                <Button variant="outline" size="sm" onClick={() => deletePreset(selectedPresetId)}>Borrar</Button>
+              )}
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
             <div className="col-span-1 sm:col-span-3 xl:col-span-3">
               <Label className="text-xs text-muted-foreground">Fecha Para (desde)</Label>

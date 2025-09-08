@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Info, Monitor, Hash, User2, CalendarClock, MapPin, Clipboard, ClipboardCheck } from "lucide-react";
+import { Moon, Sun, Info, Monitor, Hash, User2, CalendarClock, MapPin, Clipboard, ClipboardCheck, Bell, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"; // <-- shadcn/ui dialog
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Image from "next/image";
 
 /* ===== Props que llegan desde NavbarServer (Server Component) ===== */
@@ -114,6 +115,21 @@ export function Navbar({
     }
   };
 
+  // Notificaciones (mock): id, titulo, desc, fecha, tipo, read
+  type Notification = { id: string; title: string; description?: string; date: string; type?: "info" | "warning" | "success"; read?: boolean };
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([
+    { id: "1", title: "Pedido #1042 asignado", description: "Móvil M-103 fue asignado", date: new Date().toISOString(), type: "success", read: false },
+    { id: "2", title: "Demora en zona Z2", description: "Aumentó la demora estimada a 15m", date: new Date().toISOString(), type: "warning", read: false },
+    { id: "3", title: "Nueva campaña activa", description: "Promo Primavera disponible", date: new Date().toISOString(), type: "info", read: true },
+  ]);
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+  const markAllRead = () => setNotifications((ns) => ns.map(n => ({ ...n, read: true })));
+  const toggleNotifOpen = (open: boolean) => {
+    setNotifOpen(open);
+    if (open) markAllRead();
+  };
+
   // Texto listo para copiar desde el modal
   const detallesParaCopiar = useMemo(() => {
     return [
@@ -151,6 +167,45 @@ export function Navbar({
 
       {/* DERECHA: acciones, info de permisos (modal), puestos y usuario */}
       <div className="flex items-center gap-4">
+        {/* Notificaciones */}
+        <Popover open={notifOpen} onOpenChange={toggleNotifOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative h-9 w-9" title="Notificaciones">
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-[10px] font-semibold text-white flex items-center justify-center shadow-md">
+                  {unreadCount}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 p-0 overflow-hidden">
+            <div className="border-b px-3 py-2 bg-muted/40 flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Notificaciones</div>
+              <div className="text-[11px] text-muted-foreground">{unreadCount === 0 ? "Sin nuevas" : `${unreadCount} nuevas`}</div>
+            </div>
+            <div className="max-h-80 overflow-auto divide-y">
+              {notifications.length === 0 && (
+                <div className="p-4 text-sm text-muted-foreground">No hay notificaciones</div>
+              )}
+              {notifications.map((n) => (
+                <button key={n.id} className={`w-full text-left p-3 hover:bg-muted/40 transition ${n.read ? "opacity-80" : ""}`}>
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full ${n.type === "warning" ? "bg-amber-100 text-amber-700" : n.type === "success" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
+                      {n.type === "warning" ? <AlertTriangle className="h-4 w-4" /> : n.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <Info className="h-4 w-4" />}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{n.title}</div>
+                      {n.description && <div className="text-xs text-muted-foreground truncate">{n.description}</div>}
+                      <div className="text-[11px] text-muted-foreground mt-1">{new Date(n.date).toLocaleString()}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
         {/* Botón de info/permiso + combo de puestos */}
         <div className="flex items-center gap-2">
           {/* Ícono a la IZQUIERDA del combo Puestos */}

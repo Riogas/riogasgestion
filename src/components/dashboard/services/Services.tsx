@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +93,60 @@ export default function Services() {
     atrasoMin: "",
     atrasoMax: "",
   });
+
+  type ServicioFilters = typeof filters;
+  type ServicioPreset = { id: string; name: string; filters: Omit<ServicioFilters, "fechaDesde" | "fechaHasta"> };
+  const [presets, setPresets] = useState<ServicioPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+
+  const formatDtLocal = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  };
+  const setTodayIfEmpty = () => {
+    if (!filters.fechaDesde && !filters.fechaHasta) {
+      const now = new Date();
+      const start = new Date(now); start.setHours(0, 0, 0, 0);
+      const end = new Date(now); end.setHours(23, 59, 0, 0);
+      setFilters((f) => ({ ...f, fechaDesde: formatDtLocal(start), fechaHasta: formatDtLocal(end) }));
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const pr = localStorage.getItem("services_filter_presets");
+      if (pr) setPresets(JSON.parse(pr));
+    } catch {}
+  }, []);
+  useEffect(() => { setTodayIfEmpty(); }, [filters.fechaDesde, filters.fechaHasta]);
+  useEffect(() => {
+    try { localStorage.setItem("services_filter_presets", JSON.stringify(presets)); } catch {}
+  }, [presets]);
+
+  const saveCurrentAsPreset = () => {
+    const name = typeof window !== "undefined" ? window.prompt("Nombre del preset de filtros:") : null;
+    if (!name) return;
+    const { fechaDesde, fechaHasta, ...rest } = filters;
+    const id = `${Date.now()}`;
+    const preset: ServicioPreset = { id, name, filters: rest };
+    setPresets((ps) => [...ps, preset]);
+    setSelectedPresetId(id);
+  };
+  const applyPreset = (id: string) => {
+    setSelectedPresetId(id);
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    setFilters((prev) => ({ ...prev, ...p.filters }));
+  };
+  const deletePreset = (id: string) => {
+    setPresets((ps) => ps.filter((x) => x.id !== id));
+    if (selectedPresetId === id) setSelectedPresetId("");
+  };
 
   const options = useMemo(() => ({
     moviles: unique(items.map(i => i.movil).map(v => v || "—")),
@@ -187,6 +241,27 @@ export default function Services() {
     >
       {showFilters && (
         <div className="mb-3 rounded-md border border-border/40 p-3 bg-background/50">
+          {/* Presets de filtros */}
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Preset</Label>
+              <Select value={selectedPresetId || ""} onValueChange={applyPreset}>
+                <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Seleccionar preset" /></SelectTrigger>
+                <SelectContent>
+                  {presets.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={saveCurrentAsPreset}>Guardar actual</Button>
+              {selectedPresetId && (
+                <Button variant="outline" size="sm" onClick={() => deletePreset(selectedPresetId)}>Borrar</Button>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
             <div className="col-span-1 sm:col-span-3 xl:col-span-3">
               <Label className="text-xs text-muted-foreground">Fecha Para (desde)</Label>

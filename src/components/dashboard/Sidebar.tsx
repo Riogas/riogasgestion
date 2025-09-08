@@ -29,6 +29,8 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string[]>([]);
+  const [manualCollapsed, setManualCollapsed] = useState<string[]>([]); // padres que el usuario colapsó manualmente
+  const [manualExpanded, setManualExpanded] = useState<string[]>([]);   // padres que el usuario abrió manualmente (persistir)
   const router = useRouter();
   const pathname = usePathname();
   const { setLoading: setGlobalLoading } = useLoading();
@@ -40,9 +42,112 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
   // Estado abierto móvil: aprovechamos collapsed como trigger (cuando no está colapsado se muestra)
   const isMobileOpen = useMemo(() => !collapsed, [collapsed]);
 
+  // Clave en localStorage para recordar qué padres el usuario decidió cerrar
+  const MANUAL_COLLAPSED_KEY = "sidebarManualCollapsed";
+  const MANUAL_EXPANDED_KEY = "sidebarManualExpanded";
+
+  // Cargar preferencias de colapsado / expandido manual al montar
+  useEffect(() => {
+    try {
+      const storedCollapsed = typeof window !== "undefined" ? localStorage.getItem(MANUAL_COLLAPSED_KEY) : null;
+      if (storedCollapsed) {
+        const arr = JSON.parse(storedCollapsed);
+        if (Array.isArray(arr)) setManualCollapsed(arr);
+      }
+      const storedExpanded = typeof window !== "undefined" ? localStorage.getItem(MANUAL_EXPANDED_KEY) : null;
+      if (storedExpanded) {
+        const arrE = JSON.parse(storedExpanded);
+        if (Array.isArray(arrE)) setManualExpanded(arrE);
+      }
+    } catch (e) { warn("No se pudieron parsear preferencias de sidebar", e); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Guardar cambios
+  useEffect(() => { try { if (typeof window !== "undefined") localStorage.setItem(MANUAL_COLLAPSED_KEY, JSON.stringify(manualCollapsed)); } catch {} }, [manualCollapsed]);
+  useEffect(() => { try { if (typeof window !== "undefined") localStorage.setItem(MANUAL_EXPANDED_KEY, JSON.stringify(manualExpanded)); } catch {} }, [manualExpanded]);
+
+  // Función para obtener los IDs (keys) de los padres cuyo subtree contiene la ruta activa
+  const getParentsOfActivePath = (items: MenuItem[], path?: string): string[] => {
+    if (!path) return [];
+    const parents: string[] = [];
+    const visit = (nodes: MenuItem[], ancestors: string[]) => {
+      nodes.forEach((n) => {
+        const id = (n.key as string) || n.label;
+        const hasChildren = Array.isArray(n.children) && n.children.length > 0;
+        const selfMatch = n.path && path.startsWith(n.path);
+        if (hasChildren) {
+          const beforeLen = parents.length;
+          visit(n.children as MenuItem[], [...ancestors, id]);
+          const afterLen = parents.length;
+          if (afterLen > beforeLen || selfMatch) {
+            ancestors.forEach(a => { if (!parents.includes(a)) parents.push(a); });
+            if (!parents.includes(id)) parents.push(id);
+          } else if (selfMatch) {
+            ancestors.forEach(a => { if (!parents.includes(a)) parents.push(a); });
+            if (!parents.includes(id)) parents.push(id);
+          }
+        } else if (selfMatch) {
+          ancestors.forEach(a => { if (!parents.includes(a)) parents.push(a); });
+        }
+      });
+    };
+    visit(items, []);
+    return parents;
+  };
+
+  // Memo de padres activos
+  const activeParents = useMemo(() => getParentsOfActivePath(menuItems, pathname), [menuItems, pathname]);
+
+  // Sincronizar expanded: solo añadimos padres activos y mantenemos/removemos según manualCollapsed sin reconstruir todo para evitar reapertura inmediata
+  useEffect(() => {
+    if (menuItems.length === 0) return;
+    setExpanded(prev => {
+      const next = new Set(prev);
+      // Asegurar padres activos abiertos (si no han sido colapsados manualmente)
+      activeParents.forEach(p => {
+        if (manualCollapsed.includes(p)) {
+          next.delete(p); // usuario decidió cerrarlo
+        } else {
+          next.add(p); // auto-open
+        }
+      });
+      // Añadir manualmente expandidos (aunque no sean padres activos)
+      manualExpanded.forEach(p => next.add(p));
+      // Remover cualquiera que esté en manualCollapsed explícitamente
+      manualCollapsed.forEach(p => next.delete(p));
+      return Array.from(next);
+    });
+  }, [menuItems, activeParents, manualCollapsed, manualExpanded]);
+
   const isExpanded = (id: string) => expanded.includes(id);
-  const toggleExpanded = (id: string) =>
-    setExpanded((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  const toggleExpanded = (id: string) => {
+    const isActiveParent = activeParents.includes(id);
+    const currentlyExpanded = expanded.includes(id);
+
+    // Actualizar listas persistentes según intención del usuario
+    if (currentlyExpanded) {
+      // Usuario colapsa
+      if (isActiveParent) {
+        // marcar que lo cerró manualmente para no auto-abrir
+        setManualCollapsed(prev => prev.includes(id) ? prev : [...prev, id]);
+      } else {
+        // quitar de manualExpanded si estaba
+        setManualExpanded(prev => prev.filter(x => x !== id));
+      }
+    } else {
+      // Usuario expande
+      if (isActiveParent) {
+        // por si estaba registrado como colapsado manual lo removemos
+        setManualCollapsed(prev => prev.filter(x => x !== id));
+      } else {
+        // recordar expansión manual
+        setManualExpanded(prev => prev.includes(id) ? prev : [...prev, id]);
+      }
+    }
+
+    setExpanded(prev => currentlyExpanded ? prev.filter(i => i !== id) : [...prev, id]);
+  };
 
   useEffect(() => {
     debug("mounted. collapsed=", collapsed, "pathname=", pathname);
@@ -111,6 +216,23 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
     setTimeout(() => setGlobalLoading(false), 800);
   };
 
+  const submenuContainerVariants = {
+    hidden: { opacity: 0, height: 0 },
+    visible: {
+      opacity: 1,
+      height: "auto",
+      transition: { when: "beforeChildren", staggerChildren: 0.05, delayChildren: 0.02 },
+    },
+    exit: { opacity: 0, height: 0, transition: { when: "afterChildren", duration: 0.15 } },
+  } as const;
+
+  // Usamos funciones + casting a any para evitar conflicto de tipos con Variants (Framer no tipa bien funciones custom + ease array)
+  const submenuItemVariants: any = {
+    hidden: { opacity: 0, y: -6, filter: "blur(2px)" },
+    visible: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.22, ease: [0.25, 0.8, 0.3, 1] } },
+    exit: { opacity: 0, y: -6, filter: "blur(2px)", transition: { duration: 0.12 } },
+  } as const;
+
   const renderItem = (item: MenuItem) => {
     const Icon = iconMap[item.icon] || Menu;
     const active = item.path && pathname?.startsWith(item.path);
@@ -149,29 +271,41 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
         <AnimatePresence initial={false}>
           {!collapsed && hasChildren && isExpanded(id) ? (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
+              variants={submenuContainerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              style={{ originY: 0 }}
               className="ml-2 space-y-1 border-l-2 border-border/50 pl-4"
+              data-auto-open={activeParents.includes(id) && !manualCollapsed.includes(id)}
             >
-              {(item.children as MenuItem[]).map((c) => {
+              {(item.children as MenuItem[]).map((c, idx) => {
                 const subActive = c.path && pathname?.startsWith(c.path);
                 const subId = (c.key as string) || c.label;
+                const SubIcon = iconMap[c.icon as keyof typeof iconMap] || Menu;
                 return (
-                  <Button
+                  <motion.div
                     key={subId}
-                    variant="ghost"
-                    className={cn(
-                      "w-full justify-start h-9 text-xs transition",
-                      subActive
-                        ? "bg-primary text-primary-foreground shadow-sm scale-[1.01]"
-                        : "hover:bg-muted/50 hover:translate-x-1",
-                    )}
-                    onClick={() => c.path && navigate(c.path)}
+                    variants={submenuItemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    style={{ originY: 0 }}
                   >
-                    <span className="w-2 h-2 rounded-full bg-current opacity-60 mr-2" />
-                    {c.label}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "w-full justify-start h-9 text-xs transition",
+                        subActive
+                          ? "bg-primary text-primary-foreground shadow-sm scale-[1.01]"
+                          : "hover:bg-muted/50 hover:translate-x-1",
+                      )}
+                      onClick={() => c.path && navigate(c.path)}
+                    >
+                      <SubIcon className="w-4 h-4 mr-2 opacity-70" />
+                      {c.label}
+                    </Button>
+                  </motion.div>
                 );
               })}
             </motion.div>
@@ -215,7 +349,7 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
             )}
           >
             <div className="flex items-center justify-between px-4 py-4">
-              {!collapsed && <span className="text-xl font-bold">Dashboard</span>}
+              {!collapsed && <span className="text-xl font-bold">Menú</span>}
               <Button
                 variant="ghost"
                 size="icon"

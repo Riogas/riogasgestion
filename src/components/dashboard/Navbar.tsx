@@ -143,7 +143,7 @@ export function Navbar({
   };
 
   return (
-    <header className="h-16 px-6 flex items-center justify-between border-b bg-card gap-4">
+    <header className="sticky top-0 z-40 h-16 px-6 flex items-center justify-between border-b bg-card gap-4">
       {/* IZQUIERDA: logo */}
       <div className="flex items-center">
         <Image src="/logogoya.png" alt="Logo" width={120} height={32} className="h-8 w-auto" />

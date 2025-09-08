@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,9 @@ import { Pager } from "@/components/abm/Pager";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { X, Filter } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+const DynamicMapa = dynamic(() => import("@/components/mapa/OpenStreetMap"), { ssr: false });
 
 export type Servicio = {
   id: string;
@@ -24,6 +28,16 @@ export type Servicio = {
   zona?: string;
   atraso?: string | number;
   observaciones?: string;
+  // direccion principal
+  departamento?: string;
+  localidad?: string;
+  calle?: string;
+  nroPuerta?: string;
+  esquina1?: string;
+  esquina2?: string;
+  block?: string;
+  apto?: string;
+  direccionCompleta?: string;
 };
 
 const mockServicios: Servicio[] = Array.from({ length: 20 }).map((_, i) => ({
@@ -34,10 +48,20 @@ const mockServicios: Servicio[] = Array.from({ length: 20 }).map((_, i) => ({
   movil: i % 2 ? "M-20" + i : "",
   producto: i % 2 ? "Mantenimiento" : "Reparación",
   estado: i % 3 === 0 ? "Pendiente" : i % 3 === 1 ? "En curso" : "Cerrado",
-  defecto: i % 2 ? "Perdida en flexible" : "No enciende",
+  defecto: i % 2 ? "Pérdida en flexible" : "No enciende",
   zona: "Z" + (i % 4),
   atraso: i * 3,
   observaciones: i % 2 ? "Cliente no atiende" : "Coordinar franja horaria",
+  // direccion
+  departamento: i % 2 === 0 ? "Montevideo" : "Canelones",
+  localidad: i % 2 === 0 ? "Centro" : "Las Piedras",
+  calle: i % 2 === 0 ? "Av. Italia" : "Av. Artigas",
+  nroPuerta: String(1500 + i),
+  esquina1: i % 2 === 0 ? "Bvar. Artigas" : "Colonia",
+  esquina2: i % 2 === 0 ? "Mateo Vidal" : "Ejido",
+  block: i % 3 === 0 ? "B" : i % 3 === 1 ? "A" : "",
+  apto: i % 4 === 0 ? "1202" : i % 4 === 1 ? "3B" : "",
+  direccionCompleta: `Av. Italia ${1500 + i}, Montevideo, Uruguay`,
 }));
 
 const ALL = "__all__"; // sentinel para "Todos"
@@ -52,6 +76,9 @@ export default function Services() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
+  const [hoverInfo, setHoverInfo] = useState<{ direccion?: string; obs?: string } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Servicio | null>(null);
   const onCreate = () => { /* TODO: Crear Servicio */ };
 
   const [filters, setFilters] = useState({
@@ -125,6 +152,20 @@ export default function Services() {
     atrasoMin: "",
     atrasoMax: "",
   });
+
+  const formatDireccion = (s?: Servicio) => {
+    if (!s) return "";
+    const partes: string[] = [];
+    const calleNro = [s.calle, s.nroPuerta].filter(Boolean).join(" ");
+    if (calleNro) partes.push(calleNro);
+    const entre = [s.esquina1, s.esquina2].filter(Boolean).join(" y ");
+    if (entre) partes.push(`Entre ${entre}`);
+    const blockApto = [s.block ? `Block ${s.block}` : "", s.apto ? `Apto ${s.apto}` : ""].filter(Boolean).join(" • ");
+    if (blockApto) partes.push(blockApto);
+    const locDepto = [s.localidad, s.departamento].filter(Boolean).join(" / ");
+    if (locDepto) partes.push(locDepto);
+    return partes.join(" — ");
+  };
 
   return (
     <TableCard
@@ -241,7 +282,27 @@ export default function Services() {
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      {/* Hover info bar (fixed height) */}
+      <div className="mb-2 rounded border border-border bg-muted/20 px-3 h-10 flex items-center">
+        {hoverInfo?.direccion || hoverInfo?.obs ? (
+          <div className="flex gap-6 min-w-0 w-full items-center">
+            <div className="min-w-0 truncate">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-2">Dirección</span>
+              <span className="text-sm text-foreground font-medium leading-tight">{hoverInfo?.direccion || "—"}</span>
+            </div>
+            {hoverInfo?.obs && (
+              <div className="min-w-0 truncate">
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-2">Obs.</span>
+                <span className="text-sm text-foreground leading-tight">{hoverInfo.obs}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="opacity-0 text-sm">placeholder</span>
+        )}
+      </div>
+
+      <div className="overflow-x-auto" onMouseLeave={() => setHoverInfo(null)}>
         <Table className="text-sm min-w-[900px]">
           <TableHeader>
             <TableRow>
@@ -259,7 +320,12 @@ export default function Services() {
           </TableHeader>
           <TableBody>
             {paged.map((p) => (
-              <TableRow key={p.id} className="hover:bg-muted/40">
+              <TableRow
+                key={p.id}
+                className="hover:bg-muted/40 cursor-pointer"
+                onMouseEnter={() => setHoverInfo({ direccion: formatDireccion(p) || p.direccionCompleta || "", obs: p.observaciones })}
+                onClick={() => { setSelected(p); setOpen(true); }}
+              >
                 <TableCell className="font-medium whitespace-nowrap">{p.nroServicio}</TableCell>
                 <TableCell className="whitespace-nowrap">{new Date(p.fechaPara).toLocaleString()}</TableCell>
                 <TableCell className="whitespace-nowrap">{p.telefono}</TableCell>
@@ -284,6 +350,115 @@ export default function Services() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Modal de detalle */}
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSelected(null); }}>
+        <DialogContent className="p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-3 border-b">
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span>Servicio {selected?.nroServicio}</span>
+                {selected?.estado && (
+                  <Badge variant="secondary" className="text-xs">{selected.estado}</Badge>
+                )}
+              </div>
+            </DialogTitle>
+            <DialogDescription>
+              {selected?.fechaPara ? new Date(selected.fechaPara).toLocaleString() : ""}
+            </DialogDescription>
+            {selected?.telefono && (
+              <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground mr-1">Teléfono</span>
+                  <span className="font-medium">{selected.telefono}</span>
+                </div>
+                {selected?.movil && (
+                  <div>
+                    <span className="text-muted-foreground mr-1">Móvil</span>
+                    <span className="font-medium">{selected.movil}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogHeader>
+
+          <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Izquierda: dirección, mapa, observaciones */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Dirección</div>
+                <div className="space-y-1">
+                  <div className="text-base font-medium">
+                    {selected && (selected.calle || selected.nroPuerta) ? (
+                      <>
+                        <span>{[selected.calle, selected.nroPuerta].filter(Boolean).join(" ") || "—"}</span>{" "}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </div>
+                  {(selected?.esquina1 || selected?.esquina2) && (
+                    <div className="text-sm text-muted-foreground">Entre { [selected?.esquina1, selected?.esquina2].filter(Boolean).join(" y ") }</div>
+                  )}
+                  {(selected?.block || selected?.apto) && (
+                    <div className="text-sm text-muted-foreground">{[selected?.block ? `Block ${selected.block}` : "", selected?.apto ? `Apto ${selected.apto}` : ""].filter(Boolean).join(" • ")}</div>
+                  )}
+                  {(selected?.localidad || selected?.departamento) && (
+                    <div className="text-sm text-muted-foreground">{[selected?.localidad, selected?.departamento].filter(Boolean).join(" / ")}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md border p-2 bg-background">
+                <DynamicMapa
+                  departamento={selected?.departamento}
+                  localidad={selected?.localidad || ""}
+                  direccion={selected?.calle || ""}
+                  nroPuerta={selected?.nroPuerta || ""}
+                  esquina1={selected?.esquina1 || ""}
+                  esquina2={selected?.esquina2 || ""}
+                  zonas={[]}
+                  mapHeightPx={300}
+                />
+              </div>
+
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Observaciones</div>
+                <div className="text-sm whitespace-pre-wrap">{selected?.observaciones || "—"}</div>
+              </div>
+            </div>
+
+            {/* Derecha: detalle */}
+            <div className="space-y-4">
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-3">Detalle</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="text-muted-foreground">Producto</div><div className="font-medium">{selected?.producto || "—"}</div>
+                  <div className="text-muted-foreground">Estado</div><div className="font-medium">{selected?.estado || "—"}</div>
+                  <div className="text-muted-foreground">Zona</div><div className="font-medium">{selected?.zona || "—"}</div>
+                  <div className="text-muted-foreground">Defecto</div><div className="font-medium">{selected?.defecto || "—"}</div>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-3">Tiempos</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="text-muted-foreground">Fecha para</div><div className="font-medium">{selected?.fechaPara ? new Date(selected.fechaPara).toLocaleString() : "—"}</div>
+                  <div className="text-muted-foreground">Atraso</div><div className="font-medium">{selected?.atraso ?? "—"}</div>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-4 bg-background">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-3">Origen</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="text-muted-foreground">Móvil</div><div className="font-medium">{selected?.movil || "—"}</div>
+                  <div className="text-muted-foreground">Teléfono</div><div className="font-medium">{selected?.telefono || "—"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Pager
         page={safePage}

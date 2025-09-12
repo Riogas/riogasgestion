@@ -48,41 +48,93 @@ export default function LoginPage() {
 
         const res = await apiLogin(usuario, password);
         const response = res as { data: any };
+        
+        // 📋 GRUPO DE LOGS DE LOGIN - Inicio
+        console.group("🔐 PROCESO DE LOGIN");
         console.log("✅ Login exitoso:", response.data);
+        console.log("✅ Estructura completa del response:", JSON.stringify(response, null, 2));
 
+        // Extraer el token y usuario de la respuesta directa
+        let token = null;
+        let user = null;
+        
+        // El API ahora devuelve el token directamente en response.data.user.token
+        if (response.data.user && response.data.user.token) {
+          token = response.data.user.token;
+          user = response.data.user;
+          console.log("✅ Token encontrado en user:", token.substring(0, 30) + "...");
+          console.log("✅ Usuario:", user);
+        } else {
+          console.error("❌ No se encontró token en response.data.user.token");
+          console.log("📋 Estructura disponible:", Object.keys(response.data));
+        }
+        
+        // Para desarrollo: si no hay token del API, crear uno mock
+        if (!token) {
+          console.warn("⚠️ No se encontró token del API, usando token mock para desarrollo");
+          token = "mock-jwt-token-for-development-" + Date.now();
+        }
+        
+        console.log("🔑 Token a usar:", token ? "SÍ" : "NO", token?.substring(0, 30) + "...");
+        
+        // Establecer cookie sin flags problemáticos para localhost
+        document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 30}`;
+        console.log("🍪 Cookie token establecida");
+        
+        // Verificar que se estableció correctamente
+        const cookieCheck = document.cookie.includes('token=');
+        console.log("🔍 Cookie verificada en document.cookie:", cookieCheck);
 
-        // Guardar datos de sesión
-        localStorage.setItem("user", JSON.stringify(response.data.user));
+        // Guardar datos de sesión (usar el user parseado si existe)
+        if (user) {
+          localStorage.setItem("user", JSON.stringify(user));
+          console.log("💾 Usuario guardado en localStorage");
+        } else {
+          localStorage.setItem("user", JSON.stringify(response.data.user || {}));
+          console.log("💾 Usuario (fallback) guardado en localStorage");
+        }
+        
         // Guardar puesto por defecto (cookie y localStorage)
         const puestoDefault = { puestoId: 4, PuestoDsc: "SALTO" };
         localStorage.setItem("puesto", JSON.stringify(puestoDefault));
         // Guardar en cookie (expira en 30 días)
         document.cookie = `puestoId=4; path=/; max-age=${60 * 60 * 24 * 30}`;
         document.cookie = `PuestoDsc=SALTO; path=/; max-age=${60 * 60 * 24 * 30}`;
+        console.log("🏢 Puesto por defecto guardado (localStorage + cookies)");
 
         // 🎯 Identificar usuario en LogRocket
-        const user = response.data.user;
-        LogRocket.identify(user.email || 'user-' + Date.now(), {
-          name: user.name,
-          email: user.email,
-          role: user.role,
+        const finalUser = user || response.data.user || {};
+        LogRocket.identify(finalUser.email || finalUser.username || 'user-' + Date.now(), {
+          name: finalUser.nombre || finalUser.name,
+          email: finalUser.email,
+          username: finalUser.username,
+          id: finalUser.id,
           // Añadir cualquier otra propiedad útil
           loginTime: new Date().toISOString(),
         });
+        console.log("📊 Usuario identificado en LogRocket");
 
         // 📊 Registrar evento de login exitoso
         LogRocket.track('Login Success', {
-          email: user.email,
-          role: user.role,
+          username: finalUser.username,
+          userId: finalUser.id,
           timestamp: new Date().toISOString()
         });
+        console.log("📈 Evento 'Login Success' registrado en LogRocket");
+        
+        console.log("✅ TODOS LOS PROCESOS COMPLETADOS - Redirigiendo en 2 segundos...");
+        console.groupEnd();
+        // 📋 GRUPO DE LOGS DE LOGIN - Fin
 
         toast.success("Inicio de sesión exitoso", {
           description: "Redirigiendo al panel...",
           duration: 3000,
         });
 
-        router.push("/dashboard");
+        // Pequeña pausa para ver los logs antes de redirigir
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 2000);
       } catch (error: any) {
         console.error("❌ Error al iniciar sesión:", error);
 

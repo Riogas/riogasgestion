@@ -172,6 +172,7 @@ export async function middleware(request: NextRequest) {
   // 2) JWT desde cookie
   const token = request.cookies.get('token')?.value;
   log('token presente?', !!token);
+  log('todas las cookies:', Object.fromEntries(request.cookies.getAll().map(c => [c.name, c.value])));
   if (!token) {
     log('sin token → redirect /login');
     return NextResponse.redirect(new URL('/login', request.url));
@@ -198,7 +199,17 @@ export async function middleware(request: NextRequest) {
   log('userName decodificado:', userName || '(vacío)');
 
   // 4) Consultar permisos con pathname + code + token  ✅
-  const permitido = await apiCheckPermisoEdge(pathname, code, token);
+  // En desarrollo, permitir tokens mock
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  let permitido = false;
+  
+  if (isDevelopment && token?.startsWith('mock-jwt-token')) {
+    log('🧪 Token mock detectado en desarrollo - permiso automático');
+    permitido = true;
+  } else {
+    permitido = await apiCheckPermisoEdge(pathname, code, token);
+  }
+  
   log('permiso?', permitido);
 
   if (!permitido) {

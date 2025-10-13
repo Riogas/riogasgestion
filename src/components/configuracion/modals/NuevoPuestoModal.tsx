@@ -201,7 +201,15 @@ export default function NuevoPuestoModal({
             {/* PuestoId */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="puestoId" className="text-right">Identificador</Label>
-              <Input id="puestoId" type="number" value={puestoId} onChange={(e) => setPuestoId(e.target.value)} className="col-span-3" placeholder="0 para nuevo" disabled={loading} />
+              <Input 
+                id="puestoId" 
+                type="number" 
+                value={puestoId} 
+                onChange={(e) => setPuestoId(e.target.value)} 
+                className="col-span-3 bg-muted/50" 
+                placeholder="Generado automáticamente" 
+                disabled={true}
+              />
             </div>
             {/* Descripción */}
             <div className="grid grid-cols-4 items-center gap-4">
@@ -311,11 +319,17 @@ export default function NuevoPuestoModal({
               <Label htmlFor="puestoGCINro" className="text-right">GCI Nº</Label>
               <Input id="puestoGCINro" value={puestoGCINro} onChange={(e) => setPuestoGCINro(e.target.value)} className="col-span-3" placeholder="Número GCI" disabled={loading} />
             </div>
-            {/* PuestoFleteCantidad y Horarios pueden ser más anchos, Horarios ocupa 2 cols */}
-            {/* PuestoHorarios (ocupa 2 columnas) */}
-            <div className="md:col-span-2 grid grid-cols-4 items-start gap-4">
-              <Label htmlFor="puestoHorarios" className="text-right pt-2">Horarios</Label>
-              <textarea id="puestoHorarios" value={puestoHorarios} onChange={(e) => setPuestoHorarios(e.target.value)} className="col-span-3 border rounded px-3 py-2 bg-background" placeholder="Detalle de horarios" rows={3} disabled={loading} />
+            {/* PuestoHorarios */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="puestoHorarios" className="text-right">Horarios</Label>
+              <textarea 
+                id="puestoHorarios" 
+                value={puestoHorarios} 
+                onChange={(e) => setPuestoHorarios(e.target.value)} 
+                className="col-span-3 min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y" 
+                placeholder="Detalle de horarios" 
+                disabled={loading} 
+              />
             </div>
           </div>
           

@@ -68,7 +68,7 @@ export function Navbar({
   const router = useRouter();
 
   // Usuario efectivo: prioriza lo que viene del middleware (server)
-  const effectiveUserName = userNameFromServer || user.name || "";
+  const effectiveUserName = userNameFromServer || user.nombre || user.name || "";
   const userInitials = effectiveUserName
     ? effectiveUserName.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase()
     : "JD";

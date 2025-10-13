@@ -100,6 +100,7 @@ export default function Zona() {
   };
 
   const columns = [
+    { accessorKey: "PuestoId", header: "Puesto" },
     { accessorKey: "TipoCapaId", header: "Tipo Capa" },
     { accessorKey: "CapaId", header: "Capa" },
     { accessorKey: "ZonaNombre", header: "Zona" },

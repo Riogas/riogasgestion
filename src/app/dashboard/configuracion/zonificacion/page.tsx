@@ -1,15 +1,15 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import dynamic from "next/dynamic";
 import { Card } from "@/components/ui/card";
-import { Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 
-import Zonificacion from "@/components/configuracion/Zonificacion";
+// Importar Zonificacion dinámicamente para evitar SSR
+const Zonificacion = dynamic(() => import("@/components/configuracion/Zonificacion"), {
+  ssr: false,
+  loading: () => <div className="p-6">Cargando zonificación...</div>,
+});
 
 export default function ZonificacionPage() {
-  const router = useRouter();
-
   return (
     <Card className="p-6">
       <div className="flex justify-between items-center mb-6">

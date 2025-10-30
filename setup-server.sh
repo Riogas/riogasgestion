@@ -68,9 +68,9 @@ if [ -n "$DOCKER_USER" ]; then
 fi
 
 echo -e "${BLUE}[7/7] Creando directorios...${NC}"
-mkdir -p /opt/riogasgestion
-chown -R "$DOCKER_USER:$DOCKER_USER" /opt/riogasgestion
-echo -e "${GREEN}✓ Directorio /opt/riogasgestion creado${NC}"
+mkdir -p /home/riogas/goya
+chown -R "$DOCKER_USER:$DOCKER_USER" /home/riogas/goya
+echo -e "${GREEN}✓ Directorio /home/riogas/goya creado${NC}"
 
 echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
@@ -79,11 +79,11 @@ echo -e "${GREEN}═════════════════════
 echo ""
 echo -e "${BLUE}Próximos pasos:${NC}"
 echo "1. Cerrar sesión y volver a entrar (para aplicar permisos de docker)"
-echo "2. cd /opt/riogasgestion"
+echo "2. cd /home/riogas/goya"
 echo "3. git clone <tu-repo> ."
 echo "4. cp .env.production.example .env.production"
 echo "5. nano .env.production (configurar variables)"
-echo "6. chmod +x deploy.sh webhook-deploy.sh"
+echo "6. chmod +x deploy.sh webhook-deploy.sh helper.sh"
 echo "7. ./deploy.sh"
 echo ""
 echo -e "${GREEN}¡Listo!${NC}"

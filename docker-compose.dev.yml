@@ -1,0 +1,51 @@
+version: '3.9'
+
+# ============================================
+# DOCKER COMPOSE PARA DESARROLLO LOCAL
+# ============================================
+# Este archivo es para desarrollo local con hot-reload
+# Para producción, usar docker-compose.yml
+# ============================================
+
+services:
+  riogasgestion-dev:
+    container_name: riogasgestion-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        NODE_ENV: development
+    image: riogasgestion:dev
+    restart: unless-stopped
+    
+    ports:
+      - "4000:4000"
+    
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - CHOKIDAR_USEPOLLING=true
+    
+    env_file:
+      - .env.local
+    
+    # Hot-reload con volúmenes
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./package.json:/app/package.json
+      - ./next.config.ts:/app/next.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      # Excluir node_modules
+      - /app/node_modules
+      - /app/.next
+    
+    networks:
+      - riogasgestion-dev-network
+    
+    command: pnpm dev
+
+networks:
+  riogasgestion-dev-network:
+    driver: bridge
+    name: riogasgestion-dev-network

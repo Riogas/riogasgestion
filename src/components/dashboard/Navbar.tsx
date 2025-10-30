@@ -31,11 +31,6 @@ type NavbarProps = {
 };
 /* ================================================================= */
 
-const user =
-  typeof window !== "undefined"
-    ? JSON.parse(localStorage.getItem("user") || "{}")
-    : {};
-
 function getPuestosFromStorage() {
   if (typeof window === "undefined") return [];
   const puestosStr = localStorage.getItem("puestos");
@@ -52,6 +47,16 @@ function getPuestosFromStorage() {
   return [];
 }
 
+function getUserFromStorage() {
+  if (typeof window === "undefined") return {};
+  try {
+    const userStr = localStorage.getItem("user");
+    return userStr ? JSON.parse(userStr) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function Navbar({
   routeName = "",
   routeCode = "",
@@ -65,16 +70,33 @@ export function Navbar({
   const [puestoActual, setPuestoActual] = useState<any>(null);
   const [openInfo, setOpenInfo] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [user, setUser] = useState<any>({});
   const router = useRouter();
 
-  // Usuario efectivo: prioriza lo que viene del middleware (server)
-  const effectiveUserName = userNameFromServer || user.nombre || user.name || "";
+  // Usuario efectivo: prioriza localStorage que tiene el nombre completo
+  // El userNameFromServer viene del JWT y puede tener solo el username (ej: "JGOMEZ")
+  const effectiveUserName = user.nombre || user.name || userNameFromServer || "";
+  
+  // Generar iniciales del nombre completo (primera letra de cada palabra)
   const userInitials = effectiveUserName
-    ? effectiveUserName.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase()
+    ? effectiveUserName
+        .trim()
+        .split(/\s+/) // Dividir por cualquier espacio
+        .filter((p: string) => p.length > 0) // Filtrar palabras vacías
+        .map((p: string) => p[0]) // Tomar primera letra de cada palabra
+        .join("")
+        .slice(0, 2) // Limitar a 2 caracteres
+        .toUpperCase()
     : "JD";
 
   useEffect(() => {
     setMounted(true);
+    
+    // Cargar usuario desde localStorage
+    const userFromStorage = getUserFromStorage();
+    setUser(userFromStorage);
+    
+    // Cargar puestos
     const ps = getPuestosFromStorage();
     setPuestos(ps);
     if (ps.length > 0) {
@@ -86,7 +108,27 @@ export function Navbar({
         setPuestoActual(ps[0]);
       }
     }
-  }, []);
+    
+    // Debug: mostrar información del usuario en consola
+    console.log("🔍 Navbar - Usuario completo desde localStorage:", userFromStorage);
+    console.log("🔍 Navbar - user.nombre:", userFromStorage.nombre);
+    console.log("🔍 Navbar - user.name:", userFromStorage.name);
+    console.log("🔍 Navbar - Nombre desde server (JWT):", userNameFromServer);
+    console.log("🔍 Navbar - Nombre efectivo (final):", userFromStorage.nombre || userFromStorage.name || userNameFromServer || "");
+    
+    const finalName = userFromStorage.nombre || userFromStorage.name || userNameFromServer || "";
+    if (finalName) {
+      const initials = finalName
+        .trim()
+        .split(/\s+/)
+        .filter((p: string) => p.length > 0)
+        .map((p: string) => p[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+      console.log("🔍 Navbar - Iniciales calculadas:", initials);
+    }
+  }, [userNameFromServer]);
 
   // Cuando cambia el puesto seleccionado
   const handleChangePuesto = (value: string) => {
@@ -326,14 +368,23 @@ export function Navbar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="rounded-full p-0 h-10 w-10">
-              <Avatar>
-                <AvatarImage src="/avatar.png" alt="Avatar" />
-                <AvatarFallback>{userInitials}</AvatarFallback>
+              <Avatar className="h-10 w-10">
+                <AvatarImage src="/avatar.png" alt={effectiveUserName} />
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
+                  {userInitials}
+                </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{effectiveUserName || "Mi cuenta"}</DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{effectiveUserName || "Usuario"}</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {user.email || user.username || ""}
+                </p>
+              </div>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Perfil</DropdownMenuItem>
             <DropdownMenuItem>Configuración</DropdownMenuItem>

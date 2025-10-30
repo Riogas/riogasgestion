@@ -1,0 +1,34 @@
+[
+  {
+    "id": "riogasgestion-deploy",
+    "execute-command": "/opt/riogasgestion/webhook-deploy.sh",
+    "command-working-directory": "/opt/riogasgestion",
+    "response-message": "Deploy iniciado correctamente",
+    "pass-arguments-to-command": [],
+    "pass-environment-to-command": [],
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "payload-hash-sha256",
+            "secret": "CAMBIAR_ESTE_SECRET_POR_UNO_SEGURO",
+            "parameter": {
+              "source": "header",
+              "name": "X-Hub-Signature-256"
+            }
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "value": "refs/heads/dev",
+            "parameter": {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  }
+]

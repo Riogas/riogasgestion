@@ -1,0 +1,79 @@
+version: '3.9'
+
+services:
+  # ============================================
+  # Aplicación Next.js
+  # ============================================
+  riogasgestion:
+    container_name: riogasgestion-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    image: riogasgestion:latest
+    restart: unless-stopped
+    
+    # Puerto expuesto (puedes cambiarlo si nginx está en otro servidor)
+    ports:
+      - "3000:3000"
+    
+    # Variables de entorno
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      # Agregar tus variables de entorno aquí o usar env_file
+    
+    # Archivo de variables de entorno (crear .env.production)
+    env_file:
+      - .env.production
+    
+    # Volúmenes persistentes (opcional - para logs, uploads, etc.)
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    
+    # Networking
+    networks:
+      - riogasgestion-network
+    
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Límites de recursos (ajustar según tu servidor)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================================
+# Red personalizada
+# ============================================
+networks:
+  riogasgestion-network:
+    driver: bridge
+    name: riogasgestion-network
+
+# ============================================
+# Volúmenes (opcional - para persistencia)
+# ============================================
+volumes:
+  riogasgestion-data:
+    name: riogasgestion-data

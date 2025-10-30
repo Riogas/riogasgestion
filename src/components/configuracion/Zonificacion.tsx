@@ -461,29 +461,108 @@ export default function Zonificacion() {
           return;
         }
         
-        const nuevasZonas: LocalidadZona[] = geojson.features.map((feature: any, idx: number) => {
+        console.log('[DEBUG] GeoJSON importado:', geojson);
+        
+        // Agrupar features por Codigo para crear una sola zona por cada valor único
+        const zonasPorCodigo: { [key: string]: any } = {};
+        
+        geojson.features.forEach((feature: any, idx: number) => {
+          const geometryType = feature.geometry?.type;
           const coords = feature.geometry?.coordinates;
-          // Convertir [lon, lat] a [lat, lon]
-          const rings = coords?.map((ring: any) => 
-            ring.map(([lon, lat]: [number, number]) => [lat, lon])
-          ) || [];
           
-          // Extraer color de _umap_options si existe
-          const color = feature.properties?._umap_options?.color;
+          console.log(`[DEBUG] Feature ${idx}:`, {
+            type: geometryType,
+            properties: feature.properties,
+            coordsLength: coords?.length
+          });
           
-          return {
-            id: feature.properties?.id || `imported-${idx}`,
-            name: feature.properties?.name || `Zona importada ${idx + 1}`,
-            coordinates: rings,
-            shouldSimplify: false, // No simplificar zonas importadas
-            ...(color && { color })
-          };
+          if (!coords) return;
+          
+          const properties = feature.properties || {};
+          const codigoValue = properties.Codigo !== undefined ? properties.Codigo : properties.codigo;
+          
+          // Determinar el nombre de la zona
+          let name = `Zona ${idx + 1}`;
+          let zonaKey = `unnamed-${idx}`;
+          
+          if (codigoValue !== undefined && codigoValue !== null) {
+            // Usar Codigo (incluso si es 0)
+            name = `Zona ${codigoValue}`;
+            zonaKey = `codigo-${codigoValue}`;
+          } else if (properties.OBJECTID_1 !== undefined && properties.OBJECTID_1 !== null) {
+            name = `Zona ${properties.OBJECTID_1}`;
+            zonaKey = `objectid1-${properties.OBJECTID_1}`;
+          } else if (properties.OBJECTID !== undefined && properties.OBJECTID !== null) {
+            name = `Zona ${properties.OBJECTID}`;
+            zonaKey = `objectid-${properties.OBJECTID}`;
+          } else if (properties.name) {
+            name = properties.name;
+            zonaKey = `name-${properties.name}`;
+          } else if (properties.nombre || properties.Nombre) {
+            name = properties.nombre || properties.Nombre;
+            zonaKey = `nombre-${name}`;
+          }
+          
+          // Convertir coordenadas según el tipo de geometría
+          let rings: [number, number][][] = [];
+          
+          if (geometryType === "Polygon") {
+            rings = coords.map((ring: any) => 
+              ring.map(([lon, lat]: [number, number]) => [lat, lon])
+            );
+          } else if (geometryType === "MultiPolygon") {
+            // Para MultiPolygon, aplanar todos los polígonos en rings
+            rings = coords.flatMap((polygon: any) => 
+              polygon.map((ring: any) => 
+                ring.map(([lon, lat]: [number, number]) => [lat, lon])
+              )
+            );
+          } else {
+            console.warn(`[WARN] Tipo de geometría no soportado: ${geometryType}`);
+            return;
+          }
+          
+          if (rings.length === 0 || !rings[0] || rings[0].length === 0) {
+            console.warn(`[WARN] Feature ${idx} no tiene coordenadas válidas`);
+            return;
+          }
+          
+          // Agrupar por zona
+          if (!zonasPorCodigo[zonaKey]) {
+            const color = properties._umap_options?.color || properties.color || properties.fill;
+            zonasPorCodigo[zonaKey] = {
+              id: properties.id || properties.OBJECTID || properties.OBJECTID_1 || `imported-${Date.now()}-${zonaKey}`,
+              name: name,
+              coordinates: [],
+              shouldSimplify: false,
+              ...(color && { color })
+            };
+          }
+          
+          // Agregar todos los rings a la zona
+          zonasPorCodigo[zonaKey].coordinates.push(...rings);
+          
+          console.log(`[DEBUG] Feature ${idx} agregado a zona "${name}" (key: ${zonaKey}), total rings: ${zonasPorCodigo[zonaKey].coordinates.length}`);
         });
+        
+        // Convertir el objeto agrupado en array
+        const nuevasZonas: LocalidadZona[] = Object.values(zonasPorCodigo);
+        
+        console.log('[DEBUG] Nuevas zonas procesadas:', nuevasZonas);
+        
+        if (nuevasZonas.length === 0) {
+          toast.error("No se pudieron extraer zonas del archivo GeoJSON");
+          return;
+        }
+        
         // Al importar, NO filtrar zonas superpuestas: conservar todas las importadas
         setZonas([...zonas, ...nuevasZonas]);
         console.log('[DEBUG] Zonas después de importar:', [...zonas, ...nuevasZonas]);
+        
+        toast.success(`${nuevasZonas.length} zona(s) importada(s) correctamente`);
       } catch (err) {
-        alert("Error al importar el archivo GeoJSON");
+        console.error('[ERROR] Error al importar GeoJSON:', err);
+        toast.error("Error al importar el archivo GeoJSON");
       }
     };
     reader.readAsText(file);

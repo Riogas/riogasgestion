@@ -46,3 +46,16 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Docker
+logs/
+*.log
+.env.production
+.env.production.local
+webhook.json
+
+# Backups
+backup_*.tar.gz
+
+# Uploads (si usas almacenamiento local)
+uploads/

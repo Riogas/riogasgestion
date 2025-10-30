@@ -64,15 +64,22 @@ function extractReply(data: any): string | undefined {
 }
 
 export default function ChatProvider() {
+  const [isMounted, setIsMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // Cargar estado de localStorage
+  // Asegurar que el componente está montado antes de acceder a localStorage
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    setIsMounted(true);
+  }, []);
+
+  // Cargar estado de localStorage solo después de montarse
+  useEffect(() => {
+    if (!isMounted || typeof window === "undefined") return;
+    
     const o = localStorage.getItem(STORAGE_CHAT_OPEN);
     setOpen(o === "1");
     const raw = localStorage.getItem(STORAGE_CHAT_MESSAGES);
@@ -95,7 +102,7 @@ export default function ChatProvider() {
         },
       ]);
     }
-  }, []);
+  }, [isMounted]);
 
   // Persistir
   useEffect(() => {

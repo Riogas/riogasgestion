@@ -2,11 +2,22 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Spinner } from "@phosphor-icons/react";
 import { useLoading } from "@/lib/LoadingContext";
+import { useEffect, useState } from "react";
 
 export function GlobalLoadingOverlay() {
   const { isLoading, message } = useLoading();
+  const [isMounted, setIsMounted] = useState(false);
 
-  console.log("GlobalLoadingOverlay: isLoading:", isLoading, "message:", message);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Solo mostrar después de que el componente esté montado en el cliente
+  if (!isMounted) return null;
+
+  if (typeof window !== 'undefined') {
+    console.log("GlobalLoadingOverlay: isLoading:", isLoading, "message:", message);
+  }
 
   return (
     <AnimatePresence>

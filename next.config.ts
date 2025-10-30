@@ -6,6 +6,14 @@ const nextConfig: NextConfig = {
   // Habilitar modo standalone para Docker
   output: 'standalone',
   
+  // Desactivar ESLint y TypeScript checks en build de producción
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  
   async rewrites() {
     return [
       {

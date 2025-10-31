@@ -2,7 +2,7 @@ version: '3.9'
 
 services:
   # ============================================
-  # Aplicación Next.js
+  # Aplicación Next.js - CON RED BRIDGE
   # ============================================
   riogasgestion:
     container_name: riogasgestion-app
@@ -14,32 +14,32 @@ services:
     image: riogasgestion:latest
     restart: unless-stopped
     
-    # Usar la red del host para acceder a 192.168.1.72
-    network_mode: "host"
-    
-    # Puerto expuesto (con network_mode: host, el contenedor usa directamente el puerto 3000 del host)
-    # ports:
-    #   - "3000:3000"  # No necesario con network_mode: host
+    # Puerto expuesto
+    ports:
+      - "3000:3000"
     
     # Variables de entorno
     environment:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      # Agregar tus variables de entorno aquí o usar env_file
     
-    # Archivo de variables de entorno (crear .env.production)
+    # Archivo de variables de entorno
     env_file:
       - .env.production
     
-    # Volúmenes persistentes (opcional - para logs, uploads, etc.)
+    # Volúmenes persistentes
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
     
-    # Networking
+    # Networking con mapeo de host
     networks:
       - riogasgestion-network
+    
+    # Mapear el host backend a la IP
+    extra_hosts:
+      - "backend.riogas:192.168.1.72"
     
     # Healthcheck
     healthcheck:
@@ -49,7 +49,7 @@ services:
       retries: 3
       start_period: 40s
     
-    # Límites de recursos (ajustar según tu servidor)
+    # Límites de recursos
     deploy:
       resources:
         limits:
@@ -67,16 +67,13 @@ services:
         max-file: "3"
 
 # ============================================
-# Red personalizada
+# Red personalizada con acceso al host
 # ============================================
 networks:
   riogasgestion-network:
     driver: bridge
     name: riogasgestion-network
-
-# ============================================
-# Volúmenes (opcional - para persistencia)
-# ============================================
-volumes:
-  riogasgestion-data:
-    name: riogasgestion-data
+    driver_opts:
+      com.docker.network.bridge.name: br-riogasgestion
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.driver.mtu: "1500"

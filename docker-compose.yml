@@ -37,9 +37,9 @@ services:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
     
-    # Networking
-    networks:
-      - riogasgestion-network
+    # Networking - COMENTADO: incompatible con network_mode: host
+    # networks:
+    #   - riogasgestion-network
     
     # Healthcheck
     healthcheck:

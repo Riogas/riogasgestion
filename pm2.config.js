@@ -16,7 +16,7 @@ module.exports = {
       exp_backoff_restart_delay: 100, // Backoff exponencial en reinicios
       env: {
         NODE_ENV: 'production',
-        PORT: 3003,
+        PORT: 3000,
         HOSTNAME: '0.0.0.0',
         NODE_TLS_REJECT_UNAUTHORIZED: '0'  // Ignorar errores de certificado SSL
       },

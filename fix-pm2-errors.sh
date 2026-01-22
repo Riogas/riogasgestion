@@ -14,8 +14,10 @@ NC='\033[0m' # No Color
 
 # 1. Detener aplicación
 echo -e "${BLUE}1. Deteniendo aplicación PM2...${NC}"
-pm2 delete goya 2>/dev/null || echo "   No hay procesos PM2 corriendo"
-pm2 kill 2>/dev/null || echo "   PM2 daemon detenido"
+pm2 delete goya 2>/dev/null || echo "   No hay proceso goya corriendo"
+sleep 1
+pm2 kill 2>/dev/null || true
+sleep 2
 echo -e "${GREEN}   ✓ Procesos PM2 detenidos${NC}"
 
 # 2. Limpiar directorio temporal problemático
@@ -44,7 +46,7 @@ echo ""
 echo -e "${BLUE}4. Limpiando configuración de PM2...${NC}"
 rm -rf ~/.pm2/logs/* 2>/dev/null
 rm -rf ~/.pm2/pids/* 2>/dev/null
-pm2 flush 2>/dev/null
+# No usar pm2 flush porque el daemon está apagado
 echo -e "${GREEN}   ✓ Configuración de PM2 limpiada${NC}"
 
 # 5. Verificar variables de entorno críticas

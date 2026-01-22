@@ -34,8 +34,8 @@ echo -e "${BLUE}2. Verificando variables críticas...${NC}"
 
 critical_vars=(
     "NEXT_PUBLIC_API_URL"
-    "JWT_SECRET"
-    "NEXTAUTH_SECRET"
+    "PERMISOS_API_URL"
+    "NEXT_PUBLIC_APLICACION_ID"
 )
 
 missing_vars=0
@@ -66,11 +66,11 @@ if [ $missing_vars -gt 0 ]; then
     echo "1. NEXT_PUBLIC_API_URL:"
     echo "   ${YELLOW}NEXT_PUBLIC_API_URL=http://192.168.1.72:8082${NC}"
     echo ""
-    echo "2. JWT_SECRET (generar con: openssl rand -base64 32):"
-    echo "   ${YELLOW}JWT_SECRET=$(openssl rand -base64 32)${NC}"
+    echo "2. PERMISOS_API_URL:"
+    echo "   ${YELLOW}PERMISOS_API_URL=http://192.168.1.72:8082/servicios/SecuritySuite/Permisos${NC}"
     echo ""
-    echo "3. NEXTAUTH_SECRET (generar con: openssl rand -base64 32):"
-    echo "   ${YELLOW}NEXTAUTH_SECRET=$(openssl rand -base64 32)${NC}"
+    echo "3. NEXT_PUBLIC_APLICACION_ID:"
+    echo "   ${YELLOW}NEXT_PUBLIC_APLICACION_ID=3${NC}"
     echo ""
     echo "Editar ahora:"
     echo "   ${YELLOW}nano .env.production${NC}"

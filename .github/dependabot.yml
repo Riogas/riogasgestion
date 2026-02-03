@@ -1,0 +1,62 @@
+# Configuración de GitHub Dependabot
+# Revisa automáticamente las dependencias y crea PRs con actualizaciones
+
+version: 2
+updates:
+  # Monitorear package.json
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Argentina/Buenos_Aires"
+    
+    # Configuración de PRs
+    open-pull-requests-limit: 10
+    
+    # Agrupar actualizaciones menores y patches
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    
+    # Etiquetas para PRs
+    labels:
+      - "dependencies"
+      - "security"
+    
+    # Revisores automáticos (opcional)
+    # reviewers:
+    #   - "jgomez"
+    
+    # Assignees automáticos (opcional)
+    # assignees:
+    #   - "jgomez"
+    
+    # Permitir solo actualizaciones de seguridad
+    # open-pull-requests-limit: 0  # Descomentar para modo "solo seguridad"
+    
+    # Ignorar actualizaciones específicas
+    ignore:
+      # Ejemplo: ignorar actualizaciones mayores de React
+      # - dependency-name: "react"
+      #   update-types: ["version-update:semver-major"]
+      
+      # Ignorar completamente un paquete
+      # - dependency-name: "old-package"
+
+  # Monitorear GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Argentina/Buenos_Aires"
+    labels:
+      - "github-actions"
+      - "dependencies"

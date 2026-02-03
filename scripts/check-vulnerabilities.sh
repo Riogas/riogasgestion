@@ -9,13 +9,24 @@ set -e
 
 # Configuración
 PROJECTS_DIR="/var/www"
-PROJECTS=("goya" "track" "securitySuite")
+PROJECTS=("goya" "track")  # Ajustar según tus proyectos reales
 EMAIL_TO="jgomez@riogas.com.ar"
 EMAIL_FROM="servidor@riogas.com.ar"
 SMTP_SERVER="smtp.gmail.com"
 SMTP_PORT="587"
 SMTP_USER="notificaciones@riogas.com.ar"
 SMTP_PASS=""  # Se debe configurar en el servidor
+
+# Autodetectar proyectos si el array está vacío
+if [ ${#PROJECTS[@]} -eq 0 ]; then
+    log "Autodetectando proyectos en $PROJECTS_DIR..."
+    PROJECTS=()
+    for dir in "$PROJECTS_DIR"/*; do
+        if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then
+            PROJECTS+=("$(basename "$dir")")
+        fi
+    done
+fi
 
 # Colores
 RED='\033[0;31m'
@@ -267,7 +278,7 @@ cat >> "$HTML_REPORT" << EOF
 EOF
 
 # Enviar email si está configurado
-if [ -n "$SMTP_PASS" ] && command -v mailx &> /dev/null; then
+if [ -n "$SMTP_PASS" ]; then
     log "Enviando reporte por email..."
     
     SUBJECT="[Riogas] Reporte de Vulnerabilidades - $(date +'%d/%m/%Y')"
@@ -276,22 +287,54 @@ if [ -n "$SMTP_PASS" ] && command -v mailx &> /dev/null; then
         SUBJECT="⚠️ [URGENTE] $SUBJECT"
     fi
     
-    cat "$HTML_REPORT" | mailx -s "$SUBJECT" \
-        -S smtp="$SMTP_SERVER:$SMTP_PORT" \
-        -S smtp-use-starttls \
-        -S smtp-auth=login \
-        -S smtp-auth-user="$SMTP_USER" \
-        -S smtp-auth-password="$SMTP_PASS" \
-        -S from="$EMAIL_FROM" \
-        -S content-type="text/html" \
-        -a "$REPORT_FILE" \
-        "$EMAIL_TO"
+    # Intentar diferentes métodos de envío
+    EMAIL_SENT=false
     
-    success "Email enviado correctamente"
+    # Método 1: sendmail (más común en servidores Linux)
+    if command -v sendmail &> /dev/null && [ "$EMAIL_SENT" = false ]; then
+        log "Usando sendmail..."
+        (
+            echo "To: $EMAIL_TO"
+            echo "From: $EMAIL_FROM"
+            echo "Subject: $SUBJECT"
+            echo "Content-Type: text/html; charset=UTF-8"
+            echo ""
+            cat "$HTML_REPORT"
+        ) | sendmail -t
+        EMAIL_SENT=true
+        success "Email enviado correctamente (sendmail)"
+    fi
+    
+    # Método 2: mail (simple)
+    if command -v mail &> /dev/null && [ "$EMAIL_SENT" = false ]; then
+        log "Usando mail..."
+        mail -s "$SUBJECT" -a "$REPORT_FILE" "$EMAIL_TO" < "$HTML_REPORT"
+        EMAIL_SENT=true
+        success "Email enviado correctamente (mail)"
+    fi
+    
+    # Método 3: curl con API (ej: Mailgun, SendGrid)
+    # Descomenta y configura si tienes una API
+    # if command -v curl &> /dev/null && [ "$EMAIL_SENT" = false ]; then
+    #     curl -s --user "api:YOUR_API_KEY" \
+    #         https://api.mailgun.net/v3/YOUR_DOMAIN/messages \
+    #         -F from="$EMAIL_FROM" \
+    #         -F to="$EMAIL_TO" \
+    #         -F subject="$SUBJECT" \
+    #         -F html="<$(cat "$HTML_REPORT")"
+    #     EMAIL_SENT=true
+    # fi
+    
+    if [ "$EMAIL_SENT" = false ]; then
+        warning "No se encontró método de envío de email"
+        warning "Instalar: sudo apt-get install sendmail o mailutils"
+    fi
 else
-    warning "No se configuró email o mailx no está instalado"
-    log "Reporte guardado en: $REPORT_FILE"
+    warning "No se configuró contraseña SMTP"
 fi
+
+log "Reporte guardado en: $REPORT_FILE"
+log "Reporte HTML en: $HTML_REPORT"
 
 # Retornar código de salida
 if [ $TOTAL_CRITICAL -gt 0 ] || [ $TOTAL_HIGH -gt 0 ]; then

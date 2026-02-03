@@ -11,11 +11,11 @@ set -e
 PROJECTS_DIR="/var/www"
 PROJECTS=("goya" "track")  # Ajustar según tus proyectos reales
 EMAIL_TO="jgomez@riogas.com.ar"
-EMAIL_FROM="servidor@riogas.com.ar"
-SMTP_SERVER="smtp.gmail.com"
-SMTP_PORT="587"
-SMTP_USER="notificaciones@riogas.com.ar"
-SMTP_PASS=""  # Se debe configurar en el servidor
+EMAIL_FROM="notificacionesautomaticas@riogas.com.uy"
+SMTP_SERVER="mail.riogas.com.uy"
+SMTP_PORT="25"
+SMTP_USER="notificacionesautomaticas@riogas.com.uy"
+SMTP_PASS="1710"  # Configurado para servidor SMTP de Riogas
 
 # Autodetectar proyectos si el array está vacío
 if [ ${#PROJECTS[@]} -eq 0 ]; then
@@ -290,7 +290,95 @@ if [ -n "$SMTP_PASS" ]; then
     # Intentar diferentes métodos de envío
     EMAIL_SENT=false
     
-    # Método 1: sendmail (más común en servidores Linux)
+    # Método 1: swaks (Swiss Army Knife for SMTP)
+    if command -v swaks &> /dev/null && [ "$EMAIL_SENT" = false ]; then
+        log "Usando swaks (SMTP directo)..."
+        
+        # Crear archivo temporal con HTML
+        TEMP_EMAIL="/tmp/email-body-$$.html"
+        cat "$HTML_REPORT" > "$TEMP_EMAIL"
+        
+        swaks --to "$EMAIL_TO" \
+              --from "$EMAIL_FROM" \
+              --server "$SMTP_SERVER" \
+              --port "$SMTP_PORT" \
+              --auth LOGIN \
+              --auth-user "$SMTP_USER" \
+              --auth-password "$SMTP_PASS" \
+              --header "Subject: $SUBJECT" \
+              --header "Content-Type: text/html; charset=UTF-8" \
+              --body "$TEMP_EMAIL" \
+              --attach "$REPORT_FILE" 2>&1
+        
+        if [ $? -eq 0 ]; then
+            EMAIL_SENT=true
+            success "Email enviado correctamente (swaks)"
+        fi
+        
+        rm -f "$TEMP_EMAIL"
+    fi
+    
+    # Método 2: Python con smtplib (más confiable para SMTP con autenticación)
+    if command -v python3 &> /dev/null && [ "$EMAIL_SENT" = false ]; then
+        log "Usando Python SMTP..."
+        
+        python3 << PYTHON_SCRIPT
+import smtplib
+import sys
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+
+try:
+    # Crear mensaje
+    msg = MIMEMultipart()
+    msg['From'] = "$EMAIL_FROM"
+    msg['To'] = "$EMAIL_TO"
+    msg['Subject'] = "$SUBJECT"
+    
+    # Leer HTML
+    with open("$HTML_REPORT", 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    # Agregar cuerpo HTML
+    msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+    
+    # Adjuntar reporte TXT
+    with open("$REPORT_FILE", 'rb') as f:
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(f.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', 'attachment; filename="reporte.txt"')
+        msg.attach(part)
+    
+    # Conectar y enviar
+    server = smtplib.SMTP("$SMTP_SERVER", $SMTP_PORT)
+    server.ehlo()
+    
+    # Autenticación si es necesaria
+    try:
+        server.login("$SMTP_USER", "$SMTP_PASS")
+    except:
+        pass  # Puerto 25 puede no requerir autenticación
+    
+    server.send_message(msg)
+    server.quit()
+    
+    print("SUCCESS")
+    sys.exit(0)
+except Exception as e:
+    print(f"ERROR: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_SCRIPT
+        
+        if [ $? -eq 0 ]; then
+            EMAIL_SENT=true
+            success "Email enviado correctamente (Python SMTP)"
+        fi
+    fi
+    
+    # Método 3: sendmail con configuración SMTP
     if command -v sendmail &> /dev/null && [ "$EMAIL_SENT" = false ]; then
         log "Usando sendmail..."
         (
@@ -305,29 +393,18 @@ if [ -n "$SMTP_PASS" ]; then
         success "Email enviado correctamente (sendmail)"
     fi
     
-    # Método 2: mail (simple)
+    # Método 4: mail (simple)
     if command -v mail &> /dev/null && [ "$EMAIL_SENT" = false ]; then
         log "Usando mail..."
-        mail -s "$SUBJECT" -a "$REPORT_FILE" "$EMAIL_TO" < "$HTML_REPORT"
+        cat "$HTML_REPORT" | mail -s "$SUBJECT" "$EMAIL_TO"
         EMAIL_SENT=true
         success "Email enviado correctamente (mail)"
     fi
     
-    # Método 3: curl con API (ej: Mailgun, SendGrid)
-    # Descomenta y configura si tienes una API
-    # if command -v curl &> /dev/null && [ "$EMAIL_SENT" = false ]; then
-    #     curl -s --user "api:YOUR_API_KEY" \
-    #         https://api.mailgun.net/v3/YOUR_DOMAIN/messages \
-    #         -F from="$EMAIL_FROM" \
-    #         -F to="$EMAIL_TO" \
-    #         -F subject="$SUBJECT" \
-    #         -F html="<$(cat "$HTML_REPORT")"
-    #     EMAIL_SENT=true
-    # fi
-    
     if [ "$EMAIL_SENT" = false ]; then
-        warning "No se encontró método de envío de email"
-        warning "Instalar: sudo apt-get install sendmail o mailutils"
+        warning "No se pudo enviar email con ningún método"
+        warning "Instalar: sudo apt-get install swaks"
+        warning "O usar Python (ya instalado en la mayoría de sistemas)"
     fi
 else
     warning "No se configuró contraseña SMTP"

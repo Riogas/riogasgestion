@@ -66,24 +66,49 @@ success "Permisos configurados"
 echo ""
 echo "Configuración de Email"
 echo "----------------------"
+echo "Servidor SMTP de Riogas detectado"
+echo ""
+
 read -p "Email para recibir reportes [jgomez@riogas.com.ar]: " EMAIL_TO
 EMAIL_TO=${EMAIL_TO:-jgomez@riogas.com.ar}
 
-read -p "Email de origen [notificaciones@riogas.com.ar]: " EMAIL_FROM
-EMAIL_FROM=${EMAIL_FROM:-notificaciones@riogas.com.ar}
-
-read -p "Usuario SMTP [notificaciones@riogas.com.ar]: " SMTP_USER
-SMTP_USER=${SMTP_USER:-notificaciones@riogas.com.ar}
-
-read -s -p "Contraseña SMTP: " SMTP_PASS
 echo ""
+echo "Configuración SMTP de Riogas:"
+echo "  - Servidor: mail.riogas.com.uy"
+echo "  - Puerto: 25"
+echo "  - Usuario: notificacionesautomaticas@riogas.com.uy"
+echo ""
+
+read -p "¿Usar configuración por defecto de Riogas? (y/n) [y]: " USE_DEFAULT
+USE_DEFAULT=${USE_DEFAULT:-y}
+
+if [ "$USE_DEFAULT" = "y" ]; then
+    EMAIL_FROM="notificacionesautomaticas@riogas.com.uy"
+    SMTP_SERVER="mail.riogas.com.uy"
+    SMTP_PORT="25"
+    SMTP_USER="notificacionesautomaticas@riogas.com.uy"
+    SMTP_PASS="1710"
+    
+    success "Usando configuración por defecto de Riogas"
+else
+    echo ""
+    echo "Configuración personalizada:"
+    read -p "Email de origen: " EMAIL_FROM
+    read -p "Servidor SMTP: " SMTP_SERVER
+    read -p "Puerto SMTP: " SMTP_PORT
+    read -p "Usuario SMTP: " SMTP_USER
+    read -s -p "Contraseña SMTP: " SMTP_PASS
+    echo ""
+fi
 
 # Actualizar script con configuración
 log "Actualizando configuración en el script..."
 sed -i "s|EMAIL_TO=\".*\"|EMAIL_TO=\"$EMAIL_TO\"|" "$SCRIPT_PATH"
 sed -i "s|EMAIL_FROM=\".*\"|EMAIL_FROM=\"$EMAIL_FROM\"|" "$SCRIPT_PATH"
+sed -i "s|SMTP_SERVER=\".*\"|SMTP_SERVER=\"$SMTP_SERVER\"|" "$SCRIPT_PATH"
+sed -i "s|SMTP_PORT=\".*\"|SMTP_PORT=\"$SMTP_PORT\"|" "$SCRIPT_PATH"
 sed -i "s|SMTP_USER=\".*\"|SMTP_USER=\"$SMTP_USER\"|" "$SCRIPT_PATH"
-sed -i "s|SMTP_PASS=\"\"|SMTP_PASS=\"$SMTP_PASS\"|" "$SCRIPT_PATH"
+sed -i "s|SMTP_PASS=\".*\"|SMTP_PASS=\"$SMTP_PASS\"|" "$SCRIPT_PATH"
 
 success "Configuración actualizada"
 
@@ -170,19 +195,36 @@ if ! command -v jq &> /dev/null; then
     fi
 fi
 
-# Verificar mailx (para enviar emails)
-if ! command -v mailx &> /dev/null; then
-    warning "mailx no está instalado (necesario para enviar emails)"
-    read -p "¿Instalar mailx? (y/n) [y]: " INSTALL_MAILX
-    INSTALL_MAILX=${INSTALL_MAILX:-y}
+# Verificar Python (para SMTP)
+if ! command -v python3 &> /dev/null; then
+    warning "Python3 no está instalado (recomendado para envío de emails)"
+    read -p "¿Instalar Python3? (y/n) [y]: " INSTALL_PYTHON
+    INSTALL_PYTHON=${INSTALL_PYTHON:-y}
     
-    if [ "$INSTALL_MAILX" = "y" ]; then
+    if [ "$INSTALL_PYTHON" = "y" ]; then
         if command -v apt-get &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y mailutils
+            sudo apt-get update && sudo apt-get install -y python3
         elif command -v yum &> /dev/null; then
-            sudo yum install -y mailx
+            sudo yum install -y python3
+        fi
+    fi
+else
+    success "Python3 detectado (se usará para envío de emails)"
+fi
+
+# Verificar swaks (Swiss Army Knife for SMTP - opcional pero recomendado)
+if ! command -v swaks &> /dev/null; then
+    warning "swaks no está instalado (opcional, pero recomendado para SMTP)"
+    read -p "¿Instalar swaks? (y/n) [n]: " INSTALL_SWAKS
+    INSTALL_SWAKS=${INSTALL_SWAKS:-n}
+    
+    if [ "$INSTALL_SWAKS" = "y" ]; then
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y swaks
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y swaks
         else
-            error "No se pudo instalar mailx automáticamente"
+            warning "swaks no disponible en repositorios"
         fi
     fi
 fi

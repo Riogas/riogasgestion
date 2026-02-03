@@ -250,7 +250,7 @@ bash scripts/check-vulnerabilities.sh
 **Prioridad**:
 1. 🔴 **Track** - URGENTE (1 crítica, 2 high)
 2. 🟢 **Goya** - OK (solo actualizaciones menores opcionales)
-3. ⚪ **securitySuite** - No encontrado en `/var/www/securitySuite`
+3. ⚪ **secapi** - Pendiente de verificar en `/var/www/secapi`
 
 ---
 

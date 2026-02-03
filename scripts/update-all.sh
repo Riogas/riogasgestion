@@ -9,7 +9,7 @@ set -e
 
 # Configuración
 PROJECTS_DIR="/var/www"
-PROJECTS=("goya" "track")  # Ajustar según tus proyectos
+PROJECTS=("goya" "track" "secapi")  # Proyectos de Riogas
 
 # Colores
 RED='\033[0;31m'

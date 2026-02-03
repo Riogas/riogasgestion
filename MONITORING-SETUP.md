@@ -231,7 +231,7 @@ El email incluirá:
     │   ├── package.json
     │   ├── next.config.ts
     │   └── src/
-    └── securitySuite/
+    └── secapi/
         ├── package.json
         ├── next.config.ts
         └── src/
@@ -257,7 +257,7 @@ packages:
     "build:all": "pnpm -r build",
     "dev:goya": "pnpm --filter goya dev",
     "dev:track": "pnpm --filter track dev",
-    "dev:security": "pnpm --filter securitySuite dev"
+    "dev:secapi": "pnpm --filter secapi dev"
   },
   "devDependencies": {
     "next": "16.1.6",
@@ -276,7 +276,7 @@ cd /var/www
 mkdir -p apps
 mv goya apps/
 mv track apps/
-mv securitySuite apps/
+mv secapi apps/
 
 # Crear workspace
 cat > pnpm-workspace.yaml << 'EOF'
@@ -341,7 +341,7 @@ pm2 restart all
 ### Implementación:
 
 ```bash
-# En cada proyecto (goya, track, securitySuite)
+# En cada proyecto (goya, track, secapi)
 cd /var/www/goya
 mkdir -p .github
 # Copiar dependabot.yml
@@ -350,7 +350,7 @@ cd /var/www/track
 mkdir -p .github
 # Copiar dependabot.yml
 
-cd /var/www/securitySuite
+cd /var/www/secapi
 mkdir -p .github
 # Copiar dependabot.yml
 

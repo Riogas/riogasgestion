@@ -9,7 +9,7 @@ set -e
 
 # Configuración
 PROJECTS_DIR="/var/www"
-PROJECTS=("goya" "track")  # Ajustar según tus proyectos reales
+PROJECTS=("goya" "track" "secapi")  # Proyectos de Riogas
 EMAIL_TO="jgomez@riogas.com.ar"
 EMAIL_FROM="notificacionesautomaticas@riogas.com.uy"
 SMTP_SERVER="mail.riogas.com.uy"

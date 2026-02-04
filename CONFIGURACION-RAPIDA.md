@@ -17,11 +17,18 @@ cd /var/www/goya
 
 **Te preguntará:**
 ```
-Email para recibir reportes [jgomez@riogas.com.ar]: 
+💡 Tip: Puedes ingresar múltiples emails separados por punto y coma (;)
+   Ejemplo: email1@ejemplo.com;email2@ejemplo.com;email3@ejemplo.com
+
+Email(s) para recibir reportes [jgomez@riogas.com.ar]: 
 ```
 
 - Presiona **Enter** para usar el predeterminado: `jgomez@riogas.com.ar`
-- O escribe otro email y presiona Enter
+- O escribe uno o más emails separados por **;** y presiona Enter
+
+**Ejemplos:**
+- Un solo email: `julio.gomez@riogas.com.uy`
+- Múltiples emails: `julio.gomez@riogas.com.uy;maria.lopez@riogas.com.uy;admin@riogas.com.uy`
 
 ---
 
@@ -58,12 +65,17 @@ EMAIL_TO="tu-email@ejemplo.com"
 ```bash
 cd /var/www/goya
 
-# Cambiar email
+# Cambiar email (uno o múltiples separados por ;)
 sed -i 's/EMAIL_TO=".*"/EMAIL_TO="nuevo-email@ejemplo.com"/' scripts/check-vulnerabilities.sh
+
+# O múltiples emails:
+sed -i 's/EMAIL_TO=".*"/EMAIL_TO="email1@ejemplo.com;email2@ejemplo.com;email3@ejemplo.com"/' scripts/check-vulnerabilities.sh
 
 # Verificar cambio
 grep EMAIL_TO scripts/check-vulnerabilities.sh
 ```
+
+💡 **Tip**: También puedes usar comas (,) como separador: `email1@ejemplo.com,email2@ejemplo.com`
 
 ---
 
@@ -302,15 +314,25 @@ echo "O ejecutar: ./scripts/install-monitoring.sh"
 
 ### ¿Puedo enviar a múltiples emails?
 
-**Opción 1: Separar por comas**
+✅ **Sí! Soportado nativamente desde la versión v2**
+
+**Opción 1: Separar por punto y coma (Recomendado)**
+```bash
+EMAIL_TO="email1@ejemplo.com;email2@ejemplo.com;email3@ejemplo.com"
+```
+
+**Opción 2: Separar por comas**
 ```bash
 EMAIL_TO="email1@ejemplo.com,email2@ejemplo.com,email3@ejemplo.com"
 ```
 
-**Opción 2: Modificar el script** (en la sección de Python SMTP):
-```python
-msg['To'] = "email1@ejemplo.com, email2@ejemplo.com"
+**Configurar con sed:**
+```bash
+EMAILS="julio.gomez@riogas.com.uy;maria.lopez@riogas.com.uy;admin@riogas.com.uy"
+sed -i "s|EMAIL_TO=\".*\"|EMAIL_TO=\"$EMAILS\"|" scripts/check-vulnerabilities-v2.sh
 ```
+
+📚 **Ver guía completa**: [MULTIPLES-EMAILS.md](MULTIPLES-EMAILS.md)
 
 ---
 

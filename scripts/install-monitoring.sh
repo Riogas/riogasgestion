@@ -68,8 +68,11 @@ echo "Configuración de Email"
 echo "----------------------"
 echo "Servidor SMTP de Riogas detectado"
 echo ""
+echo "💡 Tip: Puedes ingresar múltiples emails separados por punto y coma (;)"
+echo "   Ejemplo: email1@ejemplo.com;email2@ejemplo.com;email3@ejemplo.com"
+echo ""
 
-read -p "Email para recibir reportes [jgomez@riogas.com.ar]: " EMAIL_TO
+read -p "Email(s) para recibir reportes [jgomez@riogas.com.ar]: " EMAIL_TO
 EMAIL_TO=${EMAIL_TO:-jgomez@riogas.com.ar}
 
 echo ""

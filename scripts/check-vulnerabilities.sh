@@ -334,7 +334,10 @@ try:
     # Crear mensaje
     msg = MIMEMultipart()
     msg['From'] = "$EMAIL_FROM"
-    msg['To'] = "$EMAIL_TO"
+    
+    # Soportar múltiples destinatarios separados por ; o ,
+    recipients = "$EMAIL_TO".replace(';', ',')
+    msg['To'] = recipients
     msg['Subject'] = "$SUBJECT"
     
     # Leer HTML

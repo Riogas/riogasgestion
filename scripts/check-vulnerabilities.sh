@@ -336,8 +336,11 @@ try:
     msg['From'] = "$EMAIL_FROM"
     
     # Soportar múltiples destinatarios separados por ; o ,
-    recipients = "$EMAIL_TO".replace(';', ',')
-    msg['To'] = recipients
+    recipients_str = "$EMAIL_TO".replace(';', ',')
+    recipients_list = [email.strip() for email in recipients_str.split(',') if email.strip()]
+    
+    # Para el header del email (muestra todos los destinatarios)
+    msg['To'] = ", ".join(recipients_list)
     msg['Subject'] = "$SUBJECT"
     
     # Leer HTML
@@ -365,7 +368,8 @@ try:
     except:
         pass  # Puerto 25 puede no requerir autenticación
     
-    server.send_message(msg)
+    # Usar sendmail() con lista de destinatarios para mejor compatibilidad
+    server.sendmail(msg['From'], recipients_list, msg.as_string())
     server.quit()
     
     print("SUCCESS")

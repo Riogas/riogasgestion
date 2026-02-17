@@ -79,6 +79,7 @@
     "string-similarity": "^4.0.4",
     "tailwind-merge": "^3.3.1",
     "tailwind-variants": "^1.0.0",
+    "undici": "^7.22.0",
     "victory": "^37.3.6"
   },
   "devDependencies": {

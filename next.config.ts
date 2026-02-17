@@ -3,9 +3,6 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig: NextConfig = {
-  // Habilitar modo standalone para Docker
-  output: 'standalone',
-  
   // Desactivar TypeScript checks en build de producción
   typescript: {
     ignoreBuildErrors: true,

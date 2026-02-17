@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import L from "leaflet";
 import {
   MapContainer,
@@ -21,7 +21,7 @@ interface LocalidadZona {
   name: string;
   coordinates: [number, number][][];
   color?: string;
-  shouldSimplify?: boolean; // true para zonas de localidades, false para importadas
+  shouldSimplify?: boolean;
 }
 
 interface MapaZonificacionProps {
@@ -58,49 +58,29 @@ export default function MapaZonificacion({
   const [renameValue, setRenameValue] = useState("");
   const [editingZona, setEditingZona] = useState<string | null>(null);
 
-  const previousColor = "#1976d2";
-  const lastColor = "#ff4d4f";
-  const lastZonaIndex = zonas.length - 1;
+  const defaultColor = "#1976d2";
+  const editingColor = "#ff9800"; // naranja para zona en edición
 
   useEffect(() => {
     if (renamingZona) setSelectedZona(renamingZona);
   }, [renamingZona]);
 
-  useEffect(() => {
-    if (!mapRef.current) return;
-    if (editingZona) {
-      mapRef.current.dragging?.disable();
-    } else {
-      mapRef.current.dragging?.enable();
-    }
-  }, [editingZona]);
-
-  // Simplify polygons for editing (less points, easier handles)
+  // Simplify polygons
   const simplifiedZonas = useMemo(() => {
-    // Tolerance: adjust for more/less simplification (in degrees, e.g. 0.0005 ~ 50m)
     const tolerance = 0.0005;
     return zonas.map((zona) => {
       try {
-        // Solo simplificar si shouldSimplify es true (zonas de localidades)
-        // No simplificar zonas importadas (shouldSimplify: false)
-        if (zona.shouldSimplify === false) {
-          return zona; // Devolver zona sin simplificar
-        }
-        
-        // Only simplify if there are many points
+        if (zona.shouldSimplify === false) return zona;
         const needsSimplify = zona.coordinates[0]?.length > 30;
         if (!needsSimplify) return zona;
-        // Convert [lat, lng] to [lng, lat] for turf
         const turfCoords = zona.coordinates.map(
           (ring) => ring.map(([lat, lng]) => [lng, lat])
         );
         const poly = turfPolygon(turfCoords);
         const simplified = simplify(poly, { tolerance, highQuality: false });
-        // Convert back to [lat, lng]
         const coords = simplified.geometry.coordinates.map(
           (ring: any) => ring.map(([lng, lat]: [number, number]) => [lat, lng])
         );
-        // Fallback if simplification failed or returned empty
         if (!coords.length || !coords[0].length) return zona;
         return { ...zona, coordinates: coords };
       } catch {
@@ -109,110 +89,156 @@ export default function MapaZonificacion({
     });
   }, [zonas]);
 
-  // Render all polygons inside the FeatureGroup so they are editable
-  const renderFeatureGroup = () => {
-    return (
-      <FeatureGroup ref={featureGroupRef}>
-        {simplifiedZonas.map((zona, zonaIdx) =>
-          zona.coordinates?.map((polygon: [number, number][], index: number) => {
-            // Usar color personalizado si existe, sino usar los colores por defecto
-            const polygonColor = zona.color || (zonaIdx === lastZonaIndex ? lastColor : previousColor);
-            
-            return (
-              <Polygon
-                key={`${zona.id}-${index}`}
-                positions={polygon}
-                color={polygonColor}
-                fillOpacity={zonaIdx === lastZonaIndex ? 0.7 : 0.4}
-                eventHandlers={{
-                  click: (e) => {
-                    setSelectedZona(zona.id);
-                    L.DomEvent.stopPropagation(e);
-                  },
+  // Zona que se está editando (solo una)
+  const editingZonaData = useMemo(
+    () => simplifiedZonas.find((z) => z.id === editingZona),
+    [simplifiedZonas, editingZona]
+  );
+
+  // Zonas que NO se están editando (se muestran como polígonos normales)
+  const nonEditingZonas = useMemo(
+    () => simplifiedZonas.filter((z) => z.id !== editingZona),
+    [simplifiedZonas, editingZona]
+  );
+
+  const startEditing = useCallback((zonaId: string) => {
+    setEditingZona(zonaId);
+    setSelectedZona(null);
+    setRenamingZona(null);
+  }, []);
+
+  const stopEditing = useCallback(() => {
+    setEditingZona(null);
+  }, []);
+
+  // Renderizar polígonos NO editables (la mayoría)
+  const renderStaticPolygons = () => {
+    return nonEditingZonas.map((zona) =>
+      zona.coordinates?.map((polygon: [number, number][], index: number) => {
+        const polygonColor = zona.color || defaultColor;
+        return (
+          <Polygon
+            key={`static-${zona.id}-${index}`}
+            positions={polygon}
+            color={polygonColor}
+            fillOpacity={editingZona ? 0.15 : 0.4}
+            weight={editingZona ? 1 : 3}
+            eventHandlers={{
+              click: (e) => {
+                if (!editingZona) {
+                  setSelectedZona(zona.id);
+                  L.DomEvent.stopPropagation(e);
+                }
+              },
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -10]} sticky>
+              <span
+                style={{
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  color: "#222",
+                  textShadow: "0 1px 3px #fff, 0 -1px 3px #fff, 1px 0 3px #fff, -1px 0 3px #fff",
+                  padding: "2px 6px",
                 }}
               >
-                <Tooltip direction="top" offset={[0, -10]} sticky>
-                  <span
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "13px",
-                      color: "#222",
-                      textShadow: "0 1px 3px #fff, 0 -1px 3px #fff, 1px 0 3px #fff, -1px 0 3px #fff",
-                      padding: "2px 6px",
+                {zona.name}
+              </span>
+            </Tooltip>
+            {selectedZona === zona.id && !editingZona && (
+              <Popup
+                position={polygon[0]}
+                eventHandlers={{
+                  remove: () => {
+                    setSelectedZona(null);
+                    setRenamingZona(null);
+                  },
+                }}
+                autoPan={false}
+              >
+                {renamingZona === zona.id ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      onRename(zona.id, renameValue);
+                      setRenamingZona(null);
                     }}
+                    className="flex flex-col gap-2"
                   >
-                    {zona.name}
-                  </span>
-                </Tooltip>
-                {selectedZona === zona.id && (
-                  <Popup
-                    position={polygon[0]}
-                    eventHandlers={{
-                      remove: () => {
-                        setSelectedZona(null);
-                        setRenamingZona(null);
-                        setEditingZona(null);
-                      },
-                    }}
-                    autoPan={false}
-                  >
-                    {renamingZona === zona.id ? (
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          onRename(zona.id, renameValue);
-                          setRenamingZona(null);
-                        }}
-                        className="flex flex-col gap-2"
+                    <input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      autoFocus
+                      className="border rounded px-2 py-1"
+                    />
+                    <div className="flex gap-2">
+                      <button type="submit" className="bg-blue-600 text-white px-2 py-1 rounded">
+                        Guardar
+                      </button>
+                      <button
+                        type="button"
+                        className="bg-gray-300 px-2 py-1 rounded"
+                        onClick={() => setRenamingZona(null)}
                       >
-                        <input
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          autoFocus
-                          className="border rounded px-2 py-1"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="submit"
-                            className="bg-blue-600 text-white px-2 py-1 rounded"
-                          >
-                            Guardar
-                          </button>
-                          <button
-                            type="button"
-                            className="bg-gray-300 px-2 py-1 rounded"
-                            onClick={() => setRenamingZona(null)}
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <div className="flex flex-col gap-2 min-w-[140px]">
-                        <div className="font-bold mb-1">{zona.name}</div>
-                        <button
-                          className="bg-blue-600 text-white px-2 py-1 rounded"
-                          onClick={() => {
-                            setRenamingZona(zona.id);
-                            setRenameValue(zona.name);
-                          }}
-                        >
-                          Renombrar
-                        </button>
-                        <button
-                          className="bg-red-600 text-white px-2 py-1 rounded"
-                          onClick={() => onRemove(zona.id)}
-                        >
-                          Quitar
-                        </button>
-                      </div>
-                    )}
-                  </Popup>
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-col gap-2 min-w-[140px]">
+                    <div className="font-bold mb-1">{zona.name}</div>
+                    <button
+                      className="bg-orange-500 text-white px-2 py-1 rounded"
+                      onClick={() => startEditing(zona.id)}
+                    >
+                      ✏️ Editar puntos
+                    </button>
+                    <button
+                      className="bg-blue-600 text-white px-2 py-1 rounded"
+                      onClick={() => {
+                        setRenamingZona(zona.id);
+                        setRenameValue(zona.name);
+                      }}
+                    >
+                      Renombrar
+                    </button>
+                    <button
+                      className="bg-red-600 text-white px-2 py-1 rounded"
+                      onClick={() => onRemove(zona.id)}
+                    >
+                      Quitar
+                    </button>
+                  </div>
                 )}
-              </Polygon>
-            );
-          })
-        )}
+              </Popup>
+            )}
+          </Polygon>
+        );
+      })
+    );
+  };
+
+  // Renderizar FeatureGroup editable (solo la zona seleccionada para edición + dibujo de nuevas)
+  const renderEditableGroup = () => {
+    return (
+      <FeatureGroup ref={featureGroupRef}>
+        {editingZonaData &&
+          editingZonaData.coordinates?.map((polygon: [number, number][], index: number) => (
+            <Polygon
+              key={`edit-${editingZonaData.id}-${index}`}
+              positions={polygon}
+              color={editingColor}
+              fillOpacity={0.5}
+              weight={3}
+              dashArray="5,8"
+            >
+              <Tooltip direction="top" offset={[0, -10]} sticky>
+                <span style={{ fontWeight: 700, fontSize: "13px", color: "#e65100" }}>
+                  ✏️ {editingZonaData.name} (editando)
+                </span>
+              </Tooltip>
+            </Polygon>
+          ))}
         <EditControl
           position="topright"
           draw={{
@@ -236,30 +262,23 @@ export default function MapaZonificacion({
               onEdit(newId, coords);
               setRenamingZona(newId);
               setRenameValue("Nueva zona");
+              setEditingZona(null);
             }
           }}
           onEdited={(e: any) => {
+            if (!editingZona) return;
             e.layers.eachLayer((layer: any) => {
               const latlngs = layer.getLatLngs();
               const coords = [latlngs[0].map((latlng: any) => [latlng.lat, latlng.lng])];
-              // Find zona by first point
-              const first = coords[0][0];
-              const zona = zonas.find(z => z.coordinates[0][0][0] === first[0] && z.coordinates[0][0][1] === first[1]);
-              if (zona) {
-                onEdit(zona.id, coords);
-              }
+              onEdit(editingZona, coords);
             });
+            stopEditing();
           }}
           onDeleted={(e: any) => {
-            e.layers.eachLayer((layer: any) => {
-              const latlngs = layer.getLatLngs();
-              const coords = [latlngs[0].map((latlng: any) => [latlng.lat, latlng.lng])];
-              const first = coords[0][0];
-              const zona = zonas.find(z => z.coordinates[0][0][0] === first[0] && z.coordinates[0][0][1] === first[1]);
-              if (zona) {
-                onRemove(zona.id);
-              }
-            });
+            if (editingZona) {
+              onRemove(editingZona);
+              stopEditing();
+            }
           }}
         />
       </FeatureGroup>
@@ -278,7 +297,45 @@ export default function MapaZonificacion({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
       />
-      {renderFeatureGroup()}
+      {renderStaticPolygons()}
+      {renderEditableGroup()}
+      {editingZona && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1000,
+            background: "#fff3e0",
+            border: "2px solid #ff9800",
+            borderRadius: 8,
+            padding: "8px 16px",
+            fontWeight: 600,
+            fontSize: 14,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <span>✏️ Editando: {editingZonaData?.name}</span>
+          <button
+            onClick={stopEditing}
+            style={{
+              background: "#ff9800",
+              color: "#fff",
+              border: "none",
+              borderRadius: 4,
+              padding: "4px 12px",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Salir de edición
+          </button>
+        </div>
+      )}
     </MapContainer>
   );
 }

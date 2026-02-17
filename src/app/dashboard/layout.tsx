@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import NavbarServer from "@/components/dashboard/NavbarServer";
 import DashboardClient from "./DashboardClient"; // wrapper cliente
+import ChatProvider from "@/components/chat/ChatProvider";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,6 +13,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <NavbarServer />
         {/* Resto (sidebar colapsable, breadcrumbs, contenido) */}
         <DashboardClient>{children}</DashboardClient>
+        {/* Chat flotante - solo visible dentro del dashboard */}
+        <ChatProvider />
       </div>
     </div>
   );

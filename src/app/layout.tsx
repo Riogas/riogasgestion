@@ -6,7 +6,6 @@ import "./globals.css";
 import { LoadingProvider } from "@/lib/LoadingContext";
 import GlobalLoader from "@/components/GlobalLoader";
 import { GlobalLoadingOverlay } from "@/lib/GlobalLoadingOverlay";
-import ChatProvider from "@/components/chat/ChatProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,8 +41,6 @@ export default function RootLayout({
         <LoadingProvider>
           {children}
           <GlobalLoadingOverlay />
-          {/* Chat flotante conectado a n8n */}
-          <ChatProvider />
         </LoadingProvider>
         <Toaster richColors /> {/* 👈 Nuevo Toaster de sonner */}
       </body>

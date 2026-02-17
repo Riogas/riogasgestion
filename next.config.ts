@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
         source: "/api/:path*", // tu frontend llamará a /api/loquesea
         destination: process.env.NEXT_PUBLIC_API_URL 
           ? `${process.env.NEXT_PUBLIC_API_URL}/puestos/gestion/:path*`
-          : "http://192.168.1.72:8082/puestos/gestion/:path*", // fallback para desarrollo
+          : "https://sgm.glp.riogas.com.uy/puestos/gestion/:path*", // fallback para desarrollo
       },
     ];
   },

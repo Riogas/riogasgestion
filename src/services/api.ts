@@ -362,6 +362,10 @@ export const apiGetDepartamentos = async () =>
     "/getDepartamentos",
     async () => {
       const response = await api.get("/getDepartamentos");
+      // Normalizar campos OSM -> sin prefijo
+      if (response.data?.sdtDepartamentos) {
+        response.data.sdtDepartamentos = response.data.sdtDepartamentos.map((d: any) => normalizeOSMFields(d, 'Departamento'));
+      }
       return response.data;
     },
     "GET"
@@ -411,6 +415,21 @@ export const apiCambiarEstadoDepartamento = async (
   }
 };
 
+// Normalizar campos con prefijo OSM del backend GeneXus
+function normalizeOSMFields(obj: any, prefix: string): any {
+  const result = { ...obj };
+  for (const key of Object.keys(obj)) {
+    if (key.startsWith('OSM')) {
+      const normalizedKey = key.replace(/^OSM/, '');
+      // Solo asignar si el campo sin prefijo no existe o está vacío
+      if (result[normalizedKey] === undefined || result[normalizedKey] === null || result[normalizedKey] === '') {
+        result[normalizedKey] = obj[key];
+      }
+    }
+  }
+  return result;
+}
+
 export const apiGetLocalidades = async (body: { DepartamentoId: string }) => {
   try {
     console.log("Body enviado a /getLocalidades:", body);
@@ -418,6 +437,10 @@ export const apiGetLocalidades = async (body: { DepartamentoId: string }) => {
       headers: { "Content-Type": "application/json" },
     });
     console.log("Localidades obtenidas:", response.data);
+    // Normalizar campos OSM -> sin prefijo
+    if (response.data?.sdtLocalidad) {
+      response.data.sdtLocalidad = response.data.sdtLocalidad.map((loc: any) => normalizeOSMFields(loc, 'Localidad'));
+    }
     return response.data;
   } catch (error: any) {
     console.error(
@@ -746,6 +769,11 @@ export const apiGetCalles = async (body: {
       throw new Error("Failed to fetch calles");
     }
 
+    // Normalizar campos OSM -> sin prefijo
+    if (response.data?.sdtCalles) {
+      response.data.sdtCalles = response.data.sdtCalles.map((c: any) => normalizeOSMFields(c, 'Calle'));
+    }
+
     return response.data;
   } catch (error: any) {
     console.error(
@@ -785,6 +813,11 @@ export const apiGetCallesICA = async (body: {
 
     if (response.status !== 200) {
       throw new Error("Failed to fetch calles");
+    }
+
+    // Normalizar campos OSM -> sin prefijo
+    if (response.data?.sdtCalles) {
+      response.data.sdtCalles = response.data.sdtCalles.map((c: any) => normalizeOSMFields(c, 'Calle'));
     }
 
     return response.data;

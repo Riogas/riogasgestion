@@ -761,7 +761,12 @@ export const apiGetCalles = async (body: {
   LocalidadId: number;
 }) => {
   try {
-    const response = await api.post("/getCalles", body, {
+    // El backend espera campos con prefijo OSM
+    const osmBody = {
+      OSMDepartamentoId: body.DepartamentoId,
+      OSMLocalidadId: body.LocalidadId,
+    };
+    const response = await api.post("/getCalles", osmBody, {
       headers: { "Content-Type": "application/json" },
     });
 

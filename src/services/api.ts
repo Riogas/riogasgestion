@@ -43,8 +43,12 @@ export const apiLogin = async (
 
       const { data } = await api.post("/login", body);
 
-      // La API devuelve { RespuestaLogin: "{...json...}" }
-      const parsed = JSON.parse(data?.RespuestaLogin ?? "{}");
+      // La API devuelve { RespuestaLogin: "{...json...} basura extra" }
+      // El backend GeneXus agrega texto extra después del JSON, hay que extraer solo el JSON
+      const raw = data?.RespuestaLogin ?? "{}";
+      const jsonEnd = raw.lastIndexOf("}");
+      const cleanJson = jsonEnd >= 0 ? raw.substring(0, jsonEnd + 1) : raw;
+      const parsed = JSON.parse(cleanJson);
 
       if (!parsed?.success) {
         throw new Error(parsed?.message || "Credenciales inválidas");

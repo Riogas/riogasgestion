@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'goya',
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start',
+      script: '.next/standalone/server.js',
+      node_args: '-r ./tls-fix.js',
       exec_mode: 'fork',
       instances: 1,
       autorestart: true,

@@ -7,17 +7,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*", // tu frontend llamará a /api/loquesea
-        destination: process.env.NEXT_PUBLIC_API_URL 
-          ? `${process.env.NEXT_PUBLIC_API_URL}/puestos/gestion/:path*`
-          : "https://sgm.glp.riogas.com.uy/puestos/gestion/:path*", // fallback para desarrollo
-      },
-    ];
-  },
 };
 
 // Configuración de Sentry

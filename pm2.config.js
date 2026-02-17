@@ -4,7 +4,6 @@ module.exports = {
       name: 'goya',
       script: 'node_modules/next/dist/bin/next',
       args: 'start',
-      node_args: '-r ./tls-fix.js',
       exec_mode: 'fork',
       instances: 1,
       autorestart: true,

@@ -23,6 +23,8 @@ async function proxyRequest(req: NextRequest) {
   const pathAfterApi = url.pathname.replace(/^\/api/, "");
   const targetUrl = `${API_BASE}${BACKEND_PREFIX}${pathAfterApi}${url.search}`;
 
+  console.log(`[API Proxy] ${req.method} ${url.pathname} -> ${targetUrl}`);
+
   // Copiar headers relevantes del request original
   const headers: Record<string, string> = {};
   req.headers.forEach((value, key) => {
@@ -63,6 +65,9 @@ async function proxyRequest(req: NextRequest) {
       proxyRes.on("data", (chunk: Buffer) => chunks.push(chunk));
       proxyRes.on("end", () => {
         const responseBody = Buffer.concat(chunks);
+        
+        console.log(`[API Proxy] Response: ${proxyRes.statusCode} | Content-Type: ${proxyRes.headers['content-type']} | Body length: ${responseBody.length}`);
+        console.log(`[API Proxy] Body preview: ${responseBody.toString('utf-8').substring(0, 500)}`);
         
         // Copiar headers de respuesta del backend
         const responseHeaders = new Headers();

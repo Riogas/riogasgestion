@@ -15,7 +15,7 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://sgm.glp.riogas.com.uy";
 
-const BACKEND_PREFIX = "/puestos/gestion";
+const BACKEND_PREFIX = "/gestion";
 
 async function proxyRequest(req: NextRequest) {
   // Extraer el path después de /api/

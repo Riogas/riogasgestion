@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import https from "https";
 import http from "http";
 
+// Forzar Node.js runtime (no Edge) para usar https.Agent nativo
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // Agente HTTPS que acepta certificados autofirmados
 const insecureAgent = new https.Agent({
   rejectUnauthorized: false,

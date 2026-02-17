@@ -104,18 +104,18 @@ export default function Localidades() {
           DepartamentoId: selectedDepartamento,
         });
         const mappedLocalidades = (data.sdtLocalidad || []).map((loc: any) => ({
-          id: loc.LocalidadId,
-          name: loc.LocalidadNombre,
-          alt_name: loc.LocalidadReferencia || null,
-          place: loc.LocalidadTipo || loc.LocalidadType || "Desconocido",
+          id: loc.OSMLocalidadId ?? loc.LocalidadId,
+          name: loc.OSMLocalidadNombre ?? loc.LocalidadNombre ?? "",
+          alt_name: loc.OSMLocalidadReferencia ?? loc.LocalidadReferencia ?? null,
+          place: loc.OSMLocalidadTipo ?? loc.OSMLocalidadType ?? loc.LocalidadTipo ?? loc.LocalidadType ?? "Desconocido",
           population:
-            loc.LocalidadPoblacion !== null &&
-            loc.LocalidadPoblacion !== undefined
-              ? String(loc.LocalidadPoblacion)
+            (loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion) !== null &&
+            (loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion) !== undefined
+              ? String(loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion)
               : null,
-          lat: parseFloat(loc.LocalidadLatitud),
-          lon: parseFloat(loc.LocalidadLongitud),
-          estado: loc.LocalidadEstado,
+          lat: parseFloat(loc.OSMLocalidadLatitud ?? loc.LocalidadLatitud ?? "0"),
+          lon: parseFloat(loc.OSMLocalidadLongitud ?? loc.LocalidadLongitud ?? "0"),
+          estado: loc.OSMLocalidadEstado ?? loc.LocalidadEstado ?? "S",
         }));
         setLocalidades(mappedLocalidades);
       } catch (error) {
@@ -136,18 +136,18 @@ export default function Localidades() {
         });
         setLocalidades(
           (data.sdtLocalidad || []).map((loc: any) => ({
-            id: loc.LocalidadId,
-            name: loc.LocalidadNombre,
-            alt_name: loc.LocalidadReferencia || null,
-            place: loc.LocalidadTipo || loc.LocalidadType || "Desconocido",
+            id: loc.OSMLocalidadId ?? loc.LocalidadId,
+            name: loc.OSMLocalidadNombre ?? loc.LocalidadNombre ?? "",
+            alt_name: loc.OSMLocalidadReferencia ?? loc.LocalidadReferencia ?? null,
+            place: loc.OSMLocalidadTipo ?? loc.OSMLocalidadType ?? loc.LocalidadTipo ?? loc.LocalidadType ?? "Desconocido",
             population:
-              loc.LocalidadPoblacion !== null &&
-              loc.LocalidadPoblacion !== undefined
-                ? String(loc.LocalidadPoblacion)
+              (loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion) !== null &&
+              (loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion) !== undefined
+                ? String(loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion)
                 : null,
-            lat: parseFloat(loc.LocalidadLatitud),
-            lon: parseFloat(loc.LocalidadLongitud),
-            estado: loc.LocalidadEstado,
+            lat: parseFloat(loc.OSMLocalidadLatitud ?? loc.LocalidadLatitud ?? "0"),
+            lon: parseFloat(loc.OSMLocalidadLongitud ?? loc.LocalidadLongitud ?? "0"),
+            estado: loc.OSMLocalidadEstado ?? loc.LocalidadEstado ?? "S",
           })),
         );
       };
@@ -337,19 +337,19 @@ export default function Localidades() {
       const data = await apiGetLocalidades({
         DepartamentoId: selectedDepartamento,
       });
-      const mappedLocalidades = data.sdtLocalidad.map((loc: any) => ({
-        id: loc.LocalidadId,
-        name: loc.LocalidadNombre,
-        alt_name: loc.LocalidadReferencia || null,
-        place: loc.LocalidadTipo || loc.LocalidadType || "Desconocido",
+      const mappedLocalidades = (data.sdtLocalidad || []).map((loc: any) => ({
+        id: loc.OSMLocalidadId ?? loc.LocalidadId,
+        name: loc.OSMLocalidadNombre ?? loc.LocalidadNombre ?? "",
+        alt_name: loc.OSMLocalidadReferencia ?? loc.LocalidadReferencia ?? null,
+        place: loc.OSMLocalidadTipo ?? loc.OSMLocalidadType ?? loc.LocalidadTipo ?? loc.LocalidadType ?? "Desconocido",
         population:
-          loc.LocalidadPoblacion !== null &&
-          loc.LocalidadPoblacion !== undefined
-            ? String(loc.LocalidadPoblacion)
+          (loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion) !== null &&
+          (loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion) !== undefined
+            ? String(loc.OSMLocalidadPoblacion ?? loc.LocalidadPoblacion)
             : null,
-        lat: parseFloat(loc.LocalidadLatitud),
-        lon: parseFloat(loc.LocalidadLongitud),
-        estado: loc.LocalidadEstado, // Include estado
+        lat: parseFloat(loc.OSMLocalidadLatitud ?? loc.LocalidadLatitud ?? "0"),
+        lon: parseFloat(loc.OSMLocalidadLongitud ?? loc.LocalidadLongitud ?? "0"),
+        estado: loc.OSMLocalidadEstado ?? loc.LocalidadEstado ?? "S",
       }));
       setLocalidades(mappedLocalidades);
     } catch (error) {

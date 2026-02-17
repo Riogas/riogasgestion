@@ -125,19 +125,20 @@ export default function MapaZonificacion({
                 color={polygonColor}
                 fillOpacity={zonaIdx === lastZonaIndex ? 0.7 : 0.4}
                 eventHandlers={{
-                  dblclick: (e) => {
+                  click: (e) => {
                     setSelectedZona(zona.id);
-                    e.originalEvent.preventDefault();
-                    e.originalEvent.stopPropagation();
+                    L.DomEvent.stopPropagation(e);
                   },
                 }}
               >
-                <Tooltip direction="top" offset={[0, -20]} permanent>
+                <Tooltip direction="top" offset={[0, -10]} sticky>
                   <span
                     style={{
                       fontWeight: 600,
+                      fontSize: "13px",
                       color: "#222",
-                      textShadow: "0 1px 2px #fff",
+                      textShadow: "0 1px 3px #fff, 0 -1px 3px #fff, 1px 0 3px #fff, -1px 0 3px #fff",
+                      padding: "2px 6px",
                     }}
                   >
                     {zona.name}
@@ -268,8 +269,8 @@ export default function MapaZonificacion({
   return (
     <MapContainer
       ref={mapRef}
-      center={[0, 0]}
-      zoom={5}
+      center={[-33.0, -56.0]}
+      zoom={7}
       style={{ height: "500px", width: "100%" }}
     >
       <FitBoundsOnZonas zonas={zonas} />

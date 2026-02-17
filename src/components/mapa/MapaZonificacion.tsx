@@ -69,7 +69,21 @@ interface MapaZonificacionProps {
   onRename: (id: string, newName: string) => void;
   onRemove: (id: string) => void;
   onEdit: (id: string, newCoords: [number, number][][]) => void;
+  onChangeColor?: (id: string, color: string) => void;
 }
+
+const ZONE_COLORS = [
+  { color: "#1976d2", name: "Azul" },
+  { color: "#388e3c", name: "Verde" },
+  { color: "#d32f2f", name: "Rojo" },
+  { color: "#ff9800", name: "Naranja" },
+  { color: "#7b1fa2", name: "Violeta" },
+  { color: "#00796b", name: "Teal" },
+  { color: "#c2185b", name: "Rosa" },
+  { color: "#5d4037", name: "Marrón" },
+  { color: "#455a64", name: "Gris" },
+  { color: "#f57f17", name: "Amarillo" },
+];
 
 function FitBoundsOnZonas({ zonas }: { zonas: LocalidadZona[] }) {
   const map = useMap();
@@ -265,6 +279,7 @@ export default function MapaZonificacion({
   onRename,
   onRemove,
   onEdit,
+  onChangeColor,
 }: MapaZonificacionProps) {
   const mapRef = useRef<L.Map | null>(null);
   const featureGroupRef = useRef<L.FeatureGroup>(null);
@@ -273,6 +288,7 @@ export default function MapaZonificacion({
   const [renamingZona, setRenamingZona] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [editingZona, setEditingZona] = useState<string | null>(null);
+  const [colorPickerZona, setColorPickerZona] = useState<string | null>(null);
 
   const defaultColor = "#1976d2";
 
@@ -404,6 +420,40 @@ export default function MapaZonificacion({
                       </button>
                     </div>
                   </form>
+                ) : colorPickerZona === zona.id ? (
+                  <div className="flex flex-col gap-2 min-w-[160px]">
+                    <div className="font-bold mb-1">Color: {zona.name}</div>
+                    <div className="grid grid-cols-5 gap-1">
+                      {ZONE_COLORS.map((c) => (
+                        <button
+                          key={c.color}
+                          title={c.name}
+                          onClick={() => {
+                            onChangeColor?.(zona.id, c.color);
+                            setColorPickerZona(null);
+                            setSelectedZona(null);
+                          }}
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            background: c.color,
+                            border: zona.color === c.color ? "3px solid #222" : "2px solid #ccc",
+                            cursor: "pointer",
+                            transition: "transform 0.1s",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.2)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      className="bg-gray-300 px-2 py-1 rounded text-sm"
+                      onClick={() => setColorPickerZona(null)}
+                    >
+                      Volver
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-2 min-w-[140px]">
                     <div className="font-bold mb-1">{zona.name}</div>
@@ -421,6 +471,13 @@ export default function MapaZonificacion({
                       }}
                     >
                       Renombrar
+                    </button>
+                    <button
+                      className="text-white px-2 py-1 rounded"
+                      style={{ background: zona.color || defaultColor }}
+                      onClick={() => setColorPickerZona(zona.id)}
+                    >
+                      🎨 Cambiar color
                     </button>
                     <button
                       className="bg-red-600 text-white px-2 py-1 rounded"
@@ -481,6 +538,7 @@ export default function MapaZonificacion({
       ref={mapRef}
       center={[-33.0, -56.0]}
       zoom={7}
+      doubleClickZoom={false}
       style={{ height: "500px", width: "100%" }}
     >
       <style>{editHandleStyles}</style>

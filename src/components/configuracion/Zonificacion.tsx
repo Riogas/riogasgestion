@@ -829,6 +829,13 @@ export default function Zonificacion() {
               )
             );
           }}
+          onChangeColor={(id, color) => {
+            setZonas((prev) =>
+              prev.map((zona) =>
+                zona.id === id ? { ...zona, color } : zona
+              )
+            );
+          }}
         />
       </div>
       

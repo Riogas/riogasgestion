@@ -16,6 +16,46 @@ import { EditControl } from "react-leaflet-draw";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 
+// Estilos personalizados para los handles de edición
+const editHandleStyles = `
+  .leaflet-editing-icon {
+    width: 14px !important;
+    height: 14px !important;
+    margin-left: -7px !important;
+    margin-top: -7px !important;
+    border-radius: 50% !important;
+    background: #ff9800 !important;
+    border: 2.5px solid #fff !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important;
+    cursor: grab !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .leaflet-editing-icon:hover {
+    transform: scale(1.4);
+    box-shadow: 0 2px 8px rgba(255,152,0,0.6) !important;
+    background: #f57c00 !important;
+  }
+  .leaflet-editing-icon:active {
+    cursor: grabbing !important;
+    transform: scale(1.2);
+    background: #e65100 !important;
+  }
+  /* Puntos intermedios (para agregar nuevos vértices) */
+  .leaflet-div-icon.leaflet-editing-icon {
+    opacity: 0.6;
+    width: 10px !important;
+    height: 10px !important;
+    margin-left: -5px !important;
+    margin-top: -5px !important;
+    background: #ffb74d !important;
+    border: 2px solid #fff !important;
+  }
+  .leaflet-div-icon.leaflet-editing-icon:hover {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+`;
+
 interface LocalidadZona {
   id: string;
   name: string;
@@ -44,6 +84,182 @@ function FitBoundsOnZonas({ zonas }: { zonas: LocalidadZona[] }) {
   return null;
 }
 
+// Simplificar coordenadas para edición (agrupar puntos muy pegados)
+function simplifyForEditing(coordinates: [number, number][][]): [number, number][][] {
+  try {
+    const ring = coordinates[0];
+    if (!ring || ring.length <= 20) return coordinates;
+
+    // Tolerancia proporcional al tamaño del polígono
+    const lats = ring.map(p => p[0]);
+    const lngs = ring.map(p => p[1]);
+    const latRange = Math.max(...lats) - Math.min(...lats);
+    const lngRange = Math.max(...lngs) - Math.min(...lngs);
+    const size = Math.max(latRange, lngRange);
+    // Tolerancia: ~1% del tamaño del polígono, mínimo 0.0003 (~30m)
+    const tolerance = Math.max(size * 0.01, 0.0003);
+
+    const turfCoords = coordinates.map(
+      (r) => r.map(([lat, lng]) => [lng, lat])
+    );
+    const poly = turfPolygon(turfCoords);
+    const simplified = simplify(poly, { tolerance, highQuality: true });
+    const coords = simplified.geometry.coordinates.map(
+      (r: any) => r.map(([lng, lat]: [number, number]) => [lat, lng])
+    );
+    if (!coords.length || !coords[0].length || coords[0].length < 4) return coordinates;
+    return coords;
+  } catch {
+    return coordinates;
+  }
+}
+
+// Componente que renderiza un polígono con edición de vértices activada inmediatamente
+function EditablePolygon({
+  zona,
+  onSave,
+  onCancel,
+}: {
+  zona: LocalidadZona;
+  onSave: (id: string, newCoords: [number, number][][]) => void;
+  onCancel: () => void;
+}) {
+  const polygonRef = useRef<L.Polygon | null>(null);
+  const map = useMap();
+
+  // Simplificar coordenadas para edición
+  const editCoords = useMemo(
+    () => simplifyForEditing(zona.coordinates),
+    [zona.coordinates]
+  );
+
+  useEffect(() => {
+    if (!polygonRef.current) return;
+    const layer = polygonRef.current;
+    if ((layer as any).editing) {
+      (layer as any).editing.enable();
+    }
+    return () => {
+      if ((layer as any).editing) {
+        (layer as any).editing.disable();
+      }
+    };
+  }, []);
+
+  const handleSave = useCallback(() => {
+    if (!polygonRef.current) return;
+    const layer = polygonRef.current;
+    const latlngs = layer.getLatLngs() as L.LatLng[][];
+    const coords = [latlngs[0].map((ll: L.LatLng) => [ll.lat, ll.lng] as [number, number])];
+    if ((layer as any).editing) {
+      (layer as any).editing.disable();
+    }
+    onSave(zona.id, coords);
+  }, [zona.id, onSave]);
+
+  const handleCancel = useCallback(() => {
+    if (polygonRef.current && (polygonRef.current as any).editing) {
+      (polygonRef.current as any).editing.disable();
+    }
+    onCancel();
+  }, [onCancel]);
+
+  const pointCount = editCoords[0]?.length ?? 0;
+
+  return (
+    <>
+      {editCoords.map((polygon: [number, number][], index: number) => (
+        <Polygon
+          key={`edit-${zona.id}-${index}`}
+          ref={index === 0 ? polygonRef : undefined}
+          positions={polygon}
+          color="#ff9800"
+          fillColor="#ff9800"
+          fillOpacity={0.3}
+          weight={3}
+        >
+          <Tooltip direction="top" offset={[0, -10]} sticky>
+            <span style={{ fontWeight: 700, fontSize: "13px", color: "#e65100" }}>
+              ✏️ {zona.name} ({pointCount} puntos)
+            </span>
+          </Tooltip>
+        </Polygon>
+      ))}
+      <EditingControls
+        zonaName={zona.name}
+        pointCount={pointCount}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      />
+    </>
+  );
+}
+
+// Controles flotantes para guardar/cancelar edición
+function EditingControls({
+  zonaName,
+  pointCount,
+  onSave,
+  onCancel,
+}: {
+  zonaName: string;
+  pointCount: number;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: 10,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 1000,
+        background: "#fff3e0",
+        border: "2px solid #ff9800",
+        borderRadius: 8,
+        padding: "8px 16px",
+        fontWeight: 600,
+        fontSize: 14,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <span>✏️ {zonaName} — {pointCount} puntos</span>
+      <button
+        onClick={onSave}
+        style={{
+          background: "#4caf50",
+          color: "#fff",
+          border: "none",
+          borderRadius: 4,
+          padding: "4px 12px",
+          cursor: "pointer",
+          fontWeight: 600,
+        }}
+      >
+        ✓ Guardar
+      </button>
+      <button
+        onClick={onCancel}
+        style={{
+          background: "#757575",
+          color: "#fff",
+          border: "none",
+          borderRadius: 4,
+          padding: "4px 12px",
+          cursor: "pointer",
+          fontWeight: 600,
+        }}
+      >
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
 export default function MapaZonificacion({
   zonas,
   onRename,
@@ -59,7 +275,6 @@ export default function MapaZonificacion({
   const [editingZona, setEditingZona] = useState<string | null>(null);
 
   const defaultColor = "#1976d2";
-  const editingColor = "#ff9800"; // naranja para zona en edición
 
   useEffect(() => {
     if (renamingZona) setSelectedZona(renamingZona);
@@ -95,7 +310,7 @@ export default function MapaZonificacion({
     [simplifiedZonas, editingZona]
   );
 
-  // Zonas que NO se están editando (se muestran como polígonos normales)
+  // Zonas que NO se están editando
   const nonEditingZonas = useMemo(
     () => simplifiedZonas.filter((z) => z.id !== editingZona),
     [simplifiedZonas, editingZona]
@@ -111,7 +326,12 @@ export default function MapaZonificacion({
     setEditingZona(null);
   }, []);
 
-  // Renderizar polígonos NO editables (la mayoría)
+  const handleEditSave = useCallback((id: string, newCoords: [number, number][][]) => {
+    onEdit(id, newCoords);
+    setEditingZona(null);
+  }, [onEdit]);
+
+  // Polígonos estáticos (no editables)
   const renderStaticPolygons = () => {
     return nonEditingZonas.map((zona) =>
       zona.coordinates?.map((polygon: [number, number][], index: number) => {
@@ -218,27 +438,11 @@ export default function MapaZonificacion({
     );
   };
 
-  // Renderizar FeatureGroup editable (solo la zona seleccionada para edición + dibujo de nuevas)
-  const renderEditableGroup = () => {
+  // FeatureGroup solo para dibujar polígonos NUEVOS
+  const renderDrawGroup = () => {
+    if (editingZona) return null; // No mostrar herramientas de dibujo mientras se edita
     return (
       <FeatureGroup ref={featureGroupRef}>
-        {editingZonaData &&
-          editingZonaData.coordinates?.map((polygon: [number, number][], index: number) => (
-            <Polygon
-              key={`edit-${editingZonaData.id}-${index}`}
-              positions={polygon}
-              color={editingColor}
-              fillOpacity={0.5}
-              weight={3}
-              dashArray="5,8"
-            >
-              <Tooltip direction="top" offset={[0, -10]} sticky>
-                <span style={{ fontWeight: 700, fontSize: "13px", color: "#e65100" }}>
-                  ✏️ {editingZonaData.name} (editando)
-                </span>
-              </Tooltip>
-            </Polygon>
-          ))}
         <EditControl
           position="topright"
           draw={{
@@ -251,7 +455,8 @@ export default function MapaZonificacion({
           }}
           edit={{
             featureGroup: featureGroupRef.current ?? undefined,
-            remove: true,
+            edit: false,
+            remove: false,
           }}
           onCreated={(e: any) => {
             if (e.layerType === "polygon") {
@@ -262,22 +467,8 @@ export default function MapaZonificacion({
               onEdit(newId, coords);
               setRenamingZona(newId);
               setRenameValue("Nueva zona");
-              setEditingZona(null);
-            }
-          }}
-          onEdited={(e: any) => {
-            if (!editingZona) return;
-            e.layers.eachLayer((layer: any) => {
-              const latlngs = layer.getLatLngs();
-              const coords = [latlngs[0].map((latlng: any) => [latlng.lat, latlng.lng])];
-              onEdit(editingZona, coords);
-            });
-            stopEditing();
-          }}
-          onDeleted={(e: any) => {
-            if (editingZona) {
-              onRemove(editingZona);
-              stopEditing();
+              // Quitar el layer dibujado (ya se agrega via zonas prop)
+              featureGroupRef.current?.removeLayer(layer);
             }
           }}
         />
@@ -292,49 +483,21 @@ export default function MapaZonificacion({
       zoom={7}
       style={{ height: "500px", width: "100%" }}
     >
+      <style>{editHandleStyles}</style>
       <FitBoundsOnZonas zonas={zonas} />
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
       />
       {renderStaticPolygons()}
-      {renderEditableGroup()}
-      {editingZona && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 10,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 1000,
-            background: "#fff3e0",
-            border: "2px solid #ff9800",
-            borderRadius: 8,
-            padding: "8px 16px",
-            fontWeight: 600,
-            fontSize: 14,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <span>✏️ Editando: {editingZonaData?.name}</span>
-          <button
-            onClick={stopEditing}
-            style={{
-              background: "#ff9800",
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-              padding: "4px 12px",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Salir de edición
-          </button>
-        </div>
+      {renderDrawGroup()}
+      {editingZonaData && (
+        <EditablePolygon
+          key={`editable-${editingZonaData.id}`}
+          zona={editingZonaData}
+          onSave={handleEditSave}
+          onCancel={stopEditing}
+        />
       )}
     </MapContainer>
   );

@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import AsignacionMovilesModal, {
   type Movil,
   type Zona,
-  type Asignacion as AsignacionModal,
+  type AsignacionesState,
 } from "./AsignacionMovilesModal";
 
 // Tipos
@@ -64,17 +64,10 @@ export default function Asignaciones() {
     { id: "z5", nombre: "Zona Centro", color: "#7b1fa2" },
   ];
 
-  // Convertir asignaciones de tabla a formato del modal
-  const modalAsignaciones: AsignacionModal[] = useMemo(
-    () =>
-      asignaciones.map((a) => ({
-        movilId: String(a.AsignacionId), // Ajustar según API real
-        zonaId: a.Zona,
-        tipoServicio: a.TipoServicio,
-        turno: a.Turno,
-      })),
-    [asignaciones]
-  );
+  const tiposServicio = ["Urgente", "Nocturno"];
+
+  // Estado inicial del modal (vacío por ahora, TODO: cargar desde API)
+  const [modalAsignaciones] = useState<AsignacionesState>({});
 
   // TODO: Reemplazar con llamada a API real
   const fetchAsignaciones = async () => {
@@ -247,13 +240,12 @@ export default function Asignaciones() {
         onClose={() => setModalOpen(false)}
         moviles={mockMoviles}
         zonas={mockZonas}
+        tiposServicio={tiposServicio}
         asignaciones={modalAsignaciones}
-        onSave={(nuevasAsignaciones) => {
+        onSave={(nuevasAsignaciones: AsignacionesState) => {
           // TODO: Enviar a API real
           console.log("Asignaciones guardadas:", nuevasAsignaciones);
-          toast.success(
-            `${nuevasAsignaciones.length} asignaciones actualizadas`
-          );
+          toast.success("Asignaciones actualizadas correctamente");
           setModalOpen(false);
         }}
       />

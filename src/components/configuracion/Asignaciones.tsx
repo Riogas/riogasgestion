@@ -64,8 +64,6 @@ export default function Asignaciones() {
     { id: "z5", nombre: "Zona Centro", color: "#7b1fa2" },
   ];
 
-  const tiposServicio = ["Urgente", "Nocturno"];
-
   // Estado inicial del modal (vacío por ahora, TODO: cargar desde API)
   const [modalAsignaciones] = useState<AsignacionesState>({});
 
@@ -240,7 +238,6 @@ export default function Asignaciones() {
         onClose={() => setModalOpen(false)}
         moviles={mockMoviles}
         zonas={mockZonas}
-        tiposServicio={tiposServicio}
         asignaciones={modalAsignaciones}
         onSave={(nuevasAsignaciones: AsignacionesState) => {
           // TODO: Enviar a API real

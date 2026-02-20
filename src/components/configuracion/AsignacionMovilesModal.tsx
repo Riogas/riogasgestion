@@ -28,15 +28,14 @@ export interface AsignacionEntry {
   categoria: "prioridad" | "transito";
 }
 
-/** Estado completo: por tipo de servicio → por zona → lista de asignaciones */
-export type AsignacionesState = Record<string, Record<string, AsignacionEntry[]>>;
+/** Estado completo: por zona → lista de asignaciones */
+export type AsignacionesState = Record<string, AsignacionEntry[]>;
 
 interface AsignacionMovilesModalProps {
   isOpen: boolean;
   onClose: () => void;
   moviles: Movil[];
   zonas: Zona[];
-  tiposServicio: string[];
   asignaciones: AsignacionesState;
   onSave: (asignaciones: AsignacionesState) => void;
 }
@@ -61,12 +60,10 @@ export default function AsignacionMovilesModal({
   onClose,
   moviles,
   zonas,
-  tiposServicio,
   asignaciones: initialAsignaciones,
   onSave,
 }: AsignacionMovilesModalProps) {
   const [state, setState] = useState<AsignacionesState>(initialAsignaciones);
-  const [selectedTipo, setSelectedTipo] = useState(tiposServicio[0] || "");
   const [selectedZona, setSelectedZona] = useState<string | null>(
     zonas.length > 0 ? zonas[0].id : null
   );
@@ -78,18 +75,17 @@ export default function AsignacionMovilesModal({
   React.useEffect(() => {
     if (isOpen) {
       setState(initialAsignaciones);
-      setSelectedTipo(tiposServicio[0] || "");
       setSelectedZona(zonas.length > 0 ? zonas[0].id : null);
       setSearchMovil("");
       setDragOverTarget(null);
     }
-  }, [isOpen, initialAsignaciones, tiposServicio, zonas]);
+  }, [isOpen, initialAsignaciones, zonas]);
 
   // ── Datos derivados ──
   const currentAssignments = useMemo(() => {
     if (!selectedZona) return [];
-    return state[selectedTipo]?.[selectedZona] || [];
-  }, [state, selectedTipo, selectedZona]);
+    return state[selectedZona] || [];
+  }, [state, selectedZona]);
 
   const prioridadMoviles = useMemo(
     () => currentAssignments.filter((a) => a.categoria === "prioridad"),
@@ -115,51 +111,47 @@ export default function AsignacionMovilesModal({
     return available;
   }, [moviles, assignedIds, searchMovil]);
 
-  // Contar asignados por zona (para el tipo actual)
+  // Contar asignados por zona
   const countByZona = useMemo(() => {
     const counts: Record<string, number> = {};
-    const tipoState = state[selectedTipo] || {};
-    Object.entries(tipoState).forEach(([zonaId, entries]) => {
+    Object.entries(state).forEach(([zonaId, entries]) => {
       counts[zonaId] = entries.length;
     });
     return counts;
-  }, [state, selectedTipo]);
+  }, [state]);
 
   // ── Mutaciones de estado ──
   const setAssignments = useCallback(
     (zonaId: string, entries: AsignacionEntry[]) => {
       setState((prev) => ({
         ...prev,
-        [selectedTipo]: {
-          ...(prev[selectedTipo] || {}),
-          [zonaId]: entries,
-        },
+        [zonaId]: entries,
       }));
     },
-    [selectedTipo]
+    []
   );
 
   const addToCategory = useCallback(
     (movilId: string, categoria: "prioridad" | "transito") => {
       if (!selectedZona) return;
-      const current = state[selectedTipo]?.[selectedZona] || [];
+      const current = state[selectedZona] || [];
       // Remover si ya existe (puede estar en la otra categoría)
       const filtered = current.filter((a) => a.movilId !== movilId);
       setAssignments(selectedZona, [...filtered, { movilId, categoria }]);
     },
-    [selectedZona, selectedTipo, state, setAssignments]
+    [selectedZona, state, setAssignments]
   );
 
   const removeFromAssignment = useCallback(
     (movilId: string) => {
       if (!selectedZona) return;
-      const current = state[selectedTipo]?.[selectedZona] || [];
+      const current = state[selectedZona] || [];
       setAssignments(
         selectedZona,
         current.filter((a) => a.movilId !== movilId)
       );
     },
-    [selectedZona, selectedTipo, state, setAssignments]
+    [selectedZona, state, setAssignments]
   );
 
   // ── Drag & Drop ──
@@ -228,10 +220,8 @@ export default function AsignacionMovilesModal({
   // ── Stats ──
   const totalAsignaciones = useMemo(() => {
     let total = 0;
-    Object.values(state).forEach((tipoState) => {
-      Object.values(tipoState).forEach((entries) => {
-        total += entries.length;
-      });
+    Object.values(state).forEach((entries) => {
+      total += entries.length;
     });
     return total;
   }, [state]);
@@ -261,32 +251,9 @@ export default function AsignacionMovilesModal({
             Asignación de Móviles a Zonas
           </DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Seleccioná un tipo de servicio, luego una zona, y arrastrá los
-            móviles a Prioridad o Tránsito.
+            Seleccioná una zona y arrastrá los móviles a Prioridad o Tránsito.
           </p>
         </DialogHeader>
-
-        {/* ── Tabs Tipo de Servicio ── */}
-        <div className="px-6 py-3 border-b bg-muted/20">
-          <div className="flex gap-2">
-            {tiposServicio.map((tipo) => {
-              const isActive = selectedTipo === tipo;
-              return (
-                <button
-                  key={tipo}
-                  onClick={() => setSelectedTipo(tipo)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {tipo}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         <div className="flex flex-1 overflow-hidden">
           {/* ── Panel izquierdo: Zonas ── */}
@@ -343,7 +310,7 @@ export default function AsignacionMovilesModal({
                     </div>
                     {count > 0 && (
                       <div className="flex gap-1 mt-1.5 flex-wrap">
-                        {(state[selectedTipo]?.[zona.id] || [])
+                        {(state[zona.id] || [])
                           .slice(0, 3)
                           .map((a) => (
                             <span
@@ -386,9 +353,9 @@ export default function AsignacionMovilesModal({
                   <h3 className="font-semibold text-sm">
                     {selectedZonaData?.nombre}
                   </h3>
-                  <span className="text-xs text-muted-foreground">
-                    ({selectedTipo})
-                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {(countByZona[selectedZona!] || 0)} móviles
+                  </Badge>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -532,7 +499,7 @@ export default function AsignacionMovilesModal({
         <div className="px-6 py-3 border-t flex items-center justify-between bg-muted/30">
           <div className="text-sm text-muted-foreground">
             {totalAsignaciones} asignaciones en{" "}
-            {tiposServicio.length} tipos de servicio
+            {Object.keys(countByZona).filter((k) => countByZona[k] > 0).length} zonas
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={onClose}>

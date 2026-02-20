@@ -421,9 +421,37 @@ export default function MapaZonificacion({
                     </div>
                   </form>
                 ) : colorPickerZona === zona.id ? (
-                  <div className="flex flex-col gap-2 min-w-[160px]">
+                  <div className="flex flex-col gap-2 min-w-[180px]">
                     <div className="font-bold mb-1">Color: {zona.name}</div>
-                    <div className="grid grid-cols-5 gap-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          background: zona.color || defaultColor,
+                          border: "2px solid #555",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span className="text-xs text-gray-500">{(zona.color || defaultColor).toUpperCase()}</span>
+                    </div>
+                    <input
+                      type="color"
+                      defaultValue={zona.color || defaultColor}
+                      onChange={(e) => {
+                        onChangeColor?.(zona.id, e.target.value);
+                      }}
+                      style={{
+                        width: "100%",
+                        height: 36,
+                        cursor: "pointer",
+                        border: "1px solid #ccc",
+                        borderRadius: 6,
+                        padding: 2,
+                      }}
+                    />
+                    <div className="grid grid-cols-5 gap-1 mt-1">
                       {ZONE_COLORS.map((c) => (
                         <button
                           key={c.color}
@@ -434,8 +462,8 @@ export default function MapaZonificacion({
                             setSelectedZona(null);
                           }}
                           style={{
-                            width: 28,
-                            height: 28,
+                            width: 26,
+                            height: 26,
                             borderRadius: "50%",
                             background: c.color,
                             border: zona.color === c.color ? "3px solid #222" : "2px solid #ccc",

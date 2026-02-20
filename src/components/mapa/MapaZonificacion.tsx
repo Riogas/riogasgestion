@@ -13,8 +13,30 @@ import {
 import simplify from "@turf/simplify";
 import { polygon as turfPolygon } from "@turf/helpers";
 import { EditControl } from "react-leaflet-draw";
+import { HexColorPicker } from "react-colorful";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
+
+// Estilos para react-colorful dentro de Leaflet Popup
+const colorPickerStyles = `
+  .zona-color-picker .react-colorful {
+    width: 100% !important;
+    height: 160px !important;
+    border-radius: 8px !important;
+  }
+  .zona-color-picker .react-colorful__saturation {
+    border-radius: 6px 6px 0 0 !important;
+  }
+  .zona-color-picker .react-colorful__hue {
+    height: 14px !important;
+    border-radius: 0 0 6px 6px !important;
+  }
+  .zona-color-picker .react-colorful__pointer {
+    width: 18px !important;
+    height: 18px !important;
+    border-width: 2px !important;
+  }
+`;
 
 // Estilos personalizados para los handles de edición
 const editHandleStyles = `
@@ -392,6 +414,7 @@ export default function MapaZonificacion({
                 }}
                 autoPan={false}
               >
+                <style>{colorPickerStyles}</style>
                 {renamingZona === zona.id ? (
                   <form
                     onSubmit={(e) => {
@@ -420,99 +443,100 @@ export default function MapaZonificacion({
                       </button>
                     </div>
                   </form>
-                ) : colorPickerZona === zona.id ? (
-                  <div className="flex flex-col gap-2 min-w-[180px]">
-                    <div className="font-bold mb-1">Color: {zona.name}</div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div
+                ) : (
+                  <div className="flex flex-col gap-2 zona-color-picker" style={{ minWidth: 220 }}>
+                    {/* Header: nombre + swatch de color clickeable */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() =>
+                          setColorPickerZona(
+                            colorPickerZona === zona.id ? null : zona.id
+                          )
+                        }
+                        title="Cambiar color"
                         style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
                           background: zona.color || defaultColor,
-                          border: "2px solid #555",
+                          border: "2px solid #fff",
+                          boxShadow: "0 0 0 1px #bbb, 0 2px 6px rgba(0,0,0,0.15)",
+                          cursor: "pointer",
                           flexShrink: 0,
+                          transition: "box-shadow 0.15s",
                         }}
                       />
-                      <span className="text-xs text-gray-500">{(zona.color || defaultColor).toUpperCase()}</span>
+                      <span className="font-semibold text-sm truncate flex-1">{zona.name}</span>
+                      <span className="text-[10px] text-gray-400 font-mono">{(zona.color || defaultColor).toUpperCase()}</span>
                     </div>
-                    <input
-                      type="color"
-                      defaultValue={zona.color || defaultColor}
-                      onChange={(e) => {
-                        onChangeColor?.(zona.id, e.target.value);
-                      }}
-                      style={{
-                        width: "100%",
-                        height: 36,
-                        cursor: "pointer",
-                        border: "1px solid #ccc",
-                        borderRadius: 6,
-                        padding: 2,
-                      }}
-                    />
-                    <div className="grid grid-cols-5 gap-1 mt-1">
-                      {ZONE_COLORS.map((c) => (
-                        <button
-                          key={c.color}
-                          title={c.name}
-                          onClick={() => {
-                            onChangeColor?.(zona.id, c.color);
-                            setColorPickerZona(null);
-                            setSelectedZona(null);
-                          }}
-                          style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: "50%",
-                            background: c.color,
-                            border: zona.color === c.color ? "3px solid #222" : "2px solid #ccc",
-                            cursor: "pointer",
-                            transition: "transform 0.1s",
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.2)")}
-                          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+
+                    {/* Color picker expandible */}
+                    {colorPickerZona === zona.id && (
+                      <div className="flex flex-col gap-2 pt-1">
+                        <HexColorPicker
+                          color={zona.color || defaultColor}
+                          onChange={(color) => onChangeColor?.(zona.id, color)}
                         />
-                      ))}
+                        {/* Presets rápidos */}
+                        <div className="flex flex-wrap gap-1 justify-center pt-1">
+                          {ZONE_COLORS.map((c) => (
+                            <button
+                              key={c.color}
+                              title={c.name}
+                              onClick={() => onChangeColor?.(zona.id, c.color)}
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: 4,
+                                background: c.color,
+                                border: zona.color === c.color ? "2px solid #222" : "1.5px solid #ddd",
+                                cursor: "pointer",
+                                transition: "transform 0.1s, box-shadow 0.1s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = "scale(1.25)";
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "scale(1)";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Separador */}
+                    <div className="border-t border-gray-200 my-0.5" />
+
+                    {/* Acciones */}
+                    <div className="flex gap-1.5">
+                      <button
+                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1.5 rounded-md text-xs font-medium transition-colors"
+                        onClick={() => startEditing(zona.id)}
+                        title="Editar puntos"
+                      >
+                        ✏️ Editar
+                      </button>
+                      <button
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded-md text-xs font-medium transition-colors"
+                        onClick={() => {
+                          setRenamingZona(zona.id);
+                          setRenameValue(zona.name);
+                        }}
+                        title="Renombrar zona"
+                      >
+                        ✎ Nombre
+                      </button>
+                      <button
+                        className="flex-1 bg-red-500 hover:bg-red-600 text-white px-2 py-1.5 rounded-md text-xs font-medium transition-colors"
+                        onClick={() => onRemove(zona.id)}
+                        title="Quitar zona"
+                      >
+                        🗑 Quitar
+                      </button>
                     </div>
-                    <button
-                      className="bg-gray-300 px-2 py-1 rounded text-sm"
-                      onClick={() => setColorPickerZona(null)}
-                    >
-                      Volver
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2 min-w-[140px]">
-                    <div className="font-bold mb-1">{zona.name}</div>
-                    <button
-                      className="bg-orange-500 text-white px-2 py-1 rounded"
-                      onClick={() => startEditing(zona.id)}
-                    >
-                      ✏️ Editar puntos
-                    </button>
-                    <button
-                      className="bg-blue-600 text-white px-2 py-1 rounded"
-                      onClick={() => {
-                        setRenamingZona(zona.id);
-                        setRenameValue(zona.name);
-                      }}
-                    >
-                      Renombrar
-                    </button>
-                    <button
-                      className="text-white px-2 py-1 rounded"
-                      style={{ background: zona.color || defaultColor }}
-                      onClick={() => setColorPickerZona(zona.id)}
-                    >
-                      🎨 Cambiar color
-                    </button>
-                    <button
-                      className="bg-red-600 text-white px-2 py-1 rounded"
-                      onClick={() => onRemove(zona.id)}
-                    >
-                      Quitar
-                    </button>
                   </div>
                 )}
               </Popup>

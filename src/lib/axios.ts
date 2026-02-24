@@ -31,10 +31,20 @@ function stopGlobal(config: any) {
   }
 }
 
-// Instancia para el backend de GeneXus (usa proxy: /api -> http://192.168.1.72:8082/puestos/gestion/)
+// ============================================
+// BACKEND MODE: 'legacy' (GeneXus) o 'nestjs'
+// ============================================
+export const API_BACKEND_MODE =
+  (typeof window !== "undefined"
+    ? process.env.NEXT_PUBLIC_API_BACKEND
+    : process.env.NEXT_PUBLIC_API_BACKEND) || "legacy";
+
+export const isNestjsBackend = API_BACKEND_MODE === "nestjs";
+
+// Instancia principal — siempre apunta al proxy /api que redirige según NEXT_PUBLIC_API_BACKEND
 const api = axios.create({
-  baseURL: "/api", // usamos el proxy declarado en next.config.js
-  withCredentials: true, // se enviarán cookies si tu backend las requiere
+  baseURL: "/api",
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },

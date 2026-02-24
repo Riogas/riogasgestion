@@ -11,17 +11,33 @@ const insecureAgent = new https.Agent({
   rejectUnauthorized: false,
 });
 
-const API_BASE =
+// ============================================
+// BACKEND MODE: 'legacy' (GeneXus) o 'nestjs'
+// ============================================
+const BACKEND_MODE = process.env.NEXT_PUBLIC_API_BACKEND || "legacy";
+
+// Legacy (GeneXus/sgm.riogas)
+const LEGACY_API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://sgm.glp.riogas.com.uy";
+const LEGACY_PREFIX = "/gestion";
 
-const BACKEND_PREFIX = "/gestion";
+// NestJS (nuevo backend)
+const NESTJS_API_BASE =
+  process.env.NEXT_PUBLIC_NESTJS_API_URL ||
+  "http://localhost:3001";
+const NESTJS_PREFIX = "/api"; // NestJS global prefix
 
 async function proxyRequest(req: NextRequest) {
   // Extraer el path después de /api/
   const url = new URL(req.url);
   const pathAfterApi = url.pathname.replace(/^\/api/, "");
-  const targetUrl = `${API_BASE}${BACKEND_PREFIX}${pathAfterApi}${url.search}`;
+
+  // Determinar destino según el modo de backend
+  const isNestjs = BACKEND_MODE === "nestjs";
+  const apiBase = isNestjs ? NESTJS_API_BASE : LEGACY_API_BASE;
+  const prefix = isNestjs ? NESTJS_PREFIX : LEGACY_PREFIX;
+  const targetUrl = `${apiBase}${prefix}${pathAfterApi}${url.search}`;
 
   console.log(`[API Proxy] ${req.method} ${url.pathname} -> ${targetUrl}`);
 

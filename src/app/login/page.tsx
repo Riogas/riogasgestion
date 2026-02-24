@@ -174,28 +174,29 @@ export default function LoginPage() {
       {/* Toggle Dark/Light */}
       <button
         onClick={toggleTheme}
-        className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition"
+        className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all duration-300 hover:rotate-12 hover:scale-110 animate-fade-in-up"
+        style={{ animationDelay: '0.8s' }}
         aria-label="Cambiar tema"
       >
         {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
       </button>
 
-      <div className="w-full max-w-sm space-y-6 p-6 rounded-2xl shadow-xl border bg-card/70 backdrop-blur-md">
+      <div className="w-full max-w-sm space-y-6 p-6 rounded-2xl shadow-xl border bg-card/70 backdrop-blur-md animate-fade-in-up" style={{ animationDuration: '0.6s' }}>
         <div className="space-y-3 text-center">
-          <div className="flex justify-center">
+          <div className="flex justify-center animate-scale-in" style={{ animationDelay: '0.15s' }}>
             <Image
               src="/logogoya.png"
               alt="Logo Goya"
               width={280}
               height={280}
-              className="object-contain"
+              className="object-contain drop-shadow-lg"
               priority
             />
           </div>
-          <h1 className="text-2xl font-bold">Iniciar sesión</h1>
+          <h1 className="text-2xl font-bold animate-fade-in-up" style={{ animationDelay: '0.25s' }}>Iniciar sesión</h1>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
+          <div className="space-y-2 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
             <Label htmlFor="usuario">Usuario</Label>
             <Input
               id="usuario"
@@ -203,13 +204,13 @@ export default function LoginPage() {
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
               placeholder="nombre de usuario"
-              className={errors.usuario ? "border-red-500" : ""}
+              className={`transition-all duration-200 focus:scale-[1.01] focus:shadow-md ${errors.usuario ? "border-red-500 animate-shake" : ""}`}
             />
             {errors.usuario && (
-              <p className="text-sm text-red-500">{errors.usuario}</p>
+              <p className="text-sm text-red-500 animate-fade-in-up">{errors.usuario}</p>
             )}
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
             <Label htmlFor="password">Contraseña</Label>
             <Input
               id="password"
@@ -217,20 +218,20 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className={errors.password ? "border-red-500" : ""}
+              className={`transition-all duration-200 focus:scale-[1.01] focus:shadow-md ${errors.password ? "border-red-500 animate-shake" : ""}`}
             />
             {errors.password && (
-              <p className="text-sm text-red-500">{errors.password}</p>
+              <p className="text-sm text-red-500 animate-fade-in-up">{errors.password}</p>
             )}
           </div>
-          <Button className="w-full" type="submit" disabled={loading}>
+          <Button className="w-full animate-fade-in-up transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]" style={{ animationDelay: '0.5s' }} type="submit" disabled={loading}>
             {loading && <Loader2 className="animate-spin w-4 h-4 mr-2" />}
             {loading ? "Ingresando..." : "Ingresar"}
           </Button>
         </form>
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-sm text-muted-foreground animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
           ¿Has olvidado la contraseña?{" "}
-          <a href="#" className="underline">
+          <a href="#" className="underline hover:text-primary transition-colors duration-200">
             Recuperar contraseña
           </a>
         </p>

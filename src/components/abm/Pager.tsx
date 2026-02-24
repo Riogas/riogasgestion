@@ -27,7 +27,7 @@ export function Pager({
     "h-8 w-8 size-8 bg-white text-foreground dark:text-gray-900 border border-border shadow-sm hover:bg-white/90 disabled:opacity-50 disabled:pointer-events-none transition";
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-4 px-4 py-3 border-t text-sm bg-background/40">
+    <div className="flex flex-col sm:flex-row items-center gap-4 px-4 py-3 border-t text-sm bg-background/40 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
       <div className="flex items-center gap-2 w-full sm:w-auto">
         <span className="text-muted-foreground">Registros por página</span>
         <Select value={String(pageSize)} onValueChange={(v) => onChangePageSize(Number(v))}>

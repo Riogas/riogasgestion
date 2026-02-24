@@ -44,20 +44,20 @@ export default function DashboardClient({ children }: { children: ReactNode }) {
 
       <div className="flex flex-col flex-1">
         <div className="px-6 pt-4">
-          <nav className="text-sm text-muted-foreground mb-4">
+          <nav className="text-sm text-muted-foreground mb-4 animate-fade-in-left">
             <ol className="flex items-center space-x-2">
               <li>
-                <Link href="/dashboard" className="hover:underline text-primary">
+                <Link href="/dashboard" className="hover:underline text-primary transition-colors duration-200">
                   Inicio
                 </Link>
               </li>
               {pathSegments.map((segment, index) => (
-                <li key={segment.href} className="flex items-center">
+                <li key={segment.href} className="flex items-center animate-fade-in-left" style={{ animationDelay: `${(index + 1) * 0.05}s` }}>
                   <span className="mx-2">/</span>
                   {index === pathSegments.length - 1 ? (
-                    <span className="text-foreground">{segment.label}</span>
+                    <span className="text-foreground font-medium">{segment.label}</span>
                   ) : (
-                    <Link href={segment.href} className="hover:underline text-primary">
+                    <Link href={segment.href} className="hover:underline text-primary transition-colors duration-200">
                       {segment.label}
                     </Link>
                   )}
@@ -67,7 +67,7 @@ export default function DashboardClient({ children }: { children: ReactNode }) {
           </nav>
         </div>
 
-        <main className="flex-1 px-6 pb-6">{children}</main>
+        <main className="flex-1 px-6 pb-6 animate-fade-in-up" style={{ animationDuration: '0.4s' }}>{children}</main>
       </div>
     </div>
   );

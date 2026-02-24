@@ -201,10 +201,10 @@ export function Navbar({
   };
 
   return (
-    <header className="sticky top-0 z-40 h-16 px-6 flex items-center justify-between border-b bg-card gap-4">
+    <header className="sticky top-0 z-40 h-16 px-6 flex items-center justify-between border-b bg-card gap-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
       {/* IZQUIERDA: logo */}
       <div className="flex items-center">
-        <Image src="/logogoya.png" alt="Logo" width={120} height={32} className="h-8 w-auto" />
+        <Image src="/logogoya.png" alt="Logo" width={120} height={32} className="h-8 w-auto transition-transform duration-300 hover:scale-105" />
       </div>
 
       {/* DERECHA: acciones, info de permisos (modal), puestos y usuario */}
@@ -212,10 +212,10 @@ export function Navbar({
         {/* Notificaciones */}
         <Popover open={notifOpen} onOpenChange={toggleNotifOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9" title="Notificaciones">
-              <Bell className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 transition-transform duration-200 hover:scale-110" title="Notificaciones">
+              <Bell className="h-5 w-5 transition-transform duration-200 hover:rotate-12" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-[10px] font-semibold text-white flex items-center justify-center shadow-md">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-[10px] font-semibold text-white flex items-center justify-center shadow-md animate-scale-in animate-pulse-soft">
                   {unreadCount}
                 </span>
               )}
@@ -230,8 +230,8 @@ export function Navbar({
               {notifications.length === 0 && (
                 <div className="p-4 text-sm text-muted-foreground">No hay notificaciones</div>
               )}
-              {notifications.map((n) => (
-                <button key={n.id} className={`w-full text-left p-3 hover:bg-muted/40 transition ${n.read ? "opacity-80" : ""}`}>
+              {notifications.map((n, i) => (
+                <button key={n.id} className={`w-full text-left p-3 hover:bg-muted/40 transition-all duration-200 animate-fade-in-up ${n.read ? "opacity-80" : ""}`} style={{ animationDelay: `${i * 0.05}s` }}>
                   <div className="flex items-start gap-3">
                     <span className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full ${n.type === "warning" ? "bg-amber-100 text-amber-700" : n.type === "success" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
                       {n.type === "warning" ? <AlertTriangle className="h-4 w-4" /> : n.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <Info className="h-4 w-4" />}
@@ -367,8 +367,8 @@ export function Navbar({
         {/* Avatar / Menú */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="rounded-full p-0 h-10 w-10">
-              <Avatar className="h-10 w-10">
+            <Button variant="ghost" className="rounded-full p-0 h-10 w-10 transition-transform duration-200 hover:scale-110">
+              <Avatar className="h-10 w-10 ring-2 ring-transparent transition-all duration-200 hover:ring-primary/30">
                 <AvatarImage src="/avatar.png" alt={effectiveUserName} />
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
                   {userInitials}
@@ -391,11 +391,11 @@ export function Navbar({
             <DropdownMenuItem onClick={toggleTheme}>
               {mounted && (theme === "dark" ? (
                 <>
-                  <Sun className="mr-2 h-4 w-4" /> Tema Claro
+                  <Sun className="mr-2 h-4 w-4 transition-transform duration-200 hover:rotate-90" /> Tema Claro
                 </>
               ) : (
                 <>
-                  <Moon className="mr-2 h-4 w-4" /> Tema Oscuro
+                  <Moon className="mr-2 h-4 w-4 transition-transform duration-200 hover:rotate-12" /> Tema Oscuro
                 </>
               ))}
             </DropdownMenuItem>

@@ -11,7 +11,7 @@ export function TableCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="p-6 mt-4">
+    <Card className="p-6 mt-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
       {header ? <div className="mb-4">{header}</div> : null}
       <div className="rounded-md border border-border/40 overflow-hidden">
         {children}

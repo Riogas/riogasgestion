@@ -48,11 +48,11 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Panel Principal</h1>
+      <h1 className="text-3xl font-bold animate-fade-in-up">Panel Principal</h1>
 
       {/* KPIs más grandes */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="py-2 hover:shadow-lg transition-all hover:-translate-y-0.5">
+        <Card className="py-2 card-hover-lift animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Usuarios Activos</CardTitle>
           </CardHeader>
@@ -62,7 +62,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="py-2 hover:shadow-lg transition-all hover:-translate-y-0.5">
+        <Card className="py-2 card-hover-lift animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Órdenes del Día</CardTitle>
           </CardHeader>
@@ -72,7 +72,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="py-2 hover:shadow-lg transition-all hover:-translate-y-0.5">
+        <Card className="py-2 card-hover-lift animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Kg</CardTitle>
           </CardHeader>
@@ -86,7 +86,7 @@ export default function DashboardPage() {
       {/* Gráficas con efectos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Área: Usuarios activos */}
-        <Card className="hover:shadow-lg transition-all hover:-translate-y-0.5">
+        <Card className="card-hover-lift animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
           <CardHeader>
             <CardTitle>Usuarios activos (7 días)</CardTitle>
           </CardHeader>
@@ -110,7 +110,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Barras: Órdenes del día */}
-        <Card className="hover:shadow-lg transition-all hover:-translate-y-0.5">
+        <Card className="card-hover-lift animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
           <CardHeader>
             <CardTitle>Órdenes por franja horaria</CardTitle>
           </CardHeader>
@@ -128,7 +128,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Línea: Kg */}
-        <Card className="hover:shadow-lg transition-all hover:-translate-y-0.5">
+        <Card className="card-hover-lift animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
           <CardHeader>
             <CardTitle>Kg mensuales</CardTitle>
           </CardHeader>

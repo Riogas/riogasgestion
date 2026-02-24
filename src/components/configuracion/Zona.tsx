@@ -160,33 +160,33 @@ export default function Zona() {
   if (loading) {
     return (
       <div className="flex justify-center items-center p-8">
-        <div className="text-lg">Cargando zonas...</div>
+        <div className="text-lg animate-pulse">Cargando zonas...</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center animate-fade-in-up">
         <h2 className="text-2xl font-bold">Zonas</h2>
         <Button 
           onClick={handleOpenModal}
-          className="transition-all duration-200 hover:scale-105 hover:shadow-lg"
+          className="transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-95"
         >
           Nueva
         </Button>
       </div>
 
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
         <Input
           placeholder="Buscar por zona..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
+          className="max-w-sm transition-all duration-200 focus:scale-[1.01] focus:shadow-md"
         />
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -206,10 +206,12 @@ export default function Zona() {
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map((row, rowIndex) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="animate-table-row-in transition-colors duration-150 hover:bg-muted/50"
+                  style={{ animationDelay: `${rowIndex * 0.03}s` }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

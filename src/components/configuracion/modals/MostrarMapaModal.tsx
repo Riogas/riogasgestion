@@ -104,7 +104,10 @@ export default function MostrarMapaModal({
               boundsOptions={{ padding: [30, 30] }}
               zoom={12}
             >
-              <LTileLayer url="http://osmtileserver.riogas.uy/tile/{z}/{x}/{y}.png" />
+              <LTileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution="&copy; OpenStreetMap contributors"
+              />
               <LGeoJSON data={geojson} />
             </LMap>
           ) : (

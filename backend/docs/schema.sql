@@ -248,6 +248,48 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON calles
 
 
 -- =============================================================================
+-- TABLA: notificaciones
+-- =============================================================================
+-- Notificaciones dirigidas al usuario conectado. No dependen de escenario
+-- porque un mismo usuario puede operar en varios escenarios.
+-- La clave del usuario viene del contexto de sesión (SecuritySuite/GeneXus).
+--
+-- Tipos de notificación:
+--   info     → Informativa (ej: "Se actualizó la zonificación de Goya")
+--   warning  → Advertencia (ej: "Móvil M-101 sin GPS hace 2 horas")
+--   error    → Error (ej: "Falló la importación de calles")
+--   success  → Éxito (ej: "Pedido #4521 entregado")
+--   system   → Sistema (ej: "Mantenimiento programado para las 22:00")
+--
+-- No hay tabla legacy equivalente — esta es nueva para el sistema NestJS.
+-- =============================================================================
+CREATE TABLE notificaciones (
+    id              BIGSERIAL       PRIMARY KEY,
+    usuario         VARCHAR(100)    NOT NULL,            -- username del destinatario (clave de sesión)
+    escenario_id    INTEGER         REFERENCES escenarios(id) ON DELETE SET NULL,
+                                                         -- contexto opcional (NULL = global/sistema)
+    tipo            VARCHAR(10)     NOT NULL DEFAULT 'info'
+                    CHECK (tipo IN ('info', 'warning', 'error', 'success', 'system')),
+    titulo          VARCHAR(200)    NOT NULL,             -- título corto
+    mensaje         TEXT,                                 -- cuerpo detallado (puede ser HTML/markdown)
+    enlace          VARCHAR(500),                         -- URL de acción (ej: /dashboard/pedidos/4521)
+    leida           BOOLEAN         NOT NULL DEFAULT FALSE,
+    leida_at        TIMESTAMPTZ,                          -- cuándo se marcó como leída
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_notif_usuario       ON notificaciones (usuario, created_at DESC);
+CREATE INDEX idx_notif_no_leidas     ON notificaciones (usuario, leida) WHERE leida = FALSE;
+CREATE INDEX idx_notif_escenario     ON notificaciones (escenario_id) WHERE escenario_id IS NOT NULL;
+CREATE INDEX idx_notif_tipo          ON notificaciones (tipo, created_at DESC);
+CREATE INDEX idx_notif_created       ON notificaciones (created_at DESC);
+
+COMMENT ON TABLE  notificaciones          IS 'Notificaciones por usuario — sin updated_at (son inmutables salvo marcar leída)';
+COMMENT ON COLUMN notificaciones.usuario  IS 'Username del destinatario (viene del token/sesión SecuritySuite)';
+COMMENT ON COLUMN notificaciones.enlace   IS 'Ruta relativa de la app para navegar al contexto (ej: /dashboard/pedidos/4521)';
+
+
+-- =============================================================================
 -- RESUMEN PARTE 1
 -- =============================================================================
 -- | Tabla          | PK           | escenario_id | Fuente legacy            |
@@ -256,6 +298,7 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON calles
 -- | departamentos  | BIGINT (osm) |     NO       | GXICAGEO.OSMDEPARTAMENTO |
 -- | localidades    | BIGINT (osm) |     NO       | GXICAGEO.OSMLOCALIDAD    |
 -- | calles         | BIGSERIAL    |     NO       | GXICAGEO.OSMCALLE        |
+-- | notificaciones | BIGSERIAL    |   OPCIONAL   | Nueva (NestJS)           |
 -- =============================================================================
 -- (m)  = ID asignado manualmente (legacy)
 -- (osm) = ID de OpenStreetMap

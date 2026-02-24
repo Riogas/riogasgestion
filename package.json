@@ -11,7 +11,10 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "test:codegen": "playwright codegen http://localhost:4000"
+    "test:codegen": "playwright codegen http://localhost:4000",
+    "backend:dev": "pnpm --filter riogas-backend start:dev",
+    "backend:build": "pnpm --filter riogas-backend build",
+    "backend:start": "pnpm --filter riogas-backend start:prod"
   },
   "dependencies": {
     "@dnd-kit/accessibility": "^3.1.1",

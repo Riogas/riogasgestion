@@ -1,5 +1,8 @@
 module.exports = {
   apps: [
+    // ============================================
+    // FRONTEND — Next.js (Goya)
+    // ============================================
     {
       name: 'goya',
       script: 'node_modules/next/dist/bin/next',
@@ -28,6 +31,35 @@ module.exports = {
       merge_logs: true,
       // Cargar variables de entorno desde .env.production
       env_file: '.env.production'
+    },
+
+    // ============================================
+    // BACKEND — NestJS + PostgreSQL
+    // ============================================
+    {
+      name: 'goya-api',
+      cwd: './backend',
+      script: 'dist/main.js',
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      min_uptime: '10s',
+      max_restarts: 50,
+      restart_delay: 4000,
+      kill_timeout: 5000,
+      listen_timeout: 5000,
+      exp_backoff_restart_delay: 100,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3001,
+      },
+      error_file: '../logs/pm2-api-error.log',
+      out_file: '../logs/pm2-api-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      env_file: '.env'
     }
   ]
 };

@@ -76,7 +76,7 @@ export default function Puestos() {
   const filteredData = useMemo(() => {
     return searchTerm.length >= 0
       ? puestos.filter((puesto) =>
-          puesto.puestoDsc
+          (puesto.puestoDsc ?? "")
             .toLowerCase()
             .includes((debouncedSearchTerm(searchTerm) ?? "").toLowerCase()),
         )

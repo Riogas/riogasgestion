@@ -836,6 +836,44 @@ export const apiGetCallesICA = async (body: {
 };
 
 // ✅ Servicios para Puestos
+// Mapa de claves DV_P_P_* → PascalCase esperado por el frontend
+const PUESTO_KEY_MAP: Record<string, string> = {
+  DV_P_P_PUESTOID: "PuestoId",
+  DV_P_P_PUESTODSC: "PuestoDsc",
+  DV_P_P_PUESTOESTADO: "PuestoEstado",
+  DV_P_P_PUESTOACEPTAAGENDAR: "PuestoAceptaAgendar",
+  DV_P_P_PUESTOATRASO: "PuestoAtraso",
+  DV_P_P_PUESTOAUTOPEDIDO: "PuestoAutoPedido",
+  DV_P_P_PUESTOCALID: "PuestoCalId",
+  DV_P_P_PUESTOCALLESID: "PuestoCallesId",
+  DV_P_P_PUESTODIR: "PuestoDir",
+  DV_P_P_PUESTOFLETECANTIDAD: "PuestoFleteCantidad",
+  DV_P_P_PUESTOFLETECOBRA: "PuestoFleteCobra",
+  DV_P_P_PUESTOFUERZAAUTOPEDIDO: "PuestoFuerzaAutopedido",
+  DV_P_P_PuestoGCINro: "PuestoGCINro",
+  DV_P_P_PUESTOGPSEFLETERA: "PuestoGPSEFletera",
+  DV_P_P_PUESTOHORARIOS: "PuestoHorarios",
+  DV_P_P_PUESTOPALABRAAUTOPEDIDO: "PuestoPalabraAutopedido",
+  DV_P_P_PuestoPruebas: "PuestoPruebas",
+  DV_P_P_PUESTOSCOORDX: "PuestosCoordX",
+  DV_P_P_PUESTOSCOORDY: "PuestosCoordY",
+  DV_P_P_PUESTOSULTMOD: "PuestosUltMod",
+  DV_P_P_PUESTOTELULTLIN: "PuestoTelUltLin",
+  DV_P_P_PUESTOUBICACION: "PuestoUbicacion",
+  DV_P_P_PUESTOWAPPACTIVO: "PuestoWappActivo",
+  DV_P_P_PUESTOZONID: "PuestoZonId",
+};
+
+/** Normaliza un objeto puesto: convierte claves DV_P_P_* al formato PascalCase esperado */
+function normalizePuesto(raw: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const mapped = PUESTO_KEY_MAP[key];
+    result[mapped ?? key] = value;
+  }
+  return result;
+}
+
 export const apiGetPuestos = async (puestoId: string = "") => {
   return withApiLogging(
     "/getPuestos",
@@ -843,7 +881,12 @@ export const apiGetPuestos = async (puestoId: string = "") => {
       const response = await api.post("/getPuestos", {
         PuestoId: puestoId,
       });
-      return response.data;
+      const data = response.data;
+      // Normalizar claves si vienen con prefijo DV_P_P_
+      if (Array.isArray(data?.sdtPuestosData)) {
+        data.sdtPuestosData = data.sdtPuestosData.map(normalizePuesto);
+      }
+      return data;
     },
     "POST",
     { PuestoId: puestoId }

@@ -6,6 +6,10 @@ import http from "http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Permitir bodies grandes (GeoJSON de zonas puede superar 1MB)
+export const maxDuration = 60;
+export const fetchCache = "default-no-store";
+
 // Agente HTTPS que acepta certificados autofirmados
 const insecureAgent = new https.Agent({
   rejectUnauthorized: false,

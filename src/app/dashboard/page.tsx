@@ -2,6 +2,7 @@
 
 // src/app/dashboard/page.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { chartColors } from "@/lib/chart-colors";
 import {
   ResponsiveContainer,
   LineChart,
@@ -95,15 +96,15 @@ export default function DashboardPage() {
               <AreaChart data={usuariosData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                    <stop offset="5%" stopColor={chartColors.primary} stopOpacity={0.8} />
+                    <stop offset="95%" stopColor={chartColors.primary} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} />
                 <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="#4f46e5" fill="url(#colorUsers)" animationDuration={800} />
+                <Area type="monotone" dataKey="value" stroke={chartColors.primary} fill="url(#colorUsers)" animationDuration={800} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -121,7 +122,7 @@ export default function DashboardPage() {
                 <XAxis dataKey="name" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} />
                 <Tooltip />
-                <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} animationDuration={800} />
+                <Bar dataKey="value" fill={chartColors.accent} radius={[8, 8, 0, 0]} animationDuration={800} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -139,7 +140,7 @@ export default function DashboardPage() {
                 <XAxis dataKey="name" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} />
                 <Tooltip formatter={(v: any) => [`${v.toLocaleString()} kg`, "Kg"]} />
-                <Line type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} animationDuration={800} />
+                <Line type="monotone" dataKey="value" stroke={chartColors.blueLight} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} animationDuration={800} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>

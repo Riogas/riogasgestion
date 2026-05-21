@@ -33,11 +33,11 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
   const mailto = `mailto:${adminEmail}?subject=${asunto}&body=${cuerpo}`;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#181f2a]">
-      <div className="bg-[#232c3b] rounded-2xl shadow-xl p-10 max-w-lg w-full flex flex-col items-center">
-        <LockKeyhole size={60} className="text-[#3b82f6] mb-4" />
-        <h1 className="text-3xl font-bold text-white mb-2">Acceso denegado</h1>
-        <p className="text-gray-400 mb-6 text-center">
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="surface-glass rounded-2xl shadow-lg p-10 max-w-lg w-full flex flex-col items-center animate-scale-in">
+        <LockKeyhole size={60} className="text-primary mb-4" />
+        <h1 className="text-3xl font-bold text-foreground mb-2">Acceso denegado</h1>
+        <p className="text-muted-foreground mb-6 text-center">
           No tienes permisos para acceder a esta sección.<br />
           Si crees que esto es un error, contacta al administrador.
         </p>
@@ -47,13 +47,13 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
           width={160}
           height={160}
           alt="No autorizado"
-          className="mb-6 rounded-lg shadow"
+          className="mb-6 rounded-lg shadow-sm"
         />
 
         {(code || ruta || nombre) && (
-          <div className="w-full mb-6 rounded-xl border border-[#2f394d] bg-[#1b2433] p-4 text-sm text-gray-300">
+          <div className="w-full mb-6 rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
             <div className="flex items-center justify-between mb-3">
-              <div className="font-semibold text-white">Detalles de esta pantalla</div>
+              <div className="font-semibold text-foreground">Detalles de esta pantalla</div>
               <CopyClipboard
                 textToCopy={`Pantalla: ${nombre || ruta}\nRuta: ${ruta}\nCódigo: ${codeWithApp}\nUsuario: ${userName}`}
                 label="Copiar"
@@ -61,23 +61,23 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
             </div>
             <div className="space-y-1">
               <div>
-                <span className="text-gray-400">Pantalla:</span>{" "}
-                <span className="font-medium text-white">{nombre || ruta || "—"}</span>
+                <span className="text-muted-foreground">Pantalla:</span>{" "}
+                <span className="font-medium text-foreground">{nombre || ruta || "—"}</span>
               </div>
               <div>
-                <span className="text-gray-400">Ruta:</span>{" "}
-                <code className="rounded bg-[#121826] px-1.5 py-0.5">{ruta || "—"}</code>
+                <span className="text-muted-foreground">Ruta:</span>{" "}
+                <code className="rounded bg-background border border-border px-1.5 py-0.5">{ruta || "—"}</code>
               </div>
               <div>
-                <span className="text-gray-400">Código:</span>{" "}
-                <code className="rounded bg-[#121826] px-1.5 py-0.5">{codeWithApp || "—"}</code>
+                <span className="text-muted-foreground">Código:</span>{" "}
+                <code className="rounded bg-background border border-border px-1.5 py-0.5">{codeWithApp || "—"}</code>
               </div>
               <div>
-                <span className="text-gray-400">Usuario:</span>{" "}
-                <span className="font-medium text-white">{userName}</span>
+                <span className="text-muted-foreground">Usuario:</span>{" "}
+                <span className="font-medium text-foreground">{userName}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-400">Fecha y hora:</span>
+                <span className="text-muted-foreground">Fecha y hora:</span>
                 <CurrentDateTime />
               </div>
             </div>
@@ -85,10 +85,10 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
         )}
 
         <div className="flex w-full gap-3">
-          <a href="/" className="flex-1 px-5 py-2 rounded-lg bg-[#3b82f6] text-white font-semibold hover:bg-[#2563eb] transition text-center">
+          <a href="/" className="flex-1 px-5 py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition text-center">
             Volver al inicio
           </a>
-          <a href={mailto} className="flex-1 px-5 py-2 rounded-lg bg-[#374151] text-white font-semibold hover:bg-[#4b5563] transition text-center">
+          <a href={mailto} className="flex-1 px-5 py-2 rounded-lg bg-muted text-foreground border border-border font-semibold hover:bg-muted/70 transition text-center">
             Solicitar acceso
           </a>
         </div>

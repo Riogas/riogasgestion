@@ -33,6 +33,7 @@ import { GenexusFeatureCollectionToGeoJson } from "@/lib/convertirGeoJson";
 import { point as turfPoint } from "@turf/helpers";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { toast } from "sonner"; // Para notificaciones visuales
+import { chartColors } from "@/lib/chart-colors";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TelefonosTable, Telefono } from "./TelefonosTable";
 import { DireccionesTable, DireccionRow } from "./DireccionesTable";
@@ -555,7 +556,7 @@ export default function ClienteForm({ clienteId }: ClienteFormProps) {
          styles={{
            options: {
              zIndex: 10000,
-             primaryColor: "#2563eb",
+             primaryColor: chartColors.primary,
              textColor: "#222",
              backgroundColor: "#fff",
            },

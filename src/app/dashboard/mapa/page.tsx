@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
+import { chartColors } from "@/lib/chart-colors";
 
 export default function MapaZonificacionOSM() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -56,7 +57,7 @@ export default function MapaZonificacionOSM() {
       // Crear nueva capa GeoJSON
       const newLayer = L.geoJSON(geoJsonData, {
         style: (feature: any) => ({
-          color: feature?.properties?.color || "#3388ff",
+          color: feature?.properties?.color || chartColors.primary,
           weight: 2,
           opacity: 1,
           fillOpacity: 0.2,
@@ -89,11 +90,10 @@ export default function MapaZonificacionOSM() {
       />
       <div
         ref={mapRef}
+        className="border border-border rounded-lg"
         style={{
           width: "100%",
           height: "600px",
-          border: "1px solid #ccc",
-          borderRadius: "8px",
         }}
       />
     </div>

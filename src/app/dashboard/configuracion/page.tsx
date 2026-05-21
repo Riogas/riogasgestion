@@ -1,4 +1,5 @@
 import React from "react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -22,7 +23,11 @@ import Puestos from "@/components/configuracion/Puestos";
 
 export default function ConfiguracionPage() {
   return (
-    <div className="p-4">
+    <div className="space-y-6">
+      <PageHeader
+        title="Configuración"
+        description="Catálogos, permisos, roles y configuración general del sistema."
+      />
       <Tabs defaultValue="puestos" className="w-full">
         <TabsList>
           <TabsTrigger value="puestos">Puestos</TabsTrigger>

@@ -308,7 +308,6 @@ export default function Pedidos() {
       <TableCard
       header={
         <ListHeader
-          title="Pedidos"
           search={q}
           onSearch={(v) => { setQ(v); setPage(1); }}
           onCreate={onCreate}

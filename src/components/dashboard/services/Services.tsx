@@ -225,7 +225,6 @@ export default function Services() {
     <TableCard
       header={
         <ListHeader
-          title="Services"
           search={q}
           onSearch={(v) => { setQ(v); setPage(1); }}
           onCreate={onCreate}

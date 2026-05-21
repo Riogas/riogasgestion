@@ -106,7 +106,6 @@ export default function Moviles() {
     <TableCard
       header={
         <ListHeader
-          title="Móviles"
           search={query}
           onSearch={(v) => { setQuery(v); setPage(1); }}
           onCreate={openCreate}

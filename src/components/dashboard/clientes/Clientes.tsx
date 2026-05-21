@@ -92,7 +92,6 @@ export default function Clientes() {
     <TableCard
       header={
         <ListHeader
-          title="Clientes"
           search={query}
           onSearch={(v) => { setQuery(v); setPage(1); }}
           onCreate={onCreate}

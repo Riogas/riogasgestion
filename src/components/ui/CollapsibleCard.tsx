@@ -33,8 +33,8 @@ export function CollapsibleCard({
           )}
           {title}
           {!isOpen && (
-            <span className="ml-2 px-2 py-1 text-sm font-semibold bg-blue-500 text-white rounded-full flex items-center gap-1">
-              <span className="text-lg">👈</span>
+            <span className="ml-2 px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full inline-flex items-center gap-1">
+              <span className="text-sm">👈</span>
               Amplíe para ver más información
             </span>
           )}

@@ -7,11 +7,18 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({ children, onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 text-white rounded-lg shadow-lg p-4 relative">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in-up"
+      onClick={onClose}
+    >
+      <div
+        className="surface-glass text-foreground rounded-[var(--radius-xl)] shadow-lg p-6 relative max-w-[calc(100vw-2rem)] animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
-          className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+          className="absolute top-3 right-3 p-1.5 rounded-[var(--radius-sm)] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           onClick={onClose}
+          aria-label="Cerrar"
         >
           &times;
         </button>

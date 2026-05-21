@@ -1,6 +1,7 @@
 import { distance as levenshtein } from "fastest-levenshtein";
 import removeDiacritics from "diacritics";
 import numalet from "numalet";
+import { chartColors } from "./chart-colors";
 
 // Diccionario de abreviaturas
 const ABBREVIATIONS: Record<string, string> = {
@@ -67,12 +68,12 @@ export function stringSimilarity(a: string, b: string): number {
   return union.size === 0 ? 0 : intersection.size / union.size;
 }
 
-// Color de confianza
+// Color de confianza (alineado con tokens semánticos: success/warn/accent/destructive)
 export function confidenceColor(score: number): string {
-  if (score > 0.9) return "#22c55e"; // verde
-  if (score > 0.7) return "#eab308"; // amarillo
-  if (score > 0.5) return "#f97316"; // naranja
-  return "#ef4444"; // rojo
+  if (score > 0.9) return chartColors.success;     // verde
+  if (score > 0.7) return chartColors.warn;        // amarillo
+  if (score > 0.5) return chartColors.accent;      // naranja (brand accent)
+  return chartColors.destructive;                  // rojo
 }
 
 // Comparador principal
@@ -96,7 +97,7 @@ export function compararCalles(
     let mejorScore = -1;
     let mejorCandidato = null;
     let mejorDist = Infinity;
-    let mejorColor = "#ef4444";
+    let mejorColor = chartColors.destructive;
 
     const nombreBase = normalizeCalle(base[baseKey]);
 

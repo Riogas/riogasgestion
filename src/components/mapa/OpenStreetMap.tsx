@@ -7,6 +7,7 @@ import axios from "axios";
 import { Crosshair, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button"; // si estás usando ShadCN
 import MapaGoogle from "./MapaGoogle";
+import { chartColors } from "@/lib/chart-colors";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 
@@ -94,7 +95,7 @@ export default function OpenStreetMap({
       zonas.forEach((geojson) => {
         if (!geojson) return;
         const gjLayer = L.geoJSON(geojson, {
-          style: { color: '#e11d48', weight: 2, fillOpacity: 0.2 },
+          style: { color: chartColors.destructive, weight: 2, fillOpacity: 0.2 },
         });
         gjLayer.addTo(layerGroup);
         try {

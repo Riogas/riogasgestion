@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { ListHeader } from "@/components/abm/ListHeader";
 import { TableCard } from "@/components/abm/TableCard";
 import { Pager } from "@/components/abm/Pager";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Users, UserCheck, UserPlus, Building2, CalendarPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
 
 export type Cliente = {
   id: string; // internal id
@@ -66,7 +67,28 @@ export default function Clientes() {
     setItems((prev) => prev.filter((c) => c.id !== id));
   };
 
+  // Stats contextuales
+  const stats: PageStatItem[] = useMemo(() => {
+    const total = items.length;
+    const activos = items.filter((c) => c.estado === "Activo").length;
+    const pendientes = items.filter((c) => c.estado === "Pendiente").length;
+    const comerciales = items.filter((c) => c.tipo === "Comercial").length;
+    const recientes = items.filter((c) => {
+      const days = (Date.now() - new Date(c.fechaCreacion).getTime()) / 86400000;
+      return days < 7;
+    }).length;
+    return [
+      { id: "total",     label: "Total clientes", value: String(total),       icon: Users,        variant: "primary" },
+      { id: "activos",   label: "Activos",        value: String(activos),     icon: UserCheck,    variant: "success" },
+      { id: "pend",      label: "Pendientes",     value: String(pendientes),  icon: UserPlus,     variant: "warn" },
+      { id: "comerc",    label: "Comerciales",    value: String(comerciales), icon: Building2,    variant: "primary" },
+      { id: "rec",       label: "Últimos 7 días", value: String(recientes),   icon: CalendarPlus, variant: "success" },
+    ];
+  }, [items]);
+
   return (
+    <>
+    <PageStats items={stats} />
     <TableCard
       header={
         <ListHeader
@@ -138,5 +160,6 @@ export default function Clientes() {
         onChangePageSize={(n) => { setPageSize(n); setPage(1); }}
       />
     </TableCard>
+    </>
   );
 }

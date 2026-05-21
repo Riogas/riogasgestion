@@ -10,10 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Truck, CheckCircle2, Wrench, Pause, Package } from "lucide-react";
 import { ListHeader } from "@/components/abm/ListHeader";
 import { TableCard } from "@/components/abm/TableCard";
 import { Pager } from "@/components/abm/Pager";
+import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
 
 // Tipo de Movil
 export type Movil = {
@@ -61,6 +62,22 @@ export default function Moviles() {
     return filtered.slice(start, start + pageSize);
   }, [filtered, pageSize, safePage]);
 
+  // Stats contextuales
+  const stats: PageStatItem[] = useMemo(() => {
+    const total = items.length;
+    const activos = items.filter((m) => m.estado === "Activo").length;
+    const mantenimiento = items.filter((m) => m.estado === "Mantenimiento").length;
+    const baja = items.filter((m) => m.bajaMomentanea).length;
+    const pendientes = items.reduce((s, m) => s + (m.cantPend || 0), 0);
+    return [
+      { id: "total", label: "Total flota",     value: String(total),         icon: Truck,           variant: "primary" },
+      { id: "act",   label: "Activos",         value: String(activos),       icon: CheckCircle2,    variant: "success" },
+      { id: "mant",  label: "Mantenimiento",   value: String(mantenimiento), icon: Wrench,          variant: "warn" },
+      { id: "baja",  label: "Baja momentánea", value: String(baja),          icon: Pause,           variant: "destructive" },
+      { id: "pend",  label: "Pedidos pendientes", value: String(pendientes), icon: Package,         variant: "primary" },
+    ];
+  }, [items]);
+
   const openCreate = () => { setEditing(null); setOpenModal(true); };
   const openEdit = (m: Movil) => { setEditing(m); setOpenModal(true); };
 
@@ -84,6 +101,8 @@ export default function Moviles() {
   };
 
   return (
+    <>
+    <PageStats items={stats} />
     <TableCard
       header={
         <ListHeader
@@ -176,6 +195,7 @@ export default function Moviles() {
         onSave={onSave}
       />
     </TableCard>
+    </>
   );
 }
 

@@ -175,29 +175,18 @@ export default function MapaGoogle({
           ref={searchBoxRef}
           type="text"
           placeholder="búsqueda"
-          style={{
-            width: "100%",
-            maxWidth: "400px",
-            padding: "8px",
-            borderRadius: "4px",
-            border: "1px solid #ccc",
-            background: "#fff",
-            fontSize: "14px",
-            color: "#000",
-            top: "10px !important",
-          }}
+          className="w-full max-w-[400px] px-3 py-2 rounded-md border border-input bg-card text-foreground text-sm shadow-sm"
         />
       </div>
 
       {/* Mapa */}
       <div
         ref={mapRef}
+        className="rounded-lg bg-card"
         style={{
           width: "100%",
           height: "600px",
-          borderRadius: "8px",
           minWidth: "1200px",
-          background: "#fff",
           paddingTop: "13px",
         }}
       ></div>

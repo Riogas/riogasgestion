@@ -6,7 +6,10 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Info, Monitor, Hash, User2, CalendarClock, MapPin, Clipboard, ClipboardCheck, Bell, CheckCircle2, AlertTriangle } from "lucide-react";
+import {
+  Info, Monitor, Hash, User2, CalendarClock, MapPin, Clipboard, ClipboardCheck,
+  Bell, CheckCircle2, AlertTriangle, Search, Command as CommandIcon, LogOut,
+} from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -17,19 +20,20 @@ import { clearAuthToken } from "@/lib/authToken";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog"; // <-- shadcn/ui dialog
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Image from "next/image";
+import { ThemeToggle } from "./ThemeToggle";
+import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette";
 
 /* ===== Props que llegan desde NavbarServer (Server Component) ===== */
 type NavbarProps = {
   routeName?: string;
-  routeCode?: string;     // XXXX-XXXX (solo hash)
-  codeWithApp?: string;   // ej: 3|XXXX-XXXX
+  routeCode?: string;
+  codeWithApp?: string;
   userNameFromServer?: string;
-  dateTime?: string;      // fecha/hora fija (render server)
+  dateTime?: string;
 };
-/* ================================================================= */
 
 function getPuestosFromStorage() {
   if (typeof window === "undefined") return [];
@@ -64,39 +68,38 @@ export function Navbar({
   userNameFromServer = "",
   dateTime = "",
 }: NavbarProps) {
-  const { theme, toggleTheme } = useTheme();
+  const { mounted: themeMounted } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [puestos, setPuestos] = useState<any[]>([]);
   const [puestoActual, setPuestoActual] = useState<any>(null);
   const [openInfo, setOpenInfo] = useState(false);
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>({});
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const router = useRouter();
 
+  // Cmd+K to open command palette
+  useCommandPaletteHotkey(() => setPaletteOpen(true));
+
   // Usuario efectivo: prioriza localStorage que tiene el nombre completo
-  // El userNameFromServer viene del JWT y puede tener solo el username (ej: "JGOMEZ")
   const effectiveUserName = user.nombre || user.name || userNameFromServer || "";
-  
-  // Generar iniciales del nombre completo (primera letra de cada palabra)
+
   const userInitials = effectiveUserName
     ? effectiveUserName
         .trim()
-        .split(/\s+/) // Dividir por cualquier espacio
-        .filter((p: string) => p.length > 0) // Filtrar palabras vacías
-        .map((p: string) => p[0]) // Tomar primera letra de cada palabra
+        .split(/\s+/)
+        .filter((p: string) => p.length > 0)
+        .map((p: string) => p[0])
         .join("")
-        .slice(0, 2) // Limitar a 2 caracteres
+        .slice(0, 2)
         .toUpperCase()
     : "JD";
 
   useEffect(() => {
     setMounted(true);
-    
-    // Cargar usuario desde localStorage
     const userFromStorage = getUserFromStorage();
     setUser(userFromStorage);
-    
-    // Cargar puestos
+
     const ps = getPuestosFromStorage();
     setPuestos(ps);
     if (ps.length > 0) {
@@ -108,29 +111,8 @@ export function Navbar({
         setPuestoActual(ps[0]);
       }
     }
-    
-    // Debug: mostrar información del usuario en consola
-    console.log("🔍 Navbar - Usuario completo desde localStorage:", userFromStorage);
-    console.log("🔍 Navbar - user.nombre:", userFromStorage.nombre);
-    console.log("🔍 Navbar - user.name:", userFromStorage.name);
-    console.log("🔍 Navbar - Nombre desde server (JWT):", userNameFromServer);
-    console.log("🔍 Navbar - Nombre efectivo (final):", userFromStorage.nombre || userFromStorage.name || userNameFromServer || "");
-    
-    const finalName = userFromStorage.nombre || userFromStorage.name || userNameFromServer || "";
-    if (finalName) {
-      const initials = finalName
-        .trim()
-        .split(/\s+/)
-        .filter((p: string) => p.length > 0)
-        .map((p: string) => p[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-      console.log("🔍 Navbar - Iniciales calculadas:", initials);
-    }
   }, [userNameFromServer]);
 
-  // Cuando cambia el puesto seleccionado
   const handleChangePuesto = (value: string) => {
     const nuevo = puestos.find((p) => String(p.puestoId) === value);
     if (nuevo) {
@@ -157,7 +139,7 @@ export function Navbar({
     }
   };
 
-  // Notificaciones (mock): id, titulo, desc, fecha, tipo, read
+  // Notificaciones (mock)
   type Notification = { id: string; title: string; description?: string; date: string; type?: "info" | "warning" | "success"; read?: boolean };
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([
@@ -172,7 +154,6 @@ export function Navbar({
     if (open) markAllRead();
   };
 
-  // Texto listo para copiar desde el modal
   const detallesParaCopiar = useMemo(() => {
     return [
       `Pantalla: ${routeName || "(desconocido)"}`,
@@ -189,7 +170,6 @@ export function Navbar({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Fallback: descarga .txt si falla clipboard (navegadores raros)
       const blob = new Blob([detallesParaCopiar], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -201,63 +181,104 @@ export function Navbar({
   };
 
   return (
-    <header className="sticky top-0 z-40 h-16 px-6 flex items-center justify-between border-b bg-card gap-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
-      {/* IZQUIERDA: logo */}
-      <div className="flex items-center">
-        <Image src="/logogoya.png" alt="Logo" width={120} height={32} className="h-8 w-auto transition-transform duration-300 hover:scale-105" />
-      </div>
+    <>
+      <header className="sticky top-0 z-40 h-16 px-6 flex items-center justify-between surface-glass-strong gap-4 animate-fade-in-down">
+        {/* IZQUIERDA: logo */}
+        <div className="flex items-center gap-3">
+          <Image src="/logogoya.png" alt="Logo" width={120} height={32} className="h-8 w-auto transition-transform duration-200 hover:scale-105" />
+        </div>
 
-      {/* DERECHA: acciones, info de permisos (modal), puestos y usuario */}
-      <div className="flex items-center gap-4">
-        {/* Notificaciones */}
-        <Popover open={notifOpen} onOpenChange={toggleNotifOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 transition-transform duration-200 hover:scale-110" title="Notificaciones">
-              <Bell className="h-5 w-5 transition-transform duration-200 hover:rotate-12" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-[10px] font-semibold text-white flex items-center justify-center shadow-md animate-scale-in animate-pulse-soft">
-                  {unreadCount}
-                </span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0 overflow-hidden">
-            <div className="border-b px-3 py-2 bg-muted/40 flex items-center justify-between">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Notificaciones</div>
-              <div className="text-[11px] text-muted-foreground">{unreadCount === 0 ? "Sin nuevas" : `${unreadCount} nuevas`}</div>
-            </div>
-            <div className="max-h-80 overflow-auto divide-y">
-              {notifications.length === 0 && (
-                <div className="p-4 text-sm text-muted-foreground">No hay notificaciones</div>
-              )}
-              {notifications.map((n, i) => (
-                <button key={n.id} className={`w-full text-left p-3 hover:bg-muted/40 transition-all duration-200 animate-fade-in-up ${n.read ? "opacity-80" : ""}`} style={{ animationDelay: `${i * 0.05}s` }}>
-                  <div className="flex items-start gap-3">
-                    <span className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full ${n.type === "warning" ? "bg-amber-100 text-amber-700" : n.type === "success" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
-                      {n.type === "warning" ? <AlertTriangle className="h-4 w-4" /> : n.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <Info className="h-4 w-4" />}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{n.title}</div>
-                      {n.description && <div className="text-xs text-muted-foreground truncate">{n.description}</div>}
-                      <div className="text-[11px] text-muted-foreground mt-1">{new Date(n.date).toLocaleString()}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
+        {/* CENTRO: command palette trigger (Cmd+K) */}
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className={
+            "hidden md:inline-flex items-center gap-2 h-9 px-3 max-w-md flex-1 mx-4 " +
+            "rounded-[var(--radius-md)] border border-border bg-card/60 text-sm text-muted-foreground " +
+            "hover:bg-card hover:border-input transition-colors duration-150 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          }
+          aria-label="Búsqueda global"
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left truncate">Buscar páginas, acciones…</span>
+          <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono shrink-0">
+            <CommandIcon className="h-2.5 w-2.5" />K
+          </kbd>
+        </button>
 
-        {/* Botón de info/permiso + combo de puestos */}
+        {/* Mobile: icon-only Cmd+K trigger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden h-9 w-9"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Búsqueda"
+        >
+          <Search className="h-4 w-4" />
+        </Button>
+
+        {/* DERECHA: acciones, info, puestos, tema, usuario */}
         <div className="flex items-center gap-2">
-          {/* Ícono a la IZQUIERDA del combo Puestos */}
+          {/* Notificaciones */}
+          <Popover open={notifOpen} onOpenChange={toggleNotifOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label="Notificaciones">
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-accent text-accent-foreground text-[10px] font-semibold flex items-center justify-center shadow-sm animate-scale-in">
+                    {unreadCount}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0 overflow-hidden">
+              <div className="border-b border-border px-3 py-2 flex items-center justify-between">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Notificaciones</div>
+                <div className="text-[11px] text-muted-foreground">{unreadCount === 0 ? "Sin nuevas" : `${unreadCount} nuevas`}</div>
+              </div>
+              <div className="max-h-80 overflow-auto divide-y divide-border/60">
+                {notifications.length === 0 && (
+                  <div className="p-4 text-sm text-muted-foreground">No hay notificaciones</div>
+                )}
+                {notifications.map((n, i) => {
+                  const tonal =
+                    n.type === "warning" ? "bg-warn/10 text-warn"
+                    : n.type === "success" ? "bg-success/10 text-success"
+                    : "bg-primary/10 text-primary";
+                  return (
+                    <button
+                      key={n.id}
+                      className={`w-full text-left p-3 hover:bg-muted/40 transition-colors duration-150 animate-fade-in-up ${n.read ? "opacity-70" : ""}`}
+                      style={{ animationDelay: `${i * 0.05}s` }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full shrink-0 ${tonal}`}>
+                          {n.type === "warning" ? <AlertTriangle className="h-4 w-4" />
+                            : n.type === "success" ? <CheckCircle2 className="h-4 w-4" />
+                            : <Info className="h-4 w-4" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-foreground truncate">{n.title}</div>
+                          {n.description && <div className="text-xs text-muted-foreground truncate">{n.description}</div>}
+                          <div className="text-[11px] text-muted-foreground mt-1">{new Date(n.date).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Info de pantalla */}
           <Dialog open={openInfo} onOpenChange={setOpenInfo}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9" title="Información de esta pantalla">
+              <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Información de esta pantalla">
                 <Info className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-200">
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Información de esta pantalla</DialogTitle>
                 <DialogDescription>
@@ -265,57 +286,56 @@ export function Navbar({
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Nuevo diseño más presentable */}
               <div className="space-y-4">
-                <div className="rounded-xl border bg-muted/30 p-4">
+                <div className="rounded-[var(--radius-lg)] border border-border bg-muted/30 p-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] bg-primary/10 text-primary shrink-0">
                         <Monitor className="h-4 w-4" />
                       </span>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground">Pantalla</div>
-                        <div className="font-medium">{routeName || "—"}</div>
+                      <div className="text-sm min-w-0">
+                        <div className="text-muted-foreground text-xs">Pantalla</div>
+                        <div className="font-medium text-foreground truncate">{routeName || "—"}</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] bg-primary/10 text-primary shrink-0">
                         <Hash className="h-4 w-4" />
                       </span>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground">Código</div>
-                        <code className="font-mono text-xs">{codeWithApp || routeCode || "—"}</code>
+                      <div className="text-sm min-w-0">
+                        <div className="text-muted-foreground text-xs">Código</div>
+                        <code className="font-mono text-xs text-foreground">{codeWithApp || routeCode || "—"}</code>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] bg-primary/10 text-primary shrink-0">
                         <User2 className="h-4 w-4" />
                       </span>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground">Usuario</div>
-                        <div className="font-medium">{effectiveUserName || "—"}</div>
+                      <div className="text-sm min-w-0">
+                        <div className="text-muted-foreground text-xs">Usuario</div>
+                        <div className="font-medium text-foreground truncate">{effectiveUserName || "—"}</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] bg-primary/10 text-primary shrink-0">
                         <CalendarClock className="h-4 w-4" />
                       </span>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground">Fecha/Hora</div>
-                        <div className="font-medium">{dateTime || "—"}</div>
+                      <div className="text-sm min-w-0">
+                        <div className="text-muted-foreground text-xs">Fecha/Hora</div>
+                        <div className="font-medium text-foreground truncate">{dateTime || "—"}</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3 sm:col-span-2">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] bg-primary/10 text-primary shrink-0">
                         <MapPin className="h-4 w-4" />
                       </span>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground">Puesto</div>
-                        <div className="font-medium">{puestoActual?.PuestoDsc ?? (mounted && puestos.length === 1 ? puestos[0].PuestoDsc : "—")}</div>
+                      <div className="text-sm min-w-0">
+                        <div className="text-muted-foreground text-xs">Puesto</div>
+                        <div className="font-medium text-foreground truncate">{puestoActual?.PuestoDsc ?? (mounted && puestos.length === 1 ? puestos[0].PuestoDsc : "—")}</div>
                       </div>
                     </div>
                   </div>
@@ -339,7 +359,7 @@ export function Navbar({
             </DialogContent>
           </Dialog>
 
-          {/* Combo de puestos */}
+          {/* Combo de puestos — preservado tal cual */}
           {mounted && puestos.length > 1 && (
             <Select
               value={puestoActual?.puestoId?.toString() || ""}
@@ -358,54 +378,49 @@ export function Navbar({
             </Select>
           )}
           {mounted && puestos.length === 1 && (
-            <div className="text-sm text-muted-foreground px-3 py-1 border rounded bg-secondary">
-              Puesto: {puestos[0].PuestoDsc}
+            <div className="hidden lg:inline-flex text-xs text-muted-foreground px-2.5 py-1 border border-border rounded-[var(--radius-md)]">
+              Puesto: <span className="ml-1 text-foreground font-medium">{puestos[0].PuestoDsc}</span>
             </div>
           )}
-        </div>
 
-        {/* Avatar / Menú */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="rounded-full p-0 h-10 w-10 transition-transform duration-200 hover:scale-110">
-              <Avatar className="h-10 w-10 ring-2 ring-transparent transition-all duration-200 hover:ring-primary/30">
-                <AvatarImage src="/avatar.png" alt={effectiveUserName} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-                  {userInitials}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{effectiveUserName || "Usuario"}</p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {user.email || user.username || ""}
-                </p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Perfil</DropdownMenuItem>
-            <DropdownMenuItem>Configuración</DropdownMenuItem>
-            <DropdownMenuItem onClick={toggleTheme}>
-              {mounted && (theme === "dark" ? (
-                <>
-                  <Sun className="mr-2 h-4 w-4 transition-transform duration-200 hover:rotate-90" /> Tema Claro
-                </>
-              ) : (
-                <>
-                  <Moon className="mr-2 h-4 w-4 transition-transform duration-200 hover:rotate-12" /> Tema Oscuro
-                </>
-              ))}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              Cerrar sesión
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </header>
+          {/* Theme toggle 3-state */}
+          <ThemeToggle />
+
+          {/* Avatar / Menú */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="rounded-full p-0 h-9 w-9 transition-transform duration-150 hover:scale-105" aria-label="Menú de usuario">
+                <Avatar size="default" className="ring-2 ring-transparent transition-all duration-150 hover:ring-primary/30">
+                  <AvatarImage src="/avatar.png" alt={effectiveUserName} />
+                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-0.5">
+                  <p className="text-sm font-medium leading-none text-foreground">{effectiveUserName || "Usuario"}</p>
+                  <p className="text-xs leading-none text-muted-foreground mt-1">
+                    {user.email || user.username || ""}
+                  </p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>Perfil</DropdownMenuItem>
+              <DropdownMenuItem>Configuración</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" /> Cerrar sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      {/* Command palette (Cmd+K) */}
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </>
   );
 }

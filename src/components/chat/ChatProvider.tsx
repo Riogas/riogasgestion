@@ -189,38 +189,47 @@ export default function ChatProvider() {
 
   return (
     <>
-      {/* Globito flotante */}
+      {/* FAB flotante con gradient brand */}
       <div className="fixed bottom-6 right-6 z-50">
-        <Button
-          size="icon"
-          className="h-12 w-12 rounded-full shadow-lg"
+        <button
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Cerrar chat" : "Abrir chat"}
           title={open ? "Cerrar chat" : "Abrir chat"}
+          className={cn(
+            "h-14 w-14 rounded-full inline-flex items-center justify-center text-white",
+            "bg-gradient-to-br from-primary to-accent shadow-lg",
+            "transition-all duration-200 ease-[var(--ease-out-quart)]",
+            "hover:scale-105 hover:shadow-[var(--shadow-glow-primary)]",
+            "active:scale-95",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          )}
         >
           {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
-        </Button>
+        </button>
       </div>
 
-      {/* Ventana de chat */}
+      {/* Ventana de chat — glass panel */}
       <div
         className={cn(
           "fixed bottom-24 right-6 z-50 w-[92vw] max-w-sm sm:max-w-md",
-          open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 translate-y-2",
-          "transition-all duration-200"
+          open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 translate-y-3",
+          "transition-all duration-200 ease-[var(--ease-out-quart)]"
         )}
       >
-        <Card className="border shadow-xl bg-card">
+        <Card variant="glass" className="shadow-lg">
           {/* Header */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b">
-            <div className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
+            <div className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] bg-gradient-to-br from-primary to-accent text-white shrink-0">
               <Bot className="h-4 w-4" />
             </div>
-            <div className="flex-1">
-              <div className="text-sm font-medium">Asistente</div>
-              <div className="text-xs text-muted-foreground">Conectado a n8n</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-foreground">Asistente</div>
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success animate-pulse-soft" />
+                Conectado
+              </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setOpen(false)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setOpen(false)} aria-label="Cerrar">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -237,10 +246,10 @@ export default function ChatProvider() {
 
                 <div
                   className={cn(
-                    "rounded-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[80%]",
+                    "rounded-[var(--radius-lg)] px-3 py-2 text-sm whitespace-pre-wrap max-w-[80%] shadow-sm",
                     m.role === "user"
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
+                      : "bg-card border border-border text-foreground"
                   )}
                 >
                   {m.content}
@@ -256,18 +265,23 @@ export default function ChatProvider() {
 
             {sending && (
               <div className="flex items-start gap-2">
-                <Avatar className="h-7 w-7 mt-0.5">
+                <Avatar size="sm" className="mt-0.5">
                   <AvatarFallback className="text-[10px]">AI</AvatarFallback>
                 </Avatar>
-                <div className="rounded-lg px-3 py-2 text-sm bg-muted text-foreground">
-                  Escribiendo...
+                <div className="rounded-[var(--radius-lg)] px-3 py-2 text-sm bg-card border border-border text-muted-foreground inline-flex items-center gap-1.5 shadow-sm">
+                  <span className="inline-flex gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse-soft" style={{ animationDelay: "0ms" }} />
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse-soft" style={{ animationDelay: "150ms" }} />
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse-soft" style={{ animationDelay: "300ms" }} />
+                  </span>
+                  Escribiendo
                 </div>
               </div>
             )}
           </div>
 
           {/* Input */}
-          <div className="border-t p-3">
+          <div className="border-t border-border/60 p-3">
             <div className="flex items-center gap-2">
               <Input
                 value={input}

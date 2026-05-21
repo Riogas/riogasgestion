@@ -3,71 +3,51 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
-import { useTheme } from "@/lib/useTheme";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { Breadcrumbs } from "@/components/dashboard/Breadcrumbs";
 import { cn } from "@/lib/utils";
 
+const SIDEBAR_KEY = "goya:sidebar:collapsed";
+
 export default function DashboardClient({ children }: { children: ReactNode }) {
-  const { theme } = useTheme(); // si necesitás el tema en el layout
   const [collapsed, setCollapsed] = useState(false);
-  const pathname = usePathname();
 
-  // Breadcrumbs desde la ruta actual
-  const pathSegments = pathname
-    .split("/")
-    .filter(Boolean)
-    .map((segment, index, array) => {
-      const href = "/" + array.slice(0, index + 1).join("/");
-      return {
-        label: segment.charAt(0).toUpperCase() + segment.slice(1),
-        href,
-      };
-    });
-
-  // (Opcional) recordar colapsado del sidebar
+  // Persisted sidebar collapse (back-compat with legacy 'sidebar_collapsed' key)
   useEffect(() => {
-    const saved = typeof window !== "undefined"
-      ? localStorage.getItem("sidebar_collapsed")
-      : null;
-    if (saved) setCollapsed(saved === "1");
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem(SIDEBAR_KEY) ?? localStorage.getItem("sidebar_collapsed");
+    if (saved) setCollapsed(saved === "1" || saved === "true");
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("sidebar_collapsed", collapsed ? "1" : "0");
+      localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0");
     }
   }, [collapsed]);
 
   return (
     <div className={cn("flex min-h-screen")}>
+      {/* Skip-link for keyboard / screen-reader users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:px-3 focus:py-2 focus:rounded-[var(--radius-md)] focus:bg-primary focus:text-primary-foreground focus:shadow-md focus:outline-none"
+      >
+        Saltar al contenido principal
+      </a>
+
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
 
-      <div className="flex flex-col flex-1">
-        <div className="px-6 pt-4">
-          <nav className="text-sm text-muted-foreground mb-4 animate-fade-in-left">
-            <ol className="flex items-center space-x-2">
-              <li>
-                <Link href="/dashboard" className="hover:underline text-primary transition-colors duration-200">
-                  Inicio
-                </Link>
-              </li>
-              {pathSegments.map((segment, index) => (
-                <li key={segment.href} className="flex items-center animate-fade-in-left" style={{ animationDelay: `${(index + 1) * 0.05}s` }}>
-                  <span className="mx-2">/</span>
-                  {index === pathSegments.length - 1 ? (
-                    <span className="text-foreground font-medium">{segment.label}</span>
-                  ) : (
-                    <Link href={segment.href} className="hover:underline text-primary transition-colors duration-200">
-                      {segment.label}
-                    </Link>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Breadcrumbs row */}
+        <div className="px-6 md:px-8 pt-4">
+          <Breadcrumbs />
         </div>
 
-        <main className="flex-1 px-6 pb-6 animate-fade-in-up" style={{ animationDuration: '0.4s' }}>{children}</main>
+        <main
+          id="main-content"
+          className="flex-1 px-6 md:px-8 pb-8 max-w-[1600px] w-full mx-auto animate-fade-in-up"
+          style={{ animationDuration: "0.4s" }}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

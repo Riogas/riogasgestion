@@ -2,11 +2,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ==========================================================================
+   THEME INLINE — Exposes CSS vars as Tailwind utilities (v4)
+   ========================================================================== */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -15,15 +19,19 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-warn: var(--warn);
+  --color-success: var(--success);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -36,256 +44,355 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --ease-out-quart: var(--ease-out-quart);
+  --ease-in-out-soft: var(--ease-in-out);
 }
 
+/* ==========================================================================
+   DESIGN TOKENS — Light theme (Riogas brand)
+   Primary: #1E5BB8 (Azul Riogas)   Accent: #FF7A1A (Naranja llama)
+   ========================================================================== */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --radius: 0.875rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Surfaces */
+  --background: oklch(0.985 0.005 240);
+  --foreground: oklch(0.14 0.04 264);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
+  --card-foreground: oklch(0.14 0.04 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --popover-foreground: oklch(0.14 0.04 264);
+
+  /* Brand */
+  --primary: oklch(0.485 0.13 256);            /* #1E5BB8 */
+  --primary-foreground: oklch(1 0 0);
+  --accent: oklch(0.72 0.18 47);                /* #FF7A1A */
+  --accent-foreground: oklch(0.14 0.04 264);   /* dark text on orange — WCAG AA */
+
+  /* Neutral scales */
+  --secondary: oklch(0.965 0.01 240);
+  --secondary-foreground: oklch(0.14 0.04 264);
+  --muted: oklch(0.965 0.01 240);
+  --muted-foreground: oklch(0.50 0.03 250);
+
+  /* Semantic */
+  --success: oklch(0.72 0.17 165);              /* #10B981 */
+  --warn: oklch(0.79 0.17 80);                  /* #F59E0B */
+  --destructive: oklch(0.63 0.24 27);           /* #EF4444 */
+
+  /* Lines + focus */
+  --border: oklch(0.92 0.01 250);
+  --input: oklch(0.92 0.01 250);
+  --ring: oklch(0.485 0.13 256 / 50%);
+
+  /* Charts (semantic, tokenized — adios hex hardcoded) */
+  --chart-1: var(--primary);
+  --chart-2: oklch(0.6 0.16 250);
+  --chart-3: var(--accent);
+  --chart-4: oklch(0.72 0.15 200);
+  --chart-5: oklch(0.65 0.18 295);
+
+  /* Sidebar */
+  --sidebar: oklch(0.985 0.005 240);
+  --sidebar-foreground: oklch(0.14 0.04 264);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.965 0.01 240);
+  --sidebar-accent-foreground: oklch(0.14 0.04 264);
+  --sidebar-border: oklch(0.92 0.01 250);
+  --sidebar-ring: var(--ring);
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(11,18,32,.04);
+  --shadow-sm: 0 2px 6px rgba(11,18,32,.06), 0 1px 2px rgba(11,18,32,.04);
+  --shadow-md: 0 8px 24px -8px rgba(11,18,32,.10), 0 2px 6px rgba(11,18,32,.05);
+  --shadow-lg: 0 24px 48px -16px rgba(11,18,32,.16);
+  --shadow-glow-primary: 0 0 0 4px rgba(30,91,184,.18);
+  --shadow-glow-accent: 0 0 0 4px rgba(255,122,26,.22);
+
+  /* Motion */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 400ms;
 }
 
+/* ==========================================================================
+   DESIGN TOKENS — Dark theme (Riogas brand, lifted variants)
+   ========================================================================== */
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  --background: oklch(0.16 0.03 260);           /* #0A0F1A */
+  --foreground: oklch(0.93 0.015 240);
+  --card: oklch(0.19 0.035 262);                /* #0F1626 */
+  --card-foreground: oklch(0.93 0.015 240);
+  --popover: oklch(0.19 0.035 262);
+  --popover-foreground: oklch(0.93 0.015 240);
+
+  --primary: oklch(0.55 0.13 256);              /* darker than initial lift for AA */
+  --primary-foreground: oklch(0.98 0.005 240);
+  --accent: oklch(0.74 0.18 49);                /* lifted */
+  --accent-foreground: oklch(0.14 0.04 264);   /* dark text on orange — WCAG AA */
+
+  --secondary: oklch(0.22 0.035 262);
+  --secondary-foreground: oklch(0.93 0.015 240);
+  --muted: oklch(0.22 0.035 262);
+  --muted-foreground: oklch(0.65 0.03 250);
+
+  --success: oklch(0.72 0.17 165);
+  --warn: oklch(0.79 0.17 80);
+  --destructive: oklch(0.6 0.22 25);            /* darker so white text passes AA */
+
+  --border: oklch(0.28 0.035 260);
+  --input: oklch(0.28 0.035 260);
+  --ring: oklch(0.62 0.13 256 / 55%);
+
+  --chart-1: var(--primary);
+  --chart-2: oklch(0.68 0.15 245);
+  --chart-3: var(--accent);
+  --chart-4: oklch(0.78 0.15 195);
+  --chart-5: oklch(0.7 0.18 295);
+
+  --sidebar: oklch(0.19 0.035 262);
+  --sidebar-foreground: oklch(0.93 0.015 240);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.22 0.035 262);
+  --sidebar-accent-foreground: oklch(0.93 0.015 240);
+  --sidebar-border: oklch(0.28 0.035 260);
+  --sidebar-ring: var(--ring);
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.40);
+  --shadow-sm: 0 2px 6px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md: 0 8px 24px -8px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.40);
+  --shadow-lg: 0 24px 48px -16px rgba(0,0,0,.65);
+  --shadow-glow-primary: 0 0 0 4px rgba(79,125,217,.30);
+  --shadow-glow-accent: 0 0 0 4px rgba(255,140,61,.30);
 }
 
+/* ==========================================================================
+   BASE LAYER — Globals
+   ========================================================================== */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-feature-settings: "cv01", "ss01";
+  }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv01", "ss01";
+  }
+  /* Tabular numerals for KPIs and numeric tables */
+  .tabular-nums, [data-numeric], td.num, .num {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 /* ==========================================================================
-   ANIMACIONES GLOBALES — Keyframes reutilizables
+   SURFACE / PATTERN UTILITIES — Bento + Glass + Hero
    ========================================================================== */
 
-/* Entrada suave desde abajo */
+.surface-glass {
+  background: color-mix(in oklch, var(--card) 78%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+}
+
+.surface-glass-strong {
+  background: color-mix(in oklch, var(--card) 88%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border);
+}
+
+.surface-hero {
+  position: relative;
+  background: var(--card);
+  isolation: isolate;
+  overflow: hidden;
+}
+.surface-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg,
+    color-mix(in oklch, var(--primary) 12%, transparent) 0%,
+    color-mix(in oklch, var(--accent) 6%, transparent) 30%,
+    transparent 60%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1rem;
+}
+.bento-item       { grid-column: span 4; }
+.bento-item-wide  { grid-column: span 8; }
+.bento-item-hero  { grid-column: span 6; }
+.bento-item-full  { grid-column: span 12; }
+
+@media (max-width: 1024px) {
+  .bento-grid { grid-template-columns: repeat(6, 1fr); }
+  .bento-item       { grid-column: span 3; }
+  .bento-item-wide  { grid-column: span 6; }
+  .bento-item-hero  { grid-column: span 6; }
+  .bento-item-full  { grid-column: span 6; }
+}
+@media (max-width: 640px) {
+  .bento-grid { grid-template-columns: 1fr; }
+  .bento-item, .bento-item-wide, .bento-item-hero, .bento-item-full {
+    grid-column: span 1;
+  }
+}
+
+/* ==========================================================================
+   ANIMATION KEYFRAMES (preserved + new)
+   ========================================================================== */
+
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Entrada suave desde la izquierda */
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes fadeInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Entrada con scale suave */
 @keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
-/* Shimmer para skeletons / loading */
 @keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }
 
-/* Shake para errores */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
   20%, 40%, 60%, 80% { transform: translateX(4px); }
 }
 
-/* Campana para notificaciones */
 @keyframes bellRing {
-  0% { transform: rotate(0deg); }
-  10% { transform: rotate(14deg); }
-  20% { transform: rotate(-12deg); }
-  30% { transform: rotate(10deg); }
-  40% { transform: rotate(-8deg); }
-  50% { transform: rotate(4deg); }
-  60% { transform: rotate(-2deg); }
+  0%   { transform: rotate(0deg); }
+  10%  { transform: rotate(14deg); }
+  20%  { transform: rotate(-12deg); }
+  30%  { transform: rotate(10deg); }
+  40%  { transform: rotate(-8deg); }
+  50%  { transform: rotate(4deg); }
+  60%  { transform: rotate(-2deg); }
   70%, 100% { transform: rotate(0deg); }
 }
 
-/* Pulse suave para badges */
 @keyframes pulseSoft {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.08);
-  }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.08); }
 }
 
-/* Stagger de filas de tabla (se combina con animation-delay inline) */
 @keyframes tableRowIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Float suave para hover de cards */
 @keyframes floatUp {
   from { transform: translateY(0); }
-  to { transform: translateY(-4px); }
+  to   { transform: translateY(-4px); }
 }
 
-/* ===== Clases utilitarias de animación ===== */
+/* ==========================================================================
+   ANIMATION UTILITIES
+   ========================================================================== */
 
-.animate-fade-in-up {
-  animation: fadeInUp 0.5s ease-out both;
-}
-
-.animate-fade-in-left {
-  animation: fadeInLeft 0.4s ease-out both;
-}
-
-.animate-scale-in {
-  animation: scaleIn 0.35s ease-out both;
-}
+.animate-fade-in-up    { animation: fadeInUp   0.5s var(--ease-out-quart) both; }
+.animate-fade-in-down  { animation: fadeInDown 0.35s var(--ease-out-quart) both; }
+.animate-fade-in-left  { animation: fadeInLeft 0.4s var(--ease-out-quart) both; }
+.animate-scale-in      { animation: scaleIn    0.35s var(--ease-out-quart) both; }
+.animate-shake         { animation: shake      0.5s ease-in-out; }
+.animate-bell-ring     { animation: bellRing   0.8s ease-in-out; }
+.animate-pulse-soft    { animation: pulseSoft  2s ease-in-out infinite; }
+.animate-table-row-in  { animation: tableRowIn 0.3s var(--ease-out-quart) both; }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.08) 50%, transparent 75%);
+  background: linear-gradient(90deg,
+    transparent 25%,
+    color-mix(in oklch, var(--foreground) 8%, transparent) 50%,
+    transparent 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
-.animate-shake {
-  animation: shake 0.5s ease-in-out;
-}
-
-.animate-bell-ring {
-  animation: bellRing 0.8s ease-in-out;
-}
-
-.animate-pulse-soft {
-  animation: pulseSoft 2s ease-in-out infinite;
-}
-
-.animate-table-row-in {
-  animation: tableRowIn 0.3s ease-out both;
-}
-
-/* Stagger delays — para listas de elementos */
-.stagger-1 { animation-delay: 0.03s; }
-.stagger-2 { animation-delay: 0.06s; }
-.stagger-3 { animation-delay: 0.09s; }
-.stagger-4 { animation-delay: 0.12s; }
-.stagger-5 { animation-delay: 0.15s; }
-.stagger-6 { animation-delay: 0.18s; }
-.stagger-7 { animation-delay: 0.21s; }
-.stagger-8 { animation-delay: 0.24s; }
-.stagger-9 { animation-delay: 0.27s; }
+/* Stagger delays — use with animate-fade-in-up on lists */
+.stagger-1  { animation-delay: 0.03s; }
+.stagger-2  { animation-delay: 0.06s; }
+.stagger-3  { animation-delay: 0.09s; }
+.stagger-4  { animation-delay: 0.12s; }
+.stagger-5  { animation-delay: 0.15s; }
+.stagger-6  { animation-delay: 0.18s; }
+.stagger-7  { animation-delay: 0.21s; }
+.stagger-8  { animation-delay: 0.24s; }
+.stagger-9  { animation-delay: 0.27s; }
 .stagger-10 { animation-delay: 0.30s; }
 
-/* Transiciones globales suaves para interacciones comunes */
+/* Common interactive transitions */
 button,
 a,
 [role="button"] {
-  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.15s ease;
+  transition: transform var(--duration-fast) var(--ease-out-quart),
+              box-shadow var(--duration-base) var(--ease-out-quart),
+              background-color var(--duration-fast) ease,
+              opacity var(--duration-fast) ease;
 }
 
-/* Hover sutil para filas de tabla */
 tr {
-  transition: background-color 0.15s ease;
+  transition: background-color var(--duration-fast) ease;
 }
 
-/* Cards con transición de sombra natural */
 .card-hover-lift {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--duration-base) var(--ease-out-quart),
+              box-shadow var(--duration-base) var(--ease-out-quart);
+  will-change: transform;
 }
 .card-hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1),
-              0 4px 10px -5px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ==========================================================================
+   ACCESSIBILITY — Respect prefers-reduced-motion
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }

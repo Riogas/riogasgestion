@@ -5,7 +5,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -21,6 +20,30 @@ import Capa from "@/components/configuracion/Capa";
 import Zona from "@/components/configuracion/Zona";
 import Puestos from "@/components/configuracion/Puestos";
 
+/* Cada sección de configuración renderiza el mismo patrón: título +
+ * descripción dentro de un Card con el componente correspondiente.
+ * Centralizamos el patrón en SectionCard para evitar la repetición
+ * y dejar los TabsContent declarativos. */
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
+
 export default function ConfiguracionPage() {
   return (
     <div className="space-y-6">
@@ -29,7 +52,7 @@ export default function ConfiguracionPage() {
         description="Catálogos, permisos, roles y configuración general del sistema."
       />
       <Tabs defaultValue="puestos" className="w-full">
-        <TabsList>
+        <TabsList className="overflow-x-auto whitespace-nowrap">
           <TabsTrigger value="puestos">Puestos</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
@@ -44,163 +67,102 @@ export default function ConfiguracionPage() {
         </TabsList>
 
         <TabsContent value="puestos">
-          <Card>
-            <CardHeader>
-              <CardTitle>Puestos</CardTitle>
-              <CardDescription>Administración de puestos de trabajo.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Puestos />
-            </CardContent>
-          </Card>
+          <SectionCard
+            title="Puestos"
+            description="Administración de puestos de trabajo."
+          >
+            <Puestos />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="usuarios">
-          <Card>
-            <CardHeader>
-              <CardTitle>Usuarios</CardTitle>
-              <CardDescription>Administración de usuarios.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Usuarios />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Usuarios</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Usuarios"
+            description="Administración de usuarios del sistema y sus accesos."
+          >
+            <Usuarios />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="roles">
-          <Card>
-            <CardHeader>
-              <CardTitle>Roles</CardTitle>
-              <CardDescription>Administración de roles.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Roles />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Roles</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Roles"
+            description="Roles disponibles y agrupación de permisos."
+          >
+            <Roles />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="permisos">
-          <Card>
-            <CardHeader>
-              <CardTitle>Permisos</CardTitle>
-              <CardDescription>Administración de permisos.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Permisos />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Permisos</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Permisos"
+            description="Granularidad de permisos por pantalla y acción."
+          >
+            <Permisos />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="departamentos">
-          <Card>
-            <CardHeader>
-              <CardTitle>Departamentos</CardTitle>
-              <CardDescription>
-                Administración de departamentos.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Departamentos />
-            </CardContent>
-            <CardFooter></CardFooter>
-          </Card>
+          <SectionCard
+            title="Departamentos"
+            description="Catálogo de departamentos (división administrativa)."
+          >
+            <Departamentos />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="localidades">
-          <Card>
-            <CardHeader>
-              <CardTitle>Localidades</CardTitle>
-              <CardDescription>Administración de localidades.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Localidades />
-            </CardContent>
-            <CardFooter></CardFooter>
-          </Card>
+          <SectionCard
+            title="Localidades"
+            description="Catálogo de localidades por departamento."
+          >
+            <Localidades />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="calles">
-          <Card>
-            <CardHeader>
-              <CardTitle>Calles</CardTitle>
-              <CardDescription>Administración de calles.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Calles />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Calles</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Calles"
+            description="Catálogo de calles y normalización."
+          >
+            <Calles />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="zonificacion">
-          <Card>
-            <CardHeader>
-              <CardTitle>Zonificación</CardTitle>
-              <CardDescription>Administración de zonificación.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Zonificacion />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Zonificación</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Zonificación"
+            description="División del territorio de servicio en zonas operativas."
+          >
+            <Zonificacion />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="tipos-capa">
-          <Card>
-            <CardHeader>
-              <CardTitle>Tipos de Capa</CardTitle>
-              <CardDescription>Administración de tipos de capas del mapa.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <TiposCapa />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Tipos de Capa</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Tipos de Capa"
+            description="Tipos disponibles para capas del mapa (zonas, rutas, áreas)."
+          >
+            <TiposCapa />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="capas">
-          <Card>
-            <CardHeader>
-              <CardTitle>Capas</CardTitle>
-              <CardDescription>Administración de capas del mapa.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Capa />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Capas</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Capas"
+            description="Capas geográficas del mapa, con su tipo y atributos."
+          >
+            <Capa />
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="zonas">
-          <Card>
-            <CardHeader>
-              <CardTitle>Zonas</CardTitle>
-              <CardDescription>Administración de zonas geográficas.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Zona />
-            </CardContent>
-            <CardFooter>
-              <div>Footer de Zonas</div>
-            </CardFooter>
-          </Card>
+          <SectionCard
+            title="Zonas"
+            description="Zonas geográficas específicas (residenciales, comerciales, etc)."
+          >
+            <Zona />
+          </SectionCard>
         </TabsContent>
       </Tabs>
     </div>

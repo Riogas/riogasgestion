@@ -11,8 +11,10 @@ import { TableCard } from "@/components/abm/TableCard";
 import { Pager } from "@/components/abm/Pager";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { X, Filter } from "lucide-react";
+import { X, Filter, Wrench, ClipboardList, Activity, CheckCircle2, AlertTriangle, SearchX } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const DynamicMapa = dynamic(() => import("@/components/mapa/OpenStreetMap"), { ssr: false });
 
@@ -80,6 +82,22 @@ export default function Services() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Servicio | null>(null);
   const onCreate = () => { /* TODO: Crear Servicio */ };
+
+  // Stats contextuales — calculadas sobre el dataset completo
+  const stats: PageStatItem[] = useMemo(() => {
+    const total = items.length;
+    const pendientes = items.filter((s) => s.estado === "Pendiente").length;
+    const enCurso = items.filter((s) => s.estado === "En curso").length;
+    const cerrados = items.filter((s) => s.estado === "Cerrado").length;
+    const conAtraso = items.filter((s) => Number(s.atraso) > 0).length;
+    return [
+      { id: "total",   label: "Total",       value: String(total),       icon: ClipboardList,  variant: "primary" },
+      { id: "pend",    label: "Pendientes",  value: String(pendientes),  icon: Wrench,         variant: "warn" },
+      { id: "enc",     label: "En curso",    value: String(enCurso),     icon: Activity,       variant: "primary" },
+      { id: "cerr",    label: "Cerrados",    value: String(cerrados),    icon: CheckCircle2,   variant: "success" },
+      { id: "atr",     label: "Con atraso",  value: String(conAtraso),   icon: AlertTriangle,  variant: "destructive" },
+    ];
+  }, [items]);
 
   const [filters, setFilters] = useState({
     fechaDesde: "",
@@ -222,6 +240,8 @@ export default function Services() {
   };
 
   return (
+    <>
+    <PageStats items={stats} />
     <TableCard
       header={
         <ListHeader
@@ -418,7 +438,14 @@ export default function Services() {
             ))}
             {paged.length === 0 && (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Sin resultados</TableCell>
+                <TableCell colSpan={10} className="p-0">
+                  <EmptyState
+                    icon={SearchX}
+                    size="sm"
+                    title="Sin servicios para mostrar"
+                    description={q ? `No encontramos resultados para "${q}". Probá otro término o limpiá los filtros.` : "Aún no hay servicios cargados."}
+                  />
+                </TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -545,5 +572,6 @@ export default function Services() {
         onChangePageSize={(n) => { setPageSize(n); setPage(1); }}
       />
     </TableCard>
+    </>
   );
 }

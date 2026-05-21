@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { ListHeader } from "@/components/abm/ListHeader";
 import { TableCard } from "@/components/abm/TableCard";
 import { Pager } from "@/components/abm/Pager";
-import { Pencil, Trash2, Users, UserCheck, UserPlus, Building2, CalendarPlus } from "lucide-react";
+import { Pencil, Trash2, Users, UserCheck, UserPlus, Building2, CalendarPlus, SearchX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export type Cliente = {
   id: string; // internal id
@@ -141,7 +142,14 @@ export default function Clientes() {
             ))}
             {paged.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Sin resultados</TableCell>
+                <TableCell colSpan={9} className="p-0">
+                  <EmptyState
+                    icon={SearchX}
+                    size="sm"
+                    title="Sin clientes para mostrar"
+                    description={query ? `No encontramos resultados para "${query}".` : "Aún no hay clientes cargados."}
+                  />
+                </TableCell>
               </TableRow>
             )}
           </TableBody>

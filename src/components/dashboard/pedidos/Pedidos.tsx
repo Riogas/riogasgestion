@@ -11,8 +11,9 @@ import { TableCard } from "@/components/abm/TableCard";
 import { Pager } from "@/components/abm/Pager";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { X, Filter } from "lucide-react";
+import { X, Filter, Package, Clock, Truck, AlertTriangle, ListFilter } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
 
 const DynamicMapa = dynamic(() => import("@/components/mapa/OpenStreetMap"), { ssr: false });
 
@@ -268,6 +269,22 @@ export default function Pedidos() {
     return entries.map(([k, v]) => ({ key: k, label: `${k}: ${v}` }));
   }, [filters]);
 
+  // Stats contextuales — recalculados sobre el dataset completo
+  const stats: PageStatItem[] = useMemo(() => {
+    const total = items.length;
+    const pendientes = items.filter((p) => p.estado === "Pendiente").length;
+    const activos = items.filter((p) => p.estado === "Activo").length;
+    const enRuta = items.filter((p) => p.subEstado === "En Ruta").length;
+    const conAtraso = items.filter((p) => Number(p.atraso) > 0).length;
+    return [
+      { id: "total",    label: "Total",      value: String(total),       icon: Package,         variant: "primary" },
+      { id: "pend",     label: "Pendientes", value: String(pendientes),  icon: Clock,           variant: "warn" },
+      { id: "activos",  label: "Activos",    value: String(activos),     icon: Truck,           variant: "success" },
+      { id: "enruta",   label: "En ruta",    value: String(enRuta),      icon: Truck,           variant: "primary" },
+      { id: "atraso",   label: "Con atraso", value: String(conAtraso),   icon: AlertTriangle,   variant: "destructive" },
+    ];
+  }, [items]);
+
   const clearOne = (key: keyof typeof filters) => setFilters((prev) => ({ ...prev, [key]: "" }));
   const clearAll = () => setFilters({
     fechaDesde: "",
@@ -286,7 +303,9 @@ export default function Pedidos() {
   });
 
   return (
-    <TableCard
+    <>
+      <PageStats items={stats} />
+      <TableCard
       header={
         <ListHeader
           title="Pedidos"
@@ -704,5 +723,6 @@ export default function Pedidos() {
         onChangePageSize={(n) => { setPageSize(n); setPage(1); }}
       />
     </TableCard>
+    </>
   );
 }

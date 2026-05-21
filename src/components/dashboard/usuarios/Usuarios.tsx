@@ -13,7 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash, Download } from "lucide-react";
+import { Pencil, Trash, Download, Users as UsersIcon, UserCheck, UserX, ShieldCheck, Globe } from "lucide-react";
+import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
 import { debounce } from "lodash";
 import {
   useReactTable,
@@ -115,6 +116,22 @@ export default function UsuariosTable() {
     pageSize,
     sinMigrar,
   ]);
+
+  // Stats contextuales
+  const stats: PageStatItem[] = useMemo(() => {
+    const total = usuarios.length;
+    const activos = usuarios.filter((u) => u.estado === "A").length;
+    const inactivos = usuarios.filter((u) => u.estado === "I").length;
+    const globales = usuarios.filter((u) => u.tipoUsuario === "G").length;
+    const externos = usuarios.filter((u) => u.externo).length;
+    return [
+      { id: "total", label: "Total",       value: String(total),     icon: UsersIcon,    variant: "primary" },
+      { id: "act",   label: "Activos",     value: String(activos),   icon: UserCheck,    variant: "success" },
+      { id: "inact", label: "Inactivos",   value: String(inactivos), icon: UserX,        variant: "destructive" },
+      { id: "glob",  label: "Globales",    value: String(globales),  icon: ShieldCheck,  variant: "primary" },
+      { id: "ext",   label: "Externos",    value: String(externos),  icon: Globe,        variant: "warn" },
+    ];
+  }, [usuarios]);
 
   // Filtros
   const debouncedSearchTerm = useMemo(() => debounce((term) => term, 100), []);
@@ -219,6 +236,7 @@ export default function UsuariosTable() {
 
   return (
     <div>
+      <PageStats items={stats} />
       <div className="flex justify-between items-end mb-4">
         <Input
           placeholder="Búsqueda..."

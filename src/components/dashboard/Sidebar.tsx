@@ -240,29 +240,34 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
     const id = (item.key as string) || item.label;
 
     const buttonClasses = cn(
-      "w-full justify-between h-11 text-sm font-medium",
-      active ? "bg-secondary text-secondary-foreground" : "hover:bg-muted/60",
+      "w-full justify-between h-10 text-sm font-medium rounded-[var(--radius-md)]",
+      // Active item: brand-primary tint + 3px left stripe
+      active
+        ? "bg-primary/10 text-primary shadow-[inset_3px_0_0_0_var(--primary)] hover:bg-primary/15"
+        : "text-foreground hover:bg-muted/70",
     );
 
     return (
       <div key={id} className="space-y-1">
         <Button
-          variant={isExpanded(id) && hasChildren ? "secondary" : "ghost"}
+          variant="ghost"
           className={buttonClasses}
           onClick={() => {
             if (hasChildren) return toggleExpanded(id);
             if (item.path) navigate(item.path);
           }}
+          aria-current={active ? "page" : undefined}
+          title={collapsed ? item.label : undefined}
         >
-          <span className="flex items-center gap-2">
-            <Icon className="w-4 h-4" />
-            <span className={cn(collapsed ? "hidden" : "block")}>{!collapsed && item.label}</span>
+          <span className="flex items-center gap-2.5 min-w-0">
+            <Icon className={cn("w-4 h-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+            <span className={cn(collapsed ? "hidden" : "block truncate")}>{!collapsed && item.label}</span>
           </span>
           {!collapsed && hasChildren && (
             isExpanded(id) ? (
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
             ) : (
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
             )
           )}
         </Button>
@@ -295,14 +300,15 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
                     <Button
                       variant="ghost"
                       className={cn(
-                        "w-full justify-start h-9 text-xs transition",
+                        "w-full justify-start h-9 text-xs rounded-[var(--radius-md)] transition-all duration-150",
                         subActive
-                          ? "bg-primary text-primary-foreground shadow-sm scale-[1.01]"
-                          : "hover:bg-muted/50 hover:translate-x-1",
+                          ? "bg-primary/10 text-primary shadow-[inset_3px_0_0_0_var(--primary)] font-medium"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:translate-x-0.5",
                       )}
                       onClick={() => c.path && navigate(c.path)}
+                      aria-current={subActive ? "page" : undefined}
                     >
-                      <SubIcon className="w-4 h-4 mr-2 opacity-70" />
+                      <SubIcon className={cn("w-3.5 h-3.5 mr-2", subActive ? "text-primary opacity-100" : "opacity-70")} />
                       {c.label}
                     </Button>
                   </motion.div>
@@ -322,7 +328,7 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
         {isMobileOpen && (
           <motion.div
             key="overlay"
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
             onClick={() => setCollapsed(true)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -341,28 +347,36 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
             exit={{ x: -320, opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className={cn(
-              "border-r bg-card transition-all duration-300",
+              "surface-glass-strong border-r border-border transition-all duration-300",
               // Móvil: panel fijo
-              "fixed left-0 top-0 z-50 h-full w-80 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]",
+              "fixed left-0 top-0 z-50 h-full w-72 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]",
               collapsed && "-translate-x-full lg:translate-x-0 lg:w-16",
-              !collapsed && "translate-x-0 lg:w-64",
+              !collapsed && "translate-x-0 lg:w-60",
             )}
           >
-            <div className="flex items-center justify-between px-4 py-4">
-              {!collapsed && <span className="text-xl font-bold">Menú</span>}
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/60">
+              {!collapsed && (
+                <span className="text-xs uppercase tracking-wider font-medium text-muted-foreground">
+                  Menú
+                </span>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-8 w-8"
                 onClick={() => setCollapsed(!collapsed)}
+                aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-4 w-4" />
               </Button>
             </div>
-            <nav className="flex flex-col px-2 space-y-1 h-[calc(100%-64px)] overflow-y-auto">
+            <nav className="flex flex-col px-2 py-3 space-y-0.5 h-[calc(100%-49px)] overflow-y-auto overflow-x-hidden">
               {loading ? (
-                <span className="text-muted-foreground text-sm px-2">
-                  Cargando menú...
-                </span>
+                <div className="px-3 py-2 space-y-2">
+                  <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
+                  <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
+                  <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
+                </div>
               ) : (
                 menuItems.map((item) => renderItem(item))
               )}

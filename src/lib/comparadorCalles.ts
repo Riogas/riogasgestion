@@ -97,7 +97,7 @@ export function compararCalles(
     let mejorScore = -1;
     let mejorCandidato = null;
     let mejorDist = Infinity;
-    let mejorColor = chartColors.destructive;
+    let mejorColor: string = chartColors.destructive;
 
     const nombreBase = normalizeCalle(base[baseKey]);
 

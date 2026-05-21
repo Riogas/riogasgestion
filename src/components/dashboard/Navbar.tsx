@@ -25,6 +25,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import Image from "next/image";
 import { ThemeToggle } from "./ThemeToggle";
 import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { BellOff } from "lucide-react";
 
 /* ===== Props que llegan desde NavbarServer (Server Component) ===== */
 type NavbarProps = {
@@ -239,7 +241,12 @@ export function Navbar({
               </div>
               <div className="max-h-80 overflow-auto divide-y divide-border/60">
                 {notifications.length === 0 && (
-                  <div className="p-4 text-sm text-muted-foreground">No hay notificaciones</div>
+                  <EmptyState
+                    icon={BellOff}
+                    size="sm"
+                    title="Todo al día"
+                    description="No tenés notificaciones pendientes."
+                  />
                 )}
                 {notifications.map((n, i) => {
                   const tonal =
@@ -389,13 +396,22 @@ export function Navbar({
           {/* Avatar / Menú */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="rounded-full p-0 h-9 w-9 transition-transform duration-150 hover:scale-105" aria-label="Menú de usuario">
+              <Button
+                variant="ghost"
+                className="relative rounded-full p-0 h-9 w-9 transition-transform duration-150 hover:scale-105"
+                aria-label="Menú de usuario"
+              >
                 <Avatar size="default" className="ring-2 ring-transparent transition-all duration-150 hover:ring-primary/30">
                   <AvatarImage src="/avatar.png" alt={effectiveUserName} />
                   <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
+                {/* Online status indicator */}
+                <span
+                  className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-success ring-2 ring-card"
+                  aria-label="En línea"
+                />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">

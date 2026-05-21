@@ -11,9 +11,10 @@ import { TableCard } from "@/components/abm/TableCard";
 import { Pager } from "@/components/abm/Pager";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { X, Filter, Package, Clock, Truck, AlertTriangle, ListFilter } from "lucide-react";
+import { X, Filter, Package, Clock, Truck, AlertTriangle, ListFilter, SearchX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const DynamicMapa = dynamic(() => import("@/components/mapa/OpenStreetMap"), { ssr: false });
 
@@ -308,7 +309,6 @@ export default function Pedidos() {
       <TableCard
       header={
         <ListHeader
-          title="Pedidos"
           search={q}
           onSearch={(v) => { setQ(v); setPage(1); }}
           onCreate={onCreate}
@@ -578,7 +578,17 @@ export default function Pedidos() {
             ))}
             {paged.length === 0 && (
               <TableRow>
-                <TableCell colSpan={17} className="text-center py-8 text-muted-foreground">Sin resultados</TableCell>
+                <TableCell colSpan={17} className="p-0">
+                  <EmptyState
+                    icon={SearchX}
+                    size="sm"
+                    title="Sin pedidos para mostrar"
+                    description={(q || activeChips.length > 0) ? "Probá ajustar los filtros o limpiarlos." : "Aún no hay pedidos cargados."}
+                    action={activeChips.length > 0 ? (
+                      <Button variant="outline" size="sm" onClick={clearAll}>Limpiar filtros</Button>
+                    ) : undefined}
+                  />
+                </TableCell>
               </TableRow>
             )}
           </TableBody>

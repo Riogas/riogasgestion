@@ -13,8 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash, Download, Users as UsersIcon, UserCheck, UserX, ShieldCheck, Globe } from "lucide-react";
+import { Pencil, Trash, Download, Users as UsersIcon, UserCheck, UserX, ShieldCheck, Globe, SearchX } from "lucide-react";
 import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { debounce } from "lodash";
 import {
   useReactTable,
@@ -309,6 +310,25 @@ export default function UsuariosTable() {
                 ))}
               </TableRow>
             ))}
+            {table.getRowModel().rows.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={table.getAllColumns().length}
+                  className="p-0"
+                >
+                  <EmptyState
+                    icon={SearchX}
+                    size="sm"
+                    title="Sin usuarios para mostrar"
+                    description={
+                      searchTerm
+                        ? `No encontramos resultados para "${searchTerm}".`
+                        : "Probá cambiar los filtros activos."
+                    }
+                  />
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
         <div className="flex justify-between items-center mt-2 p-2">

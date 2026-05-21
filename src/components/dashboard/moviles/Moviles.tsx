@@ -10,11 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Truck, CheckCircle2, Wrench, Pause, Package } from "lucide-react";
+import { Pencil, Trash2, Truck, CheckCircle2, Wrench, Pause, Package, SearchX } from "lucide-react";
 import { ListHeader } from "@/components/abm/ListHeader";
 import { TableCard } from "@/components/abm/TableCard";
 import { Pager } from "@/components/abm/Pager";
 import { PageStats, type PageStatItem } from "@/components/ui/PageStats";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // Tipo de Movil
 export type Movil = {
@@ -106,7 +107,6 @@ export default function Moviles() {
     <TableCard
       header={
         <ListHeader
-          title="Móviles"
           search={query}
           onSearch={(v) => { setQuery(v); setPage(1); }}
           onCreate={openCreate}
@@ -168,8 +168,13 @@ export default function Moviles() {
             ))}
             {paged.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                  Sin resultados
+                <TableCell colSpan={9} className="p-0">
+                  <EmptyState
+                    icon={SearchX}
+                    size="sm"
+                    title="Sin móviles para mostrar"
+                    description={query ? `No encontramos resultados para "${query}".` : "Aún no hay móviles cargados."}
+                  />
                 </TableCell>
               </TableRow>
             )}

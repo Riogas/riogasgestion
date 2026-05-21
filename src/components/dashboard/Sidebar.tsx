@@ -1,7 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Menu, ChevronDown, ChevronRight } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Menu, ChevronDown, ChevronRight, HelpCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   apiGetMenuByRole,
@@ -247,30 +248,48 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
         : "text-foreground hover:bg-muted/70",
     );
 
+    const button = (
+      <Button
+        variant="ghost"
+        className={buttonClasses}
+        onClick={() => {
+          if (hasChildren) return toggleExpanded(id);
+          if (item.path) navigate(item.path);
+        }}
+        aria-current={active ? "page" : undefined}
+      >
+        <span className="flex items-center gap-2.5 min-w-0">
+          <Icon className={cn("w-4 h-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+          <span className={cn(collapsed ? "hidden" : "block truncate")}>{!collapsed && item.label}</span>
+        </span>
+        {!collapsed && hasChildren && (
+          isExpanded(id) ? (
+            <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+          )
+        )}
+      </Button>
+    );
+
     return (
       <div key={id} className="space-y-1">
-        <Button
-          variant="ghost"
-          className={buttonClasses}
-          onClick={() => {
-            if (hasChildren) return toggleExpanded(id);
-            if (item.path) navigate(item.path);
-          }}
-          aria-current={active ? "page" : undefined}
-          title={collapsed ? item.label : undefined}
-        >
-          <span className="flex items-center gap-2.5 min-w-0">
-            <Icon className={cn("w-4 h-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
-            <span className={cn(collapsed ? "hidden" : "block truncate")}>{!collapsed && item.label}</span>
-          </span>
-          {!collapsed && hasChildren && (
-            isExpanded(id) ? (
-              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-            )
-          )}
-        </Button>
+        {/* When collapsed, wrap in Tooltip showing the full label on hover */}
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {item.label}
+              {hasChildren && (item.children as MenuItem[]).length > 0 && (
+                <span className="ml-1.5 text-[10px] opacity-60">
+                  · {(item.children as MenuItem[]).length} sub
+                </span>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          button
+        )}
 
         {/* Submenú */}
         <AnimatePresence initial={false}>
@@ -370,17 +389,59 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
                 <Menu className="h-4 w-4" />
               </Button>
             </div>
-            <nav className="flex flex-col px-2 py-3 space-y-0.5 h-[calc(100%-49px)] overflow-y-auto overflow-x-hidden">
+            <nav className="flex flex-col px-2 py-3 space-y-0.5 h-[calc(100%-49px-44px)] overflow-y-auto overflow-x-hidden">
               {loading ? (
                 <div className="px-3 py-2 space-y-2">
                   <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
                   <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
                   <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
                 </div>
+              ) : menuItems.length === 0 ? (
+                <div className={cn("text-xs text-muted-foreground px-3 py-4", collapsed && "text-center")}>
+                  {collapsed ? "—" : "Sin elementos disponibles"}
+                </div>
               ) : (
                 menuItems.map((item) => renderItem(item))
               )}
             </nav>
+
+            {/* Footer */}
+            <div className={cn(
+              "border-t border-border/60 px-3 py-2.5 h-11 flex items-center",
+              collapsed ? "justify-center" : "justify-between gap-2",
+            )}>
+              {collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Ayuda">
+                      <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={8}>
+                    Ayuda · v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
+                    v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="Ayuda"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.open("https://riogas.com.uy", "_blank", "noopener,noreferrer");
+                      }
+                    }}
+                  >
+                    <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </>
+              )}
+            </div>
           </motion.aside>
         )}
       </AnimatePresence>

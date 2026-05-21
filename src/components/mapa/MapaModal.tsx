@@ -8,9 +8,11 @@ type MapaModalProps = {
   isManualLocationActive: boolean;
   setIsManualLocationActive: (active: boolean) => void;
   setIsModalOpen: (open: boolean) => void;
-  modalMapRef: React.RefObject<HTMLDivElement | null>;
-  mapInstanceRef: React.RefObject<L.Map | null>;
-  markerRef: React.RefObject<L.Marker | null>;
+  // MutableRefObject (not RefObject) so .current is writable from this child
+  // and the ref attribute type matches React 18 expectations.
+  modalMapRef: React.MutableRefObject<HTMLDivElement | null>;
+  mapInstanceRef: React.MutableRefObject<L.Map | null>;
+  markerRef: React.MutableRefObject<L.Marker | null>;
   onConfirm: (data: {
     lat: number;
     lng: number;

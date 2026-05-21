@@ -1,4 +1,5 @@
-// src/middleware.ts
+// src/proxy.ts — renamed from middleware.ts for Next 16 convention.
+// All log prefixes ('[MW]') retained intentionally for log continuity.
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -147,9 +148,9 @@ async function apiCheckPermisoEdge(
 }
 
 // =========================
-// Middleware
+// Proxy (renamed from middleware in Next 16)
 // =========================
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   console.log('[MW] DEBUG_MW =', process.env.DEBUG_MW);
 
   const { pathname } = request.nextUrl;

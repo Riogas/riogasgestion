@@ -4,13 +4,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
+  "relative w-full rounded-[var(--radius-lg)] border px-4 py-3.5 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
   {
     variants: {
       variant: {
-        default: "bg-card text-card-foreground",
+        // Tonal alerts — modern (tinted bg + solid fg)
+        default: "bg-card border-border text-foreground",
+        info: "bg-primary/8 border-primary/20 text-primary [&>svg]:text-primary",
+        success: "bg-success/10 border-success/25 text-success [&>svg]:text-success",
+        warn: "bg-warn/10 border-warn/25 text-warn [&>svg]:text-warn",
         destructive:
-          "text-destructive bg-card [&>svg]:text-current *:data-[slot=alert-description]:text-destructive/90",
+          "bg-destructive/10 border-destructive/25 text-destructive [&>svg]:text-destructive *:data-[slot=alert-description]:text-destructive/90",
       },
     },
     defaultVariants: {

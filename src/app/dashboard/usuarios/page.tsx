@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -11,15 +11,17 @@ export default function UsuariosPage() {
   const router = useRouter();
 
   return (
-    <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Administración de Usuarios</h1>
-        <Button onClick={() => router.push("/dashboard/usuarios/crear")}>
-          Nuevo
-          <Plus className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Administración de Usuarios"
+        description="Alta, edición, permisos y roles del personal."
+        actions={
+          <Button onClick={() => router.push("/dashboard/usuarios/crear")}>
+            <Plus className="w-4 h-4 mr-1.5" /> Nuevo
+          </Button>
+        }
+      />
       <Usuarios />
-    </Card>
+    </div>
   );
 }

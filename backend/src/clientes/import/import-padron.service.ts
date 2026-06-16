@@ -80,7 +80,9 @@ export class ImportPadronService {
       // UPDATE
       this.clientes.merge(existing, clienteFields as any);
       if (!opts.skipRelationsOnUpdate) {
-        // Reemplaza relaciones (simplificado: borra las viejas y pone las nuevas)
+        // Borrar relaciones huérfanas antes de reemplazarlas para evitar duplicados en re-imports
+        await this.telefonos.delete({ cliente: { id: existing.id } });
+        await this.direcciones.delete({ cliente: { id: existing.id } });
         existing.telefonos = (mappedTels ?? []).map(
           (t) => this.telefonos.create(t as any) as unknown as ClienteTelefono,
         );

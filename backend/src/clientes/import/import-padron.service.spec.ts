@@ -14,6 +14,7 @@ const repoMock = () => ({
   create: jest.fn((x) => x),
   save: jest.fn((x) => Promise.resolve({ id: 'gen-uuid', ...x })),
   merge: jest.fn((target, source) => Object.assign(target, source)),
+  delete: jest.fn().mockResolvedValue({ affected: 1 }),
 });
 
 // ─── mapPadronRowToCliente (función pura) ─────────────────────────────────────
@@ -175,6 +176,9 @@ describe('ImportPadronService', () => {
       relations: { telefonos: true, direcciones: true },
     });
     expect(clientesRepo.merge).toHaveBeenCalled();
+    // Verifica que las relaciones huérfanas se borran antes de reemplazarlas
+    expect(telefonosRepo.delete).toHaveBeenCalledWith({ cliente: { id: 'existing-uuid' } });
+    expect(direccionesRepo.delete).toHaveBeenCalledWith({ cliente: { id: 'existing-uuid' } });
     expect(clientesRepo.save).toHaveBeenCalled();
     expect(result.creados).toBe(0);
     expect(result.actualizados).toBe(1);

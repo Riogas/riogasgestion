@@ -6,6 +6,7 @@ import "./globals.css";
 import { LoadingProvider } from "@/lib/LoadingContext";
 import GlobalLoader from "@/components/GlobalLoader";
 import { GlobalLoadingOverlay } from "@/lib/GlobalLoadingOverlay";
+import QueryProvider from "@/components/providers/QueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,10 +70,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <LogRocketInit />
-        <LoadingProvider>
-          {children}
-          <GlobalLoadingOverlay />
-        </LoadingProvider>
+        <QueryProvider>
+          <LoadingProvider>
+            {children}
+            <GlobalLoadingOverlay />
+          </LoadingProvider>
+        </QueryProvider>
         <Toaster /> {/* sonner toaster (config interna usa glass + tokens) */}
       </body>
     </html>

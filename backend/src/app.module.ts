@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { HealthModule } from './health/health.module';
+import { ClientesModule } from './clientes/clientes.module';
 
 @Module({
   imports: [
@@ -38,8 +39,8 @@ import { HealthModule } from './health/health.module';
 
     // Módulos de la app
     HealthModule,
+    ClientesModule,
     // TODO: Agregar módulos a medida que se migran las APIs
-    // ClientesModule,
     // ZonasModule,
     // UsuariosModule,
     // FleterasModule,

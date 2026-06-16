@@ -60,3 +60,6 @@ backup_*.tar.gz
 
 # Uploads (si usas almacenamiento local)
 uploads/
+
+# Superpowers brainstorm scratch
+.superpowers/

@@ -1,18 +1,16 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
-import { point as turfPoint } from "@turf/helpers";
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { toast } from "sonner";
 import { apiGetCapaGoya } from "@/services/api";
 import { GenexusFeatureCollectionToGeoJson } from "@/lib/convertirGeoJson";
+import { getPuestoActual, puntoEnZona } from "@/lib/geo";
+import type { FeatureCollection } from "geojson";
 
 const DynamicMapa = dynamic(() => import("@/components/mapa/OpenStreetMap"), { ssr: false });
 
@@ -39,16 +37,6 @@ const departamentos = [
   { nombre: "Salto", localidades: ["Salto"] },
 ];
 
-function getPuestoActual() {
-  if (typeof window === "undefined") return null;
-  const actual = localStorage.getItem("puestoActual");
-  if (actual) {
-    try { return JSON.parse(actual); } catch { return null; }
-  }
-  const p = localStorage.getItem("puesto");
-  if (p) { try { return JSON.parse(p); } catch { return null; } }
-  return null;
-}
 
 export function DireccionEditor({
   value,
@@ -64,7 +52,7 @@ export function DireccionEditor({
   footer?: React.ReactNode;
 }) {
   const [localidades, setLocalidades] = useState<string[]>([]);
-  const [capasGeoJson, setCapasGeoJson] = useState<any[]>([]);
+  const [capasGeoJson, setCapasGeoJson] = useState<FeatureCollection[]>([]);
 
   useEffect(() => {
     // set localidades when departamento changes
@@ -95,18 +83,12 @@ export function DireccionEditor({
   // zone check whenever coords change
   useEffect(() => {
     if (!value.lat || !value.lng || capasGeoJson.length === 0) return;
-    const pt = turfPoint([parseFloat(value.lng), parseFloat(value.lat)]);
-    let inZone = false;
-    try {
-      capasGeoJson.forEach((zona: any) => {
-        if (zona?.type === "FeatureCollection") {
-          zona.features?.forEach((feature: any) => {
-            try { if (booleanPointInPolygon(pt, feature)) inZone = true; } catch {}
-          });
-        }
-      });
-    } catch {}
-    if (inZone) toast.success("Cliente en zona", { duration: 2500 });
+    const { enZona } = puntoEnZona(
+      parseFloat(value.lat),
+      parseFloat(value.lng),
+      capasGeoJson
+    );
+    if (enZona) toast.success("Cliente en zona", { duration: 2500 });
     else toast.error("Cliente fuera de zona", { duration: 2500 });
   }, [value.lat, value.lng, capasGeoJson]);
 

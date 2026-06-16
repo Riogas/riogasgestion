@@ -12,7 +12,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { apiGetCapaGoya, apiGetCalles } from "@/services/api";
+import {
+  apiGetCapaGoya,
+  apiGetCalles,
+  apiGetDepartamentos,
+  apiGetLocalidades,
+} from "@/services/api";
 import { GenexusFeatureCollectionToGeoJson } from "@/lib/convertirGeoJson";
 import { getPuestoActual, puntoEnZona } from "@/lib/geo";
 import type { ZonaResult } from "@/lib/geo";
@@ -26,15 +31,26 @@ const DynamicMapa = dynamic(
   { ssr: false }
 );
 
-// ─── Static data ─────────────────────────────────────────────────────────────
-// TODO(fase6): Replace with dynamic apiGetDepartamentos / apiGetLocalidades.
-// OSMDepartamentoId / OSMLocalidadId values must match backend OSM import IDs.
-const DEPARTAMENTOS = [
+// ─── Static fallback data (used if API fails) ────────────────────────────────
+
+const DEPARTAMENTOS_FALLBACK = [
   { nombre: "Montevideo", id: 1, localidades: [{ nombre: "Centro", id: 1 }, { nombre: "Ciudad Vieja", id: 2 }, { nombre: "Pocitos", id: 3 }] },
   { nombre: "Canelones", id: 2, localidades: [{ nombre: "Las Piedras", id: 1 }, { nombre: "La Paz", id: 2 }, { nombre: "Barros Blancos", id: 3 }] },
   { nombre: "Maldonado", id: 3, localidades: [{ nombre: "Punta del Este", id: 1 }, { nombre: "San Carlos", id: 2 }, { nombre: "La Barra", id: 3 }] },
   { nombre: "Salto", id: 4, localidades: [{ nombre: "Salto", id: 1 }] },
 ] as const;
+
+// ─── Normalised internal types ────────────────────────────────────────────────
+
+interface DeptOption {
+  id: number;
+  nombre: string;
+}
+
+interface LocalidadOption {
+  id: number;
+  nombre: string;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +62,9 @@ export type AddressPickerValue = Partial<
 > & {
   departamento?: string;
   localidad?: string;
+  /** I2: real IDs emitted to parent */
+  departamentoId?: number | null;
+  localidadId?: number | null;
 };
 
 export interface AddressPickerProps {
@@ -70,6 +89,11 @@ export function AddressPicker({
   const [capasGeoJson, setCapasGeoJson] = useState<FeatureCollection[]>([]);
   const [zonaResult, setZonaResult] = useState<ZonaResult | null>(null);
 
+  // ── I2: real dept/localidad lists loaded from API, fallback to constants ──
+  const [departamentos, setDepartamentos] = useState<DeptOption[]>([]);
+  const [localidades, setLocalidades] = useState<LocalidadOption[]>([]);
+  const [depsLoading, setDepsLoading] = useState(true);
+
   // Stable refs for callbacks to avoid re-triggering zone effect on every render
   const onZonaChangeRef = useRef(onZonaChange);
   const onChangeRef = useRef(onChange);
@@ -77,6 +101,99 @@ export function AddressPicker({
     onZonaChangeRef.current = onZonaChange;
     onChangeRef.current = onChange;
   });
+
+  // ── Load departamentos from API (once) ────────────────────────────────────
+  useEffect(() => {
+    setDepsLoading(true);
+    apiGetDepartamentos()
+      .then((data: any) => {
+        const raw: any[] = data?.sdtDepartamentos ?? [];
+        if (raw.length > 0) {
+          const mapped: DeptOption[] = raw
+            .map((d: any) => ({
+              id: Number(d.DepartamentoId ?? d.id ?? 0),
+              nombre: String(d.DepartamentoNombre ?? d.nombre ?? ""),
+            }))
+            .filter((d) => d.id > 0 && d.nombre);
+          if (mapped.length > 0) {
+            setDepartamentos(mapped);
+            setDepsLoading(false);
+            return;
+          }
+        }
+        // fallback
+        setDepartamentos(
+          DEPARTAMENTOS_FALLBACK.map((d) => ({ id: d.id, nombre: d.nombre }))
+        );
+      })
+      .catch(() => {
+        // Degrade to static constants
+        setDepartamentos(
+          DEPARTAMENTOS_FALLBACK.map((d) => ({ id: d.id, nombre: d.nombre }))
+        );
+      })
+      .finally(() => setDepsLoading(false));
+  }, []);
+
+  // ── Load localidades when departamentoId changes ──────────────────────────
+  useEffect(() => {
+    const deptId = value.departamentoId;
+    if (!deptId) {
+      // Try to resolve id from name for backward compat
+      const fallback = DEPARTAMENTOS_FALLBACK.find(
+        (d) => d.nombre === value.departamento
+      );
+      if (!fallback) {
+        setLocalidades([]);
+        return;
+      }
+    }
+
+    const resolvedId =
+      value.departamentoId ??
+      DEPARTAMENTOS_FALLBACK.find((d) => d.nombre === value.departamento)?.id;
+
+    if (!resolvedId) {
+      setLocalidades([]);
+      return;
+    }
+
+    apiGetLocalidades({ DepartamentoId: String(resolvedId) })
+      .then((data: any) => {
+        const raw: any[] = data?.sdtLocalidad ?? [];
+        if (raw.length > 0) {
+          const mapped: LocalidadOption[] = raw
+            .map((l: any) => ({
+              id: Number(l.LocalidadId ?? l.id ?? 0),
+              nombre: String(l.LocalidadNombre ?? l.nombre ?? ""),
+            }))
+            .filter((l) => l.id > 0 && l.nombre);
+          if (mapped.length > 0) {
+            setLocalidades(mapped);
+            return;
+          }
+        }
+        // fallback to static
+        const fbDept = DEPARTAMENTOS_FALLBACK.find(
+          (d) => d.id === resolvedId || d.nombre === value.departamento
+        );
+        setLocalidades(
+          fbDept
+            ? fbDept.localidades.map((l) => ({ id: l.id, nombre: l.nombre }))
+            : []
+        );
+      })
+      .catch(() => {
+        const fbDept = DEPARTAMENTOS_FALLBACK.find(
+          (d) => d.id === resolvedId || d.nombre === value.departamento
+        );
+        setLocalidades(
+          fbDept
+            ? fbDept.localidades.map((l) => ({ id: l.id, nombre: l.nombre }))
+            : []
+        );
+      });
+  }, [value.departamentoId, value.departamento]);
 
   // ── Load zone layers on mount ──────────────────────────────────────────────
   useEffect(() => {
@@ -109,18 +226,24 @@ export function AddressPicker({
 
   // ── Load streets when dep/loc change ──────────────────────────────────────
   useEffect(() => {
-    if (!value.departamento || !value.localidad) {
+    const deptId =
+      value.departamentoId ??
+      DEPARTAMENTOS_FALLBACK.find((d) => d.nombre === value.departamento)?.id;
+    const locId =
+      value.localidadId ??
+      (() => {
+        const fbDept = DEPARTAMENTOS_FALLBACK.find(
+          (d) => d.id === deptId || d.nombre === value.departamento
+        );
+        return fbDept?.localidades.find((l) => l.nombre === value.localidad)?.id;
+      })();
+
+    if (!deptId || !locId) {
       setCalles([]);
       return;
     }
 
-    const dep = DEPARTAMENTOS.find((d) => d.nombre === value.departamento);
-    if (!dep) { setCalles([]); return; }
-
-    const loc = dep.localidades.find((l) => l.nombre === value.localidad);
-    if (!loc) { setCalles([]); return; }
-
-    apiGetCalles({ DepartamentoId: dep.id, LocalidadId: loc.id })
+    apiGetCalles({ DepartamentoId: deptId, LocalidadId: locId })
       .then((data) => {
         const raw: unknown[] = data?.sdtCalles ?? [];
         const nombres = (raw as { CalleNombre?: string }[])
@@ -129,7 +252,7 @@ export function AddressPicker({
         setCalles(nombres);
       })
       .catch(() => setCalles([]));
-  }, [value.departamento, value.localidad]);
+  }, [value.departamentoId, value.departamento, value.localidadId, value.localidad]);
 
   // ── Zone check when coords change ─────────────────────────────────────────
   useEffect(() => {
@@ -153,11 +276,25 @@ export function AddressPicker({
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleDepartamentoChange = (v: string) => {
-    onChange({ departamento: v, localidad: undefined, calle: undefined });
+    // v is the dept nombre; look up the real ID
+    const found = departamentos.find((d) => d.nombre === v);
+    onChange({
+      departamento: v,
+      departamentoId: found?.id ?? null,
+      localidad: undefined,
+      localidadId: null,
+      calle: undefined,
+    });
   };
 
   const handleLocalidadChange = (v: string) => {
-    onChange({ localidad: v, calle: undefined });
+    // v is localidad nombre; look up the real ID from current list
+    const found = localidades.find((l) => l.nombre === v);
+    onChange({
+      localidad: v,
+      localidadId: found?.id ?? null,
+      calle: undefined,
+    });
   };
 
   const handleMapChange = (data: {
@@ -178,10 +315,7 @@ export function AddressPicker({
     onChange(patch);
   };
 
-  // ── Derived ───────────────────────────────────────────────────────────────
-
-  const localidades =
-    DEPARTAMENTOS.find((d) => d.nombre === value.departamento)?.localidades ?? ([] as const);
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-3", className)}>
@@ -196,13 +330,14 @@ export function AddressPicker({
           <Select
             value={value.departamento ?? ""}
             onValueChange={handleDepartamentoChange}
+            disabled={depsLoading}
           >
             <SelectTrigger id={`${baseId}-departamento`} className="w-full h-8 text-xs">
-              <SelectValue placeholder="Seleccionar" />
+              <SelectValue placeholder={depsLoading ? "Cargando…" : "Seleccionar"} />
             </SelectTrigger>
             <SelectContent>
-              {DEPARTAMENTOS.map((d) => (
-                <SelectItem key={d.nombre} value={d.nombre}>
+              {departamentos.map((d) => (
+                <SelectItem key={d.id} value={d.nombre}>
                   {d.nombre}
                 </SelectItem>
               ))}
@@ -218,14 +353,14 @@ export function AddressPicker({
           <Select
             value={value.localidad ?? ""}
             onValueChange={handleLocalidadChange}
-            disabled={!value.departamento}
+            disabled={!value.departamento || localidades.length === 0}
           >
             <SelectTrigger id={`${baseId}-localidad`} className="w-full h-8 text-xs">
               <SelectValue placeholder="Seleccionar" />
             </SelectTrigger>
             <SelectContent>
               {localidades.map((l) => (
-                <SelectItem key={l.nombre} value={l.nombre}>
+                <SelectItem key={l.id} value={l.nombre}>
                   {l.nombre}
                 </SelectItem>
               ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import { useRouter } from "next/navigation";
@@ -30,26 +30,15 @@ import {
 import { AltaSlideOver } from "@/components/clientes/AltaSlideOver";
 import Link from "next/link";
 
-// ─── Debounce hook ────────────────────────────────────────────────────────────
+// ─── Debounce hook — C2: standard useEffect pattern, no setState in render ────
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const update = useCallback(
-    (v: T) => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setDebounced(v), delay);
-    },
-    [delay],
-  );
-
-  // Keep update fn stable but sync on external value changes (e.g., URL)
-  const latestValue = useRef(value);
-  if (latestValue.current !== value) {
-    latestValue.current = value;
-    update(value);
-  }
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
 
   return debounced;
 }
@@ -76,6 +65,11 @@ const TIPO_LABEL: Record<TipoCliente, string> = {
   [TipoCliente.COMERCIAL]: "Comercial",
 };
 
+// ─── Column grid template (must match header and rows exactly) ────────────────
+
+const GRID_COLS =
+  "96px 1fr 112px 112px 1fr 144px 80px 112px";
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function ClientesList() {
@@ -93,6 +87,7 @@ export default function ClientesList() {
   );
 
   // ── Debounced search → params ─────────────────────────────────────────────
+  // C3: debounce with 400ms; clearing resets page immediately
   const debouncedSearch = useDebounce(searchInput, 400);
 
   const params = useMemo(
@@ -114,7 +109,7 @@ export default function ClientesList() {
   // ── Slide-over state ──────────────────────────────────────────────────────
   const [slideOverOpen, setSlideOverOpen] = useState(false);
 
-  // ── Virtualizer ───────────────────────────────────────────────────────────
+  // ── Virtualizer — C1: parentRef points to the scrollable div ─────────────
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: clientes.length,
@@ -124,7 +119,6 @@ export default function ClientesList() {
   });
 
   // ── Stats (derived from paginated totals — server-side values not in data)
-  // We show total count from the API, the rest from the current page subset.
   const stats: PageStatItem[] = useMemo(() => {
     const pageActivos = clientes.filter(
       (c) => c.estado === EstadoCliente.ACTIVO,
@@ -181,6 +175,9 @@ export default function ClientesList() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  // C3: clear resets page to 1 immediately (debounce will resolve "" in 400ms,
+  // but the search is empty so that is fine — no stale timer issues because
+  // each useEffect call cancels the previous timeout).
   const handleSearch = (v: string) => {
     setSearchInput(v);
     setPage(1);
@@ -232,7 +229,7 @@ export default function ClientesList() {
           />
         }
       >
-        {/* ── Loading skeleton ── */}
+        {/* ── Loading skeleton (table is valid HTML — not virtualised) ── */}
         {isLoading && (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-sm">
@@ -269,7 +266,7 @@ export default function ClientesList() {
           </div>
         )}
 
-        {/* ── Virtualised table ── */}
+        {/* ── Virtualised list — C1: div-based, no table inside ── */}
         {!isLoading && !isError && (
           <>
             {clientes.length === 0 ? (
@@ -295,17 +292,33 @@ export default function ClientesList() {
                 }
               />
             ) : (
-              /* Scrollable virtual container */
-              <div
-                ref={parentRef}
-                className="overflow-x-auto overflow-y-auto"
-                style={{ maxHeight: "calc(100vh - 380px)", minHeight: 200 }}
-              >
-                <table className="w-full min-w-[900px] text-sm border-collapse">
-                  <thead className="sticky top-0 z-10 bg-background border-b border-border/60">
-                    <ColumnHeaders />
-                  </thead>
-                  <tbody
+              <div className="overflow-x-auto">
+                {/* Sticky column header — div grid */}
+                <div
+                  className="sticky top-0 z-10 bg-background border-b border-border/60 min-w-[900px]"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: GRID_COLS,
+                  }}
+                >
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Nro</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Tipo</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Estado</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Teléfono</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">#Dir</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Últ. modif.</div>
+                </div>
+
+                {/* Scrollable virtual container */}
+                <div
+                  ref={parentRef}
+                  className="overflow-y-auto min-w-[900px]"
+                  style={{ maxHeight: "calc(100vh - 420px)", minHeight: 200 }}
+                >
+                  {/* Total height spacer for virtualizer */}
+                  <div
                     style={{
                       height: `${virtualizer.getTotalSize()}px`,
                       position: "relative",
@@ -321,7 +334,7 @@ export default function ClientesList() {
                         ESTADO_BADGE[c.estado] ?? "secondary";
 
                       return (
-                        <tr
+                        <div
                           key={c.id}
                           data-index={virtualRow.index}
                           ref={virtualizer.measureElement}
@@ -335,49 +348,52 @@ export default function ClientesList() {
                             left: 0,
                             width: "100%",
                             transform: `translateY(${virtualRow.start}px)`,
+                            display: "grid",
+                            gridTemplateColumns: GRID_COLS,
+                            alignItems: "center",
                           }}
                         >
-                          <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                          <div className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
                             {c.nroCliente ?? "—"}
-                          </td>
-                          <td className="px-4 py-2.5 font-medium whitespace-nowrap max-w-[200px] truncate">
+                          </div>
+                          <div className="px-4 py-2.5 font-medium whitespace-nowrap overflow-hidden text-ellipsis text-sm">
                             {c.nombre}
                             {c.apellido ? ` ${c.apellido}` : ""}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">
+                          </div>
+                          <div className="px-4 py-2.5 whitespace-nowrap">
                             <Badge variant="secondary" className="text-[11px]">
                               {TIPO_LABEL[c.tipoCliente]}
                             </Badge>
-                          </td>
-                          <td className="px-4 py-2.5">
+                          </div>
+                          <div className="px-4 py-2.5">
                             <Badge
                               variant={estadoVariant}
                               className="text-[11px]"
                             >
                               {ESTADO_LABEL[c.estado]}
                             </Badge>
-                          </td>
-                          <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[220px]">
+                          </div>
+                          <div className="px-4 py-2.5 text-muted-foreground overflow-hidden text-ellipsis text-sm whitespace-nowrap">
                             {c.email || "—"}
-                          </td>
-                          <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
+                          </div>
+                          <div className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-sm">
                             {primaryPhone}
-                          </td>
-                          <td className="px-4 py-2.5 text-center tabular-nums text-muted-foreground">
+                          </div>
+                          <div className="px-4 py-2.5 text-center tabular-nums text-muted-foreground text-sm">
                             {c.direcciones.length}
-                          </td>
-                          <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                          </div>
+                          <div className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
                             {c.fechaUltModif
                               ? new Date(c.fechaUltModif).toLocaleDateString(
                                   "es-UY",
                                 )
                               : "—"}
-                          </td>
-                        </tr>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -407,7 +423,7 @@ export default function ClientesList() {
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Sub-components (skeleton uses valid table HTML — no virtualizer) ─────────
 
 function ColumnHeaders() {
   return (

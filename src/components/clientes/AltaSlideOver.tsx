@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Drawer } from "vaul";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -34,6 +34,9 @@ interface AltaSlideOverProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+// I1: which action is in flight (for per-button spinner)
+type PendingAction = "abrir" | "otro" | null;
 
 // ─── Default values ───────────────────────────────────────────────────────────
 
@@ -79,14 +82,13 @@ const DEFAULT_VALUES: CreateClienteFormValues = {
   ],
 };
 
-// ─── Address state (local — not wired to RHF directly, gets merged on submit)
-// We use a local state for the AddressPicker value and sync it to RHF on every change.
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AltaSlideOver({ open, onOpenChange }: AltaSlideOverProps) {
   const router = useRouter();
   const [masVisible, setMasVisible] = useState(false);
+  // I1: track which action is in flight
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   // Local address picker state (drives AddressPicker UI)
   const [addressValue, setAddressValue] = useState<AddressPickerValue>({});
@@ -106,7 +108,11 @@ export function AltaSlideOver({ open, onOpenChange }: AltaSlideOverProps) {
 
   const createCliente = useCreateCliente();
 
+  // I1: any mutation in flight → block both buttons
+  const isBusy = createCliente.isPending || isSubmitting || pendingAction !== null;
+
   // ── Address sync: when AddressPicker changes, patch RHF direcciones[0] ────
+  // I2: also propagate departamentoId / localidadId
   const handleAddressChange = useCallback(
     (patch: Partial<AddressPickerValue>) => {
       setAddressValue((prev) => {
@@ -131,6 +137,11 @@ export function AltaSlideOver({ open, onOpenChange }: AltaSlideOverProps) {
           setValue("direcciones.0.lng", next.lng ?? null);
         if (next.zona !== undefined)
           setValue("direcciones.0.zona", next.zona ?? null);
+        // I2: propagate real IDs
+        if ("departamentoId" in patch)
+          setValue("direcciones.0.departamentoId", next.departamentoId ?? null);
+        if ("localidadId" in patch)
+          setValue("direcciones.0.localidadId", next.localidadId ?? null);
         return next;
       });
     },
@@ -142,11 +153,15 @@ export function AltaSlideOver({ open, onOpenChange }: AltaSlideOverProps) {
     reset(DEFAULT_VALUES);
     setAddressValue({});
     setMasVisible(false);
+    setPendingAction(null);
   }, [reset]);
 
   // ── Submit handlers ────────────────────────────────────────────────────────
 
+  // I5: "Crear y abrir ficha" is the default form submit (Enter)
   const onCrearYAbrir = handleSubmit(async (data) => {
+    if (isBusy) return;
+    setPendingAction("abrir");
     try {
       const nuevo = await createCliente.mutateAsync(data);
       toast.success("Cliente creado correctamente");
@@ -155,16 +170,22 @@ export function AltaSlideOver({ open, onOpenChange }: AltaSlideOverProps) {
       router.push(`/dashboard/clientes/${nuevo.id}`);
     } catch {
       toast.error("Error al crear el cliente. Verificá los datos.");
+    } finally {
+      setPendingAction(null);
     }
   });
 
   const onCrearYOtro = handleSubmit(async (data) => {
+    if (isBusy) return;
+    setPendingAction("otro");
     try {
       await createCliente.mutateAsync(data);
       toast.success("Cliente creado. Podés cargar el siguiente.");
       resetForm();
     } catch {
       toast.error("Error al crear el cliente. Verificá los datos.");
+    } finally {
+      setPendingAction(null);
     }
   });
 
@@ -213,229 +234,237 @@ export function AltaSlideOver({ open, onOpenChange }: AltaSlideOverProps) {
             </button>
           </div>
 
-          {/* ── Scrollable body ── */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            {/* ── Datos esenciales ── */}
-            <fieldset className="space-y-4">
-              <legend className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                Datos principales
-              </legend>
+          {/* ── I5: form wrapper — Enter submits "Crear y abrir ficha" ── */}
+          <form
+            onSubmit={onCrearYAbrir}
+            className="flex flex-col flex-1 overflow-hidden"
+            noValidate
+          >
+            {/* ── Scrollable body ── */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {/* ── Datos esenciales ── */}
+              <fieldset className="space-y-4">
+                <legend className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  Datos principales
+                </legend>
 
-              {/* Nombre */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="alta-nombre" className="text-xs">
-                    Nombre <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="alta-nombre"
-                    {...register("nombre")}
-                    className={cn(
-                      "h-9 text-sm",
-                      errors.nombre && "border-destructive",
-                    )}
-                    placeholder="Ej: Juan"
-                  />
-                  {errors.nombre && (
-                    <p className="text-[11px] text-destructive mt-1">
-                      {errors.nombre.message}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="alta-apellido" className="text-xs">
-                    Apellido
-                  </Label>
-                  <Input
-                    id="alta-apellido"
-                    {...register("apellido")}
-                    className="h-9 text-sm"
-                    placeholder="Ej: Pérez"
-                  />
-                </div>
-              </div>
-
-              {/* Teléfono principal */}
-              <div>
-                <Label htmlFor="alta-telefono" className="text-xs">
-                  Teléfono principal{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="alta-telefono"
-                  {...register("telefonos.0.numero")}
-                  className={cn(
-                    "h-9 text-sm",
-                    errors.telefonos?.[0]?.numero && "border-destructive",
-                  )}
-                  placeholder="Ej: 099 123 456"
-                />
-                {errors.telefonos?.[0]?.numero && (
-                  <p className="text-[11px] text-destructive mt-1">
-                    {errors.telefonos[0].numero?.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Tipo cliente */}
-              <div>
-                <Label htmlFor="alta-tipo" className="text-xs">
-                  Tipo de cliente
-                </Label>
-                <Select
-                  value={tipoValue}
-                  onValueChange={(v) =>
-                    setValue("tipoCliente", v as TipoCliente, {
-                      shouldValidate: true,
-                    })
-                  }
-                >
-                  <SelectTrigger id="alta-tipo" className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={TipoCliente.DOMESTICO}>
-                      Doméstico
-                    </SelectItem>
-                    <SelectItem value={TipoCliente.COMERCIAL}>
-                      Comercial
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </fieldset>
-
-            {/* ── Dirección principal ── */}
-            <fieldset className="space-y-3">
-              <legend className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Dirección principal <span className="text-destructive">*</span>
-              </legend>
-              {errors.direcciones && !Array.isArray(errors.direcciones) && (
-                <p className="text-[11px] text-destructive">
-                  {(errors.direcciones as { message?: string }).message}
-                </p>
-              )}
-              <AddressPicker
-                value={addressValue}
-                onChange={handleAddressChange}
-              />
-              {errors.direcciones?.[0]?.calle && (
-                <p className="text-[11px] text-destructive">
-                  {errors.direcciones[0].calle?.message}
-                </p>
-              )}
-            </fieldset>
-
-            {/* ── Más datos (progressive disclosure) ── */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setMasVisible((v) => !v)}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors py-1"
-              >
-                {masVisible ? (
-                  <ChevronUp className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                )}
-                {masVisible ? "Ocultar" : "▸ Más datos"}
-              </button>
-
-              {masVisible && (
-                <div className="mt-3 space-y-3 border-l-2 border-border/60 pl-4">
-                  {/* Email */}
+                {/* Nombre */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="alta-email" className="text-xs">
-                      Email
+                    <Label htmlFor="alta-nombre" className="text-xs">
+                      Nombre <span className="text-destructive">*</span>
                     </Label>
                     <Input
-                      id="alta-email"
-                      type="email"
-                      {...register("email")}
+                      id="alta-nombre"
+                      {...register("nombre")}
                       className={cn(
                         "h-9 text-sm",
-                        errors.email && "border-destructive",
+                        errors.nombre && "border-destructive",
                       )}
-                      placeholder="cliente@ejemplo.com"
+                      placeholder="Ej: Juan"
                     />
-                    {errors.email && (
+                    {errors.nombre && (
                       <p className="text-[11px] text-destructive mt-1">
-                        {errors.email.message}
+                        {errors.nombre.message}
                       </p>
                     )}
                   </div>
-
-                  {/* RUT/CI */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label htmlFor="alta-rutci" className="text-xs">
-                        RUT / CI
-                      </Label>
-                      <Input
-                        id="alta-rutci"
-                        {...register("rutCi")}
-                        className="h-9 text-sm"
-                        placeholder="Ej: 21234567-8"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="alta-gci" className="text-xs">
-                        GCI
-                      </Label>
-                      <Input
-                        id="alta-gci"
-                        {...register("gci")}
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Observaciones */}
                   <div>
-                    <Label htmlFor="alta-obs" className="text-xs">
-                      Observaciones
+                    <Label htmlFor="alta-apellido" className="text-xs">
+                      Apellido
                     </Label>
-                    <textarea
-                      id="alta-obs"
-                      {...register("obsCliente")}
-                      rows={3}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                      placeholder="Notas internas sobre el cliente..."
+                    <Input
+                      id="alta-apellido"
+                      {...register("apellido")}
+                      className="h-9 text-sm"
+                      placeholder="Ej: Pérez"
                     />
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* ── Footer actions ── */}
-          <div className="shrink-0 border-t border-border/60 px-6 py-4 flex items-center gap-3 bg-muted/20">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              disabled={isSubmitting || createCliente.isPending}
-              onClick={onCrearYOtro}
-            >
-              {createCliente.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-              ) : null}
-              Crear y agregar otro
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="flex-1"
-              disabled={isSubmitting || createCliente.isPending}
-              onClick={onCrearYAbrir}
-            >
-              {createCliente.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-              ) : null}
-              Crear y abrir ficha
-            </Button>
-          </div>
+                {/* Teléfono principal */}
+                <div>
+                  <Label htmlFor="alta-telefono" className="text-xs">
+                    Teléfono principal{" "}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="alta-telefono"
+                    {...register("telefonos.0.numero")}
+                    className={cn(
+                      "h-9 text-sm",
+                      errors.telefonos?.[0]?.numero && "border-destructive",
+                    )}
+                    placeholder="Ej: 099 123 456"
+                  />
+                  {errors.telefonos?.[0]?.numero && (
+                    <p className="text-[11px] text-destructive mt-1">
+                      {errors.telefonos[0].numero?.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Tipo cliente */}
+                <div>
+                  <Label htmlFor="alta-tipo" className="text-xs">
+                    Tipo de cliente
+                  </Label>
+                  <Select
+                    value={tipoValue}
+                    onValueChange={(v) =>
+                      setValue("tipoCliente", v as TipoCliente, {
+                        shouldValidate: true,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="alta-tipo" className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TipoCliente.DOMESTICO}>
+                        Doméstico
+                      </SelectItem>
+                      <SelectItem value={TipoCliente.COMERCIAL}>
+                        Comercial
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </fieldset>
+
+              {/* ── Dirección principal ── */}
+              <fieldset className="space-y-3">
+                <legend className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Dirección principal <span className="text-destructive">*</span>
+                </legend>
+                {errors.direcciones && !Array.isArray(errors.direcciones) && (
+                  <p className="text-[11px] text-destructive">
+                    {(errors.direcciones as { message?: string }).message}
+                  </p>
+                )}
+                <AddressPicker
+                  value={addressValue}
+                  onChange={handleAddressChange}
+                />
+                {errors.direcciones?.[0]?.calle && (
+                  <p className="text-[11px] text-destructive">
+                    {errors.direcciones[0].calle?.message}
+                  </p>
+                )}
+              </fieldset>
+
+              {/* ── Más datos (progressive disclosure) ── */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMasVisible((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors py-1"
+                >
+                  {masVisible ? (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
+                  {masVisible ? "Ocultar" : "▸ Más datos"}
+                </button>
+
+                {masVisible && (
+                  <div className="mt-3 space-y-3 border-l-2 border-border/60 pl-4">
+                    {/* Email */}
+                    <div>
+                      <Label htmlFor="alta-email" className="text-xs">
+                        Email
+                      </Label>
+                      <Input
+                        id="alta-email"
+                        type="email"
+                        {...register("email")}
+                        className={cn(
+                          "h-9 text-sm",
+                          errors.email && "border-destructive",
+                        )}
+                        placeholder="cliente@ejemplo.com"
+                      />
+                      {errors.email && (
+                        <p className="text-[11px] text-destructive mt-1">
+                          {errors.email.message}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* RUT/CI */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="alta-rutci" className="text-xs">
+                          RUT / CI
+                        </Label>
+                        <Input
+                          id="alta-rutci"
+                          {...register("rutCi")}
+                          className="h-9 text-sm"
+                          placeholder="Ej: 21234567-8"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="alta-gci" className="text-xs">
+                          GCI
+                        </Label>
+                        <Input
+                          id="alta-gci"
+                          {...register("gci")}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Observaciones */}
+                    <div>
+                      <Label htmlFor="alta-obs" className="text-xs">
+                        Observaciones
+                      </Label>
+                      <textarea
+                        id="alta-obs"
+                        {...register("obsCliente")}
+                        rows={3}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                        placeholder="Notas internas sobre el cliente..."
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Footer actions ── */}
+            <div className="shrink-0 border-t border-border/60 px-6 py-4 flex items-center gap-3 bg-muted/20">
+              {/* I1: "Crear y agregar otro" is type="button" (won't trigger form submit) */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                disabled={isBusy}
+                onClick={onCrearYOtro}
+              >
+                {pendingAction === "otro" ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                ) : null}
+                Crear y agregar otro
+              </Button>
+              {/* I5: type="submit" — Enter key triggers this */}
+              <Button
+                type="submit"
+                size="sm"
+                className="flex-1"
+                disabled={isBusy}
+              >
+                {pendingAction === "abrir" ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                ) : null}
+                Crear y abrir ficha
+              </Button>
+            </div>
+          </form>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

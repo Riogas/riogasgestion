@@ -22,12 +22,14 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDeleteCliente } from "@/hooks/clientes";
 import { EstadoCliente, TipoCliente, type Cliente } from "@/lib/types/cliente";
+import { openClienteCommandMenu } from "./ClienteCommandMenu";
 import {
   MoreHorizontal,
   Plus,
   UserX,
   MapPin,
   Home,
+  Command as CommandIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -147,6 +149,26 @@ export function ClienteHeader({ cliente }: ClienteHeaderProps) {
 
           {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Botón para abrir la paleta contextual del cliente (⌘J) */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 hidden sm:inline-flex"
+                  onClick={openClienteCommandMenu}
+                  aria-label="Abrir comandos del cliente (⌘J)"
+                >
+                  <CommandIcon className="size-3.5" />
+                  <span>Comandos</span>
+                  <kbd className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground">
+                    ⌘J
+                  </kbd>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Abrir paleta de comandos del cliente (⌘J / Ctrl+J)</TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>

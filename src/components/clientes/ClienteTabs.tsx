@@ -7,8 +7,9 @@ import { type Cliente } from "@/lib/types/cliente";
 import { DatosTab } from "./tabs/DatosTab";
 import { TelefonosTab } from "./tabs/TelefonosTab";
 import { DireccionesTab } from "./tabs/DireccionesTab";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Package, Wrench, Receipt } from "lucide-react";
+import { PedidosTab } from "./tabs/PedidosTab";
+import { ServiciosTab } from "./tabs/ServiciosTab";
+import { CuentaTab } from "./tabs/CuentaTab";
 
 const TABS = ["datos", "direcciones", "telefonos", "pedidos", "servicios", "cuenta"] as const;
 type TabValue = (typeof TABS)[number];
@@ -26,32 +27,11 @@ function TabContent({ tab, cliente }: { tab: TabValue; cliente: Cliente }) {
     case "telefonos":
       return <TelefonosTab cliente={cliente} />;
     case "pedidos":
-      return (
-        <EmptyState
-          icon={Package}
-          title="Pedidos — próximamente"
-          description="El módulo de pedidos se integrará en la Fase 5."
-          size="default"
-        />
-      );
+      return <PedidosTab cliente={cliente} />;
     case "servicios":
-      return (
-        <EmptyState
-          icon={Wrench}
-          title="Servicios — próximamente"
-          description="El módulo de servicios se integrará en la Fase 5."
-          size="default"
-        />
-      );
+      return <ServiciosTab cliente={cliente} />;
     case "cuenta":
-      return (
-        <EmptyState
-          icon={Receipt}
-          title="Cuenta — próximamente"
-          description="El módulo de cuenta y saldos se integrará en la Fase 5."
-          size="default"
-        />
-      );
+      return <CuentaTab cliente={cliente} />;
   }
 }
 

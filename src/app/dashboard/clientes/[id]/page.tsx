@@ -5,6 +5,7 @@ import { useCliente } from "@/hooks/clientes";
 import { ClienteHeader } from "@/components/clientes/ClienteHeader";
 import { ClienteResumen } from "@/components/clientes/ClienteResumen";
 import { ClienteTabs } from "@/components/clientes/ClienteTabs";
+import { ClienteCommandMenu } from "@/components/clientes/ClienteCommandMenu";
 
 // ── Skeletons ────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,8 @@ function ClientePageInner() {
           <ClienteTabs cliente={cliente} />
         </main>
       </div>
+      {/* Paleta contextual del cliente — ⌘J / Ctrl+J */}
+      <ClienteCommandMenu cliente={cliente} />
     </div>
   );
 }

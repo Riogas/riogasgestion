@@ -75,4 +75,27 @@ describe('ClientesService', () => {
     expect(res).toEqual({ id: 'c1', estado: EstadoCliente.INACTIVO });
     expect(clientes.save).toHaveBeenCalled();
   });
+
+  it('addTelefono valida que el cliente exista y guarda el teléfono', async () => {
+    clientes.findOne.mockResolvedValue({ id: 'c1' });
+    const telefonos = (service as any).telefonos as ReturnType<typeof repoMock>;
+    telefonos.save.mockResolvedValue({ id: 't1', numero: '099' });
+    const res = await service.addTelefono('c1', { numero: '099' } as any);
+    expect(clientes.findOne).toHaveBeenCalled();
+    expect(res).toEqual({ id: 't1', numero: '099' });
+  });
+
+  it('removeTelefono lanza NotFound si no afecta filas', async () => {
+    const telefonos = (service as any).telefonos as ReturnType<typeof repoMock>;
+    telefonos.delete.mockResolvedValue({ affected: 0 });
+    await expect(service.removeTelefono('c1', 'tX')).rejects.toThrow(NotFoundException);
+  });
+
+  it('addDireccion guarda la dirección ligada al cliente', async () => {
+    clientes.findOne.mockResolvedValue({ id: 'c1' });
+    const direcciones = (service as any).direcciones as ReturnType<typeof repoMock>;
+    direcciones.save.mockResolvedValue({ id: 'd1', calle: 'Artigas' });
+    const res = await service.addDireccion('c1', { calle: 'Artigas' } as any);
+    expect(res).toEqual({ id: 'd1', calle: 'Artigas' });
+  });
 });

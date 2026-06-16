@@ -7,6 +7,7 @@ import { LoadingProvider } from "@/lib/LoadingContext";
 import GlobalLoader from "@/components/GlobalLoader";
 import { GlobalLoadingOverlay } from "@/lib/GlobalLoadingOverlay";
 import QueryProvider from "@/components/providers/QueryProvider";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,12 +71,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <LogRocketInit />
-        <QueryProvider>
-          <LoadingProvider>
-            {children}
-            <GlobalLoadingOverlay />
-          </LoadingProvider>
-        </QueryProvider>
+        <NuqsAdapter>
+          <QueryProvider>
+            <LoadingProvider>
+              {children}
+              <GlobalLoadingOverlay />
+            </LoadingProvider>
+          </QueryProvider>
+        </NuqsAdapter>
         <Toaster /> {/* sonner toaster (config interna usa glass + tokens) */}
       </body>
     </html>

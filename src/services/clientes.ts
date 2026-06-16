@@ -9,6 +9,7 @@ import type {
   CreateClienteFormValues,
   TelefonoFormValues,
   DireccionFormValues,
+  EstadoCliente,
 } from "@/lib/types/cliente";
 
 // ─── Clientes CRUD ────────────────────────────────────────────────────────────
@@ -40,8 +41,13 @@ export async function updateCliente(
   return data;
 }
 
-export async function deleteCliente(id: string): Promise<void> {
-  await api.delete(`/clientes/${id}`);
+export async function deleteCliente(
+  id: string,
+): Promise<{ id: string; estado: EstadoCliente }> {
+  const { data } = await api.delete<{ id: string; estado: EstadoCliente }>(
+    `/clientes/${id}`,
+  );
+  return data;
 }
 
 // ─── Teléfonos ────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/PageHeader";
-import Clientes from "@/components/dashboard/clientes/Clientes";
+import ClientesList from "@/components/dashboard/clientes/ClientesList";
 
 export default function ClientesPage() {
   return (
@@ -10,7 +10,7 @@ export default function ClientesPage() {
         title="Clientes"
         description="Cartera de clientes — alta, edición y zonas asignadas."
       />
-      <Clientes />
+      <ClientesList />
     </div>
   );
 }

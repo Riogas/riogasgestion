@@ -2,7 +2,7 @@
 
 import { useQueryState } from "nuqs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Cliente } from "@/lib/types/cliente";
 import { DatosTab } from "./tabs/DatosTab";
 import { TelefonosTab } from "./tabs/TelefonosTab";
@@ -15,6 +15,44 @@ type TabValue = (typeof TABS)[number];
 
 interface ClienteTabsProps {
   cliente: Cliente;
+}
+
+function TabContent({ tab, cliente }: { tab: TabValue; cliente: Cliente }) {
+  switch (tab) {
+    case "datos":
+      return <DatosTab cliente={cliente} />;
+    case "direcciones":
+      return <DireccionesTab cliente={cliente} />;
+    case "telefonos":
+      return <TelefonosTab cliente={cliente} />;
+    case "pedidos":
+      return (
+        <EmptyState
+          icon={Package}
+          title="Pedidos — próximamente"
+          description="El módulo de pedidos se integrará en la Fase 5."
+          size="default"
+        />
+      );
+    case "servicios":
+      return (
+        <EmptyState
+          icon={Wrench}
+          title="Servicios — próximamente"
+          description="El módulo de servicios se integrará en la Fase 5."
+          size="default"
+        />
+      );
+    case "cuenta":
+      return (
+        <EmptyState
+          icon={Receipt}
+          title="Cuenta — próximamente"
+          description="El módulo de cuenta y saldos se integrará en la Fase 5."
+          size="default"
+        />
+      );
+  }
 }
 
 export function ClienteTabs({ cliente }: ClienteTabsProps) {
@@ -59,44 +97,7 @@ export function ClienteTabs({ cliente }: ClienteTabsProps) {
       <div className="relative flex-1 min-h-0 overflow-auto pt-4">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={tab} {...variants} className="h-full">
-            <TabsContent value="datos" forceMount hidden={tab !== "datos"}>
-              <DatosTab cliente={cliente} />
-            </TabsContent>
-
-            <TabsContent value="direcciones" forceMount hidden={tab !== "direcciones"}>
-              <DireccionesTab cliente={cliente} />
-            </TabsContent>
-
-            <TabsContent value="telefonos" forceMount hidden={tab !== "telefonos"}>
-              <TelefonosTab cliente={cliente} />
-            </TabsContent>
-
-            <TabsContent value="pedidos" forceMount hidden={tab !== "pedidos"}>
-              <EmptyState
-                icon={Package}
-                title="Pedidos — próximamente"
-                description="El módulo de pedidos se integrará en la Fase 5."
-                size="default"
-              />
-            </TabsContent>
-
-            <TabsContent value="servicios" forceMount hidden={tab !== "servicios"}>
-              <EmptyState
-                icon={Wrench}
-                title="Servicios — próximamente"
-                description="El módulo de servicios se integrará en la Fase 5."
-                size="default"
-              />
-            </TabsContent>
-
-            <TabsContent value="cuenta" forceMount hidden={tab !== "cuenta"}>
-              <EmptyState
-                icon={Receipt}
-                title="Cuenta — próximamente"
-                description="El módulo de cuenta y saldos se integrará en la Fase 5."
-                size="default"
-              />
-            </TabsContent>
+            <TabContent tab={tab} cliente={cliente} />
           </motion.div>
         </AnimatePresence>
       </div>

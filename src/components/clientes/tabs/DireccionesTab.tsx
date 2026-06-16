@@ -11,6 +11,14 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useDireccionMutations } from "@/hooks/clientes";
 import { AddressPicker, type AddressPickerValue } from "@/components/clientes/AddressPicker";
 import {
@@ -46,6 +54,7 @@ export function DireccionesTab({ cliente }: DireccionesTabProps) {
   const { add, update, remove } = useDireccionMutations(cliente.id);
   const [editing, setEditing] = useState<EditingDir | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [confirmDir, setConfirmDir] = useState<ClienteDireccion | null>(null);
 
   const openNew = () => {
     setEditing({
@@ -144,12 +153,17 @@ export function DireccionesTab({ cliente }: DireccionesTabProps) {
     }
   };
 
-  const handleRemove = (dir: ClienteDireccion) => {
-    const label = [dir.calle, dir.nroPuerta].filter(Boolean).join(" ");
-    if (!confirm(`¿Eliminar la dirección "${label}"?`)) return;
-    remove.mutate(dir.id, {
-      onSuccess: () => toast.success("Dirección eliminada"),
-      onError: () => toast.error("Error al eliminar la dirección"),
+  const handleRemoveConfirmed = () => {
+    if (!confirmDir) return;
+    remove.mutate(confirmDir.id, {
+      onSuccess: () => {
+        toast.success("Dirección eliminada");
+        setConfirmDir(null);
+      },
+      onError: () => {
+        toast.error("Error al eliminar la dirección");
+        setConfirmDir(null);
+      },
     });
   };
 
@@ -219,6 +233,7 @@ export function DireccionesTab({ cliente }: DireccionesTabProps) {
                 <TableCell>
                   {dir.esPrincipal && (
                     <Star
+                      role="img"
                       className="size-4 text-amber-500 fill-amber-500"
                       aria-label="Principal"
                     />
@@ -240,7 +255,7 @@ export function DireccionesTab({ cliente }: DireccionesTabProps) {
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => handleRemove(dir)}
+                      onClick={() => setConfirmDir(dir)}
                       aria-label={`Eliminar dirección ${dir.calle}`}
                       disabled={isBusy}
                     >
@@ -297,6 +312,38 @@ export function DireccionesTab({ cliente }: DireccionesTabProps) {
           </div>
         </div>
       )}
+
+      {/* Confirm delete dialog */}
+      <Dialog open={!!confirmDir} onOpenChange={(open) => { if (!open) setConfirmDir(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar dirección</DialogTitle>
+            <DialogDescription>
+              ¿Eliminar la dirección{" "}
+              <strong>
+                {[confirmDir?.calle, confirmDir?.nroPuerta].filter(Boolean).join(" ")}
+              </strong>
+              ? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDir(null)}
+              disabled={remove.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemoveConfirmed}
+              disabled={remove.isPending}
+            >
+              {remove.isPending ? "Eliminando…" : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

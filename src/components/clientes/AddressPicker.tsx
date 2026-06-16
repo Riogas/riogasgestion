@@ -146,7 +146,7 @@ export function AddressPicker({
     const result = puntoEnZona(lat, lng, capasGeoJson);
     setZonaResult(result);
     // Emit zona name via onChange so parent value stays in sync
-    onChangeRef.current({ zona: result.zona ?? null });
+    onChangeRef.current({ zona: result.zona ?? undefined });
     onZonaChangeRef.current?.(result);
   }, [value.lat, value.lng, capasGeoJson]);
 

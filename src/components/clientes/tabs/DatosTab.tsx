@@ -61,8 +61,89 @@ export function DatosTab({ cliente }: DatosTabProps) {
     mode: "onBlur",
   });
 
-  // Reset when client changes (e.g., navigation)
+  // Refs to keep stable access to latest values inside callbacks/cleanup
+  const clienteIdRef = useRef(cliente.id);
+  const dirtyFieldsRef = useRef(dirtyFields);
+  const getValuesRef = useRef(getValues);
   useEffect(() => {
+    clienteIdRef.current = cliente.id;
+    dirtyFieldsRef.current = dirtyFields;
+    getValuesRef.current = getValues;
+  });
+
+  // Shared save executor — used both by debounce and flush-on-unmount
+  const executeSave = useCallback(
+    (dirty: Partial<ClienteFormValues>) => {
+      if (Object.keys(dirty).length === 0) return;
+      setSaveStatus("saving");
+      updateCliente(
+        { id: clienteIdRef.current, dto: dirty },
+        {
+          onSuccess: () => {
+            setSaveStatus("saved");
+            setTimeout(() => setSaveStatus("idle"), 2000);
+          },
+          onError: () => {
+            setSaveStatus("error");
+            setTimeout(() => setSaveStatus("idle"), 3000);
+          },
+        }
+      );
+    },
+    [updateCliente]
+  );
+
+  // Build dirty payload from current form state
+  const buildDirtyPayload = useCallback((): Partial<ClienteFormValues> => {
+    const values = getValuesRef.current();
+    const currentDirty = dirtyFieldsRef.current;
+    const dirty: Partial<ClienteFormValues> = {};
+    for (const key of Object.keys(currentDirty) as (keyof ClienteFormValues)[]) {
+      if (currentDirty[key]) {
+        const v = values[key];
+        (dirty as Record<string, unknown>)[key] = v === "" ? null : v;
+      }
+    }
+    return dirty;
+  }, []);
+
+  const triggerAutosave = useCallback(
+    (dirty: Partial<ClienteFormValues>) => {
+      if (Object.keys(dirty).length === 0) return;
+
+      // Cancel any pending debounce — don't leave status stuck in "saving"
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+
+      // setSaveStatus("saving") happens INSIDE the timeout, not before
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
+        executeSave(dirty);
+      }, 600);
+    },
+    [executeSave]
+  );
+
+  // Flush-on-unmount: if a debounce is pending, save immediately
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+        const dirty = buildDirtyPayload();
+        if (Object.keys(dirty).length > 0) {
+          executeSave(dirty);
+        }
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset when client changes (e.g., navigation) — cancel pending debounce first
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setSaveStatus("idle");
     reset({
       nombre: cliente.nombre,
       apellido: cliente.apellido ?? "",
@@ -78,32 +159,6 @@ export function DatosTab({ cliente }: DatosTabProps) {
       estado: cliente.estado,
     });
   }, [cliente.id, reset]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const triggerAutosave = useCallback(
-    (dirty: Partial<ClienteFormValues>) => {
-      if (Object.keys(dirty).length === 0) return;
-
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      setSaveStatus("saving");
-
-      debounceRef.current = setTimeout(() => {
-        updateCliente(
-          { id: cliente.id, dto: dirty },
-          {
-            onSuccess: () => {
-              setSaveStatus("saved");
-              setTimeout(() => setSaveStatus("idle"), 2000);
-            },
-            onError: () => {
-              setSaveStatus("error");
-              setTimeout(() => setSaveStatus("idle"), 3000);
-            },
-          }
-        );
-      }, 600);
-    },
-    [cliente.id, updateCliente]
-  );
 
   // Collect only dirty fields and autosave on blur
   const handleBlur = useCallback(() => {
@@ -124,26 +179,16 @@ export function DatosTab({ cliente }: DatosTabProps) {
   const handleSelectChange = useCallback(
     (field: keyof ClienteFormValues, value: string) => {
       setValue(field, value as never, { shouldDirty: true });
-      // Trigger save immediately for selects
+      // Cancel pending debounce before scheduling a new one
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      setSaveStatus("saving");
+
+      // setSaveStatus("saving") happens INSIDE the timeout
       debounceRef.current = setTimeout(() => {
-        updateCliente(
-          { id: cliente.id, dto: { [field]: value || null } as Partial<ClienteFormValues> },
-          {
-            onSuccess: () => {
-              setSaveStatus("saved");
-              setTimeout(() => setSaveStatus("idle"), 2000);
-            },
-            onError: () => {
-              setSaveStatus("error");
-              setTimeout(() => setSaveStatus("idle"), 3000);
-            },
-          }
-        );
+        debounceRef.current = null;
+        executeSave({ [field]: value || null } as Partial<ClienteFormValues>);
       }, 600);
     },
-    [cliente.id, setValue, updateCliente]
+    [executeSave, setValue]
   );
 
   return (

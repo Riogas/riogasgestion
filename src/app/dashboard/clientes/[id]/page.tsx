@@ -5,7 +5,6 @@ import { useCliente } from "@/hooks/clientes";
 import { ClienteHeader } from "@/components/clientes/ClienteHeader";
 import { ClienteResumen } from "@/components/clientes/ClienteResumen";
 import { ClienteTabs } from "@/components/clientes/ClienteTabs";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 // ── Skeletons ────────────────────────────────────────────────────────────────
 
@@ -95,9 +94,5 @@ function ClientePageInner() {
 }
 
 export default function EditarClientePage() {
-  return (
-    <NuqsAdapter>
-      <ClientePageInner />
-    </NuqsAdapter>
-  );
+  return <ClientePageInner />;
 }

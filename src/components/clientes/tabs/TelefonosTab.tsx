@@ -20,6 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useTelefonoMutations } from "@/hooks/clientes";
 import {
   type Cliente,
@@ -54,6 +62,7 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
   const { add, update, remove } = useTelefonoMutations(cliente.id);
   const [editing, setEditing] = useState<EditingTel | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [confirmTel, setConfirmTel] = useState<ClienteTelefono | null>(null);
 
   const openNew = () => {
     setEditing({
@@ -113,11 +122,17 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
     }
   };
 
-  const handleRemove = (tel: ClienteTelefono) => {
-    if (!confirm(`¿Eliminar el teléfono ${tel.numero}?`)) return;
-    remove.mutate(tel.id, {
-      onSuccess: () => toast.success("Teléfono eliminado"),
-      onError: () => toast.error("Error al eliminar el teléfono"),
+  const handleRemoveConfirmed = () => {
+    if (!confirmTel) return;
+    remove.mutate(confirmTel.id, {
+      onSuccess: () => {
+        toast.success("Teléfono eliminado");
+        setConfirmTel(null);
+      },
+      onError: () => {
+        toast.error("Error al eliminar el teléfono");
+        setConfirmTel(null);
+      },
     });
   };
 
@@ -182,6 +197,7 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
                 <TableCell>
                   {tel.esPrincipal && (
                     <Star
+                      role="img"
                       className="size-4 text-amber-500 fill-amber-500"
                       aria-label="Principal"
                     />
@@ -203,7 +219,7 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => handleRemove(tel)}
+                      onClick={() => setConfirmTel(tel)}
                       aria-label={`Eliminar teléfono ${tel.numero}`}
                       disabled={isBusy}
                     >
@@ -319,6 +335,34 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
           </div>
         </div>
       )}
+
+      {/* Confirm delete dialog */}
+      <Dialog open={!!confirmTel} onOpenChange={(open) => { if (!open) setConfirmTel(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar teléfono</DialogTitle>
+            <DialogDescription>
+              ¿Eliminar el teléfono <strong>{confirmTel?.numero}</strong>? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmTel(null)}
+              disabled={remove.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemoveConfirmed}
+              disabled={remove.isPending}
+            >
+              {remove.isPending ? "Eliminando…" : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

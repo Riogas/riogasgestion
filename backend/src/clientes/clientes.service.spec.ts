@@ -39,6 +39,13 @@ describe('ClientesService', () => {
     expect(res.fechaAlta).toBeInstanceOf(Date);
   });
 
+  it('create con un teléfono inline → clientes.save recibe telefonos con length 1', async () => {
+    const res = await service.create({ nombre: 'Ana', telefonos: [{ numero: '099111222' }] } as any);
+    expect(clientes.save).toHaveBeenCalled();
+    const savedArg = clientes.save.mock.calls[0][0];
+    expect(savedArg.telefonos).toHaveLength(1);
+  });
+
   it('findOne lanza NotFound si no existe', async () => {
     clientes.findOne.mockResolvedValue(null);
     await expect(service.findOne('x')).rejects.toThrow(NotFoundException);
@@ -62,6 +69,13 @@ describe('ClientesService', () => {
     expect(res).toEqual({ data: [{ id: 'c1' }], total: 1, page: 2, pageSize: 10 });
   });
 
+  it('findAll con search → where es un array (3 ramas ILike)', async () => {
+    clientes.findAndCount.mockResolvedValue([[], 0]);
+    await service.findAll({ search: 'juan' } as any);
+    const callArg = clientes.findAndCount.mock.calls[0][0] as any;
+    expect(Array.isArray(callArg.where)).toBe(true);
+  });
+
   it('update mergea campos y actualiza fechaUltModif', async () => {
     clientes.findOne.mockResolvedValue({ id: 'c1', nombre: 'Viejo' });
     const res = await service.update('c1', { nombre: 'Nuevo' } as any);
@@ -74,6 +88,9 @@ describe('ClientesService', () => {
     const res = await service.remove('c1');
     expect(res).toEqual({ id: 'c1', estado: EstadoCliente.INACTIVO });
     expect(clientes.save).toHaveBeenCalled();
+    // verificar que el objeto guardado tiene fechaUltModif instanceof Date
+    const savedArg = (clientes.save.mock.calls[0][0] as any);
+    expect(savedArg.fechaUltModif).toBeInstanceOf(Date);
   });
 
   it('addTelefono valida que el cliente exista y guarda el teléfono', async () => {
@@ -83,6 +100,7 @@ describe('ClientesService', () => {
     const res = await service.addTelefono('c1', { numero: '099' } as any);
     expect(clientes.findOne).toHaveBeenCalled();
     expect(res).toEqual({ id: 't1', numero: '099' });
+    expect(telefonos.save).toHaveBeenCalledWith(expect.objectContaining({ cliente: { id: 'c1' } }));
   });
 
   it('removeTelefono lanza NotFound si no afecta filas', async () => {

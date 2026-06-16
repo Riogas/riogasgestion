@@ -26,8 +26,12 @@ export class ClientesService {
 
   async create(dto: CreateClienteDto): Promise<Cliente> {
     const now = new Date();
+    const telefonos = (dto.telefonos ?? []).map((t) => this.telefonos.create(t));
+    const direcciones = (dto.direcciones ?? []).map((d) => this.direcciones.create(d));
     const cliente = this.clientes.create({
       ...dto,
+      telefonos,
+      direcciones,
       estado: dto.estado ?? EstadoCliente.ACTIVO,
       fechaAlta: now,
       fechaUltModif: now,

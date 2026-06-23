@@ -110,6 +110,8 @@ export function DireccionesTab({ cliente }: DireccionesTabProps) {
         ...(patch.lat !== undefined && { lat: patch.lat }),
         ...(patch.lng !== undefined && { lng: patch.lng }),
         ...(patch.zona !== undefined && { zona: patch.zona }),
+        ...(patch.departamentoId !== undefined && { departamentoId: patch.departamentoId }),
+        ...(patch.localidadId !== undefined && { localidadId: patch.localidadId }),
       };
     });
   };

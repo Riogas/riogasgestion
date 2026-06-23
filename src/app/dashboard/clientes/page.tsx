@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import ClientesList from "@/components/dashboard/clientes/ClientesList";
 
@@ -10,7 +11,10 @@ export default function ClientesPage() {
         title="Clientes"
         description="Cartera de clientes — alta, edición y zonas asignadas."
       />
-      <ClientesList />
+      {/* Suspense: ClientesList usa nuqs (useSearchParams); evita el CSR bailout en build. */}
+      <Suspense fallback={null}>
+        <ClientesList />
+      </Suspense>
     </div>
   );
 }

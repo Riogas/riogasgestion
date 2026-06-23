@@ -15,18 +15,14 @@ import {
   Users,
   UserCheck,
   UserPlus,
-  Building2,
-  CalendarPlus,
+  Star,
+  Mail,
   SearchX,
   RefreshCw,
   Plus,
 } from "lucide-react";
 import { useClientes } from "@/hooks/clientes";
-import {
-  EstadoCliente,
-  TipoCliente,
-  type Cliente,
-} from "@/lib/types/cliente";
+import { type Cliente } from "@/lib/types/cliente";
 import { AltaSlideOver } from "@/components/clientes/AltaSlideOver";
 import Link from "next/link";
 
@@ -44,31 +40,68 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
+// `estado` es un código CHAR(1) de GeneXus (A=Activo, I=Inactivo, P=Pendiente…).
 
-const ESTADO_BADGE: Record<
-  EstadoCliente,
-  "success" | "secondary" | "warn"
+const ESTADO_META: Record<
+  string,
+  { label: string; variant: "success" | "secondary" | "warn" }
 > = {
-  [EstadoCliente.ACTIVO]: "success",
-  [EstadoCliente.INACTIVO]: "secondary",
-  [EstadoCliente.PENDIENTE]: "warn",
+  A: { label: "Activo", variant: "success" },
+  I: { label: "Inactivo", variant: "secondary" },
+  P: { label: "Pendiente", variant: "warn" },
+  B: { label: "Baja", variant: "secondary" },
 };
 
-const ESTADO_LABEL: Record<EstadoCliente, string> = {
-  [EstadoCliente.ACTIVO]: "Activo",
-  [EstadoCliente.INACTIVO]: "Inactivo",
-  [EstadoCliente.PENDIENTE]: "Pendiente",
-};
+function estadoMeta(code: string | null) {
+  return (
+    (code ? ESTADO_META[code] : undefined) ?? {
+      label: code || "—",
+      variant: "secondary" as const,
+    }
+  );
+}
 
-const TIPO_LABEL: Record<TipoCliente, string> = {
-  [TipoCliente.DOMESTICO]: "Doméstico",
-  [TipoCliente.COMERCIAL]: "Comercial",
-};
+// Verificación de coordenadas: ✓ verde si la calle coincide, ✗ rojo si difiere,
+// — gris si todavía no se verificó la geoinversa.
+function GpsCheck({ c }: { c: Cliente }) {
+  if (c.calleMatch === true) {
+    return (
+      <span
+        className="text-green-600 font-bold"
+        title={`Coincide · ${c.direccion ?? ""}`}
+      >
+        ✓
+      </span>
+    );
+  }
+  if (c.calleMatch === false) {
+    return (
+      <span
+        className="text-red-600 font-bold"
+        title={`Calle distinta · tenía «${c.direccion ?? "?"}» · geoinversa: «${c.calleGeo ?? "?"}»`}
+      >
+        ✗
+      </span>
+    );
+  }
+  return (
+    <span className="text-muted-foreground/50" title="Sin verificar">
+      —
+    </span>
+  );
+}
+
+// Fecha ISO → dd/mm/aaaa (es-UY), "—" si null/ inválida
+function fmtFecha(value: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-UY");
+}
 
 // ─── Column grid template (must match header and rows exactly) ────────────────
 
 const GRID_COLS =
-  "96px 1fr 112px 112px 1fr 144px 80px 112px";
+  "104px 1fr 56px 112px 120px 1fr 72px 112px 120px";
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
@@ -118,27 +151,17 @@ export default function ClientesList() {
     overscan: 10,
   });
 
-  // ── Stats (derived from paginated totals — server-side values not in data)
+  // ── Stats (derivados de la página actual; el total es server-side) ─────────
   const stats: PageStatItem[] = useMemo(() => {
-    const pageActivos = clientes.filter(
-      (c) => c.estado === EstadoCliente.ACTIVO,
-    ).length;
-    const pagePendientes = clientes.filter(
-      (c) => c.estado === EstadoCliente.PENDIENTE,
-    ).length;
-    const pageComerciales = clientes.filter(
-      (c) => c.tipoCliente === TipoCliente.COMERCIAL,
-    ).length;
-    const pageRecientes = clientes.filter((c) => {
-      const days =
-        (Date.now() - new Date(c.createdAt).getTime()) / 86_400_000;
-      return days < 7;
-    }).length;
+    const pageActivos = clientes.filter((c) => c.estado === "A").length;
+    const pagePendientes = clientes.filter((c) => c.estado === "P").length;
+    const pageVip = clientes.filter((c) => c.vip === true).length;
+    const pageEmail = clientes.filter((c) => !!c.email).length;
     return [
       {
         id: "total",
         label: "Total clientes",
-        value: String(total),
+        value: total.toLocaleString("es-UY"),
         icon: Users,
         variant: "primary",
       },
@@ -157,17 +180,17 @@ export default function ClientesList() {
         variant: "warn",
       },
       {
-        id: "comerc",
-        label: "Comerciales (pág.)",
-        value: String(pageComerciales),
-        icon: Building2,
+        id: "vip",
+        label: "VIP (pág.)",
+        value: String(pageVip),
+        icon: Star,
         variant: "primary",
       },
       {
-        id: "rec",
-        label: "Últimos 7 días",
-        value: String(pageRecientes),
-        icon: CalendarPlus,
+        id: "email",
+        label: "Con email (pág.)",
+        value: String(pageEmail),
+        icon: Mail,
         variant: "success",
       },
     ];
@@ -232,7 +255,7 @@ export default function ClientesList() {
         {/* ── Loading skeleton (table is valid HTML — not virtualised) ── */}
         {isLoading && (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm">
+            <table className="w-full min-w-[960px] text-sm">
               <thead>
                 <ColumnHeaders />
               </thead>
@@ -295,7 +318,7 @@ export default function ClientesList() {
               <div className="overflow-x-auto">
                 {/* Sticky column header — div grid */}
                 <div
-                  className="sticky top-0 z-10 bg-background border-b border-border/60 min-w-[900px]"
+                  className="sticky top-0 z-10 bg-background border-b border-border/60 min-w-[960px]"
                   style={{
                     display: "grid",
                     gridTemplateColumns: GRID_COLS,
@@ -303,18 +326,19 @@ export default function ClientesList() {
                 >
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Nro</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre</div>
-                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Tipo</div>
+                  <div className="px-2 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center" title="Verificación GPS: ✓ calle coincide, ✗ calle distinta">GPS</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Estado</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">RUC</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</div>
-                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Teléfono</div>
-                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">#Dir</div>
-                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Últ. modif.</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">Zona</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Alta</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Últ. llamada</div>
                 </div>
 
                 {/* Scrollable virtual container */}
                 <div
                   ref={parentRef}
-                  className="overflow-y-auto min-w-[900px]"
+                  className="overflow-y-auto min-w-[960px]"
                   style={{ maxHeight: "calc(100vh - 420px)", minHeight: 200 }}
                 >
                   {/* Total height spacer for virtualizer */}
@@ -326,12 +350,7 @@ export default function ClientesList() {
                   >
                     {virtualizer.getVirtualItems().map((virtualRow) => {
                       const c = clientes[virtualRow.index];
-                      const primaryPhone =
-                        c.telefonos.find((t) => t.esPrincipal)?.numero ??
-                        c.telefonos[0]?.numero ??
-                        "—";
-                      const estadoVariant =
-                        ESTADO_BADGE[c.estado] ?? "secondary";
+                      const est = estadoMeta(c.estado);
 
                       return (
                         <div
@@ -354,40 +373,33 @@ export default function ClientesList() {
                           }}
                         >
                           <div className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
-                            {c.nroCliente ?? "—"}
+                            {c.id}
                           </div>
                           <div className="px-4 py-2.5 font-medium whitespace-nowrap overflow-hidden text-ellipsis text-sm">
-                            {c.nombre}
-                            {c.apellido ? ` ${c.apellido}` : ""}
+                            {c.nombre || "—"}
                           </div>
-                          <div className="px-4 py-2.5 whitespace-nowrap">
-                            <Badge variant="secondary" className="text-[11px]">
-                              {TIPO_LABEL[c.tipoCliente]}
-                            </Badge>
+                          <div className="px-2 py-2.5 text-center text-sm">
+                            <GpsCheck c={c} />
                           </div>
                           <div className="px-4 py-2.5">
-                            <Badge
-                              variant={estadoVariant}
-                              className="text-[11px]"
-                            >
-                              {ESTADO_LABEL[c.estado]}
+                            <Badge variant={est.variant} className="text-[11px]">
+                              {est.label}
                             </Badge>
+                          </div>
+                          <div className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
+                            {c.ruc || "—"}
                           </div>
                           <div className="px-4 py-2.5 text-muted-foreground overflow-hidden text-ellipsis text-sm whitespace-nowrap">
                             {c.email || "—"}
                           </div>
-                          <div className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-sm">
-                            {primaryPhone}
-                          </div>
                           <div className="px-4 py-2.5 text-center tabular-nums text-muted-foreground text-sm">
-                            {c.direcciones.length}
+                            {c.zona ?? "—"}
                           </div>
                           <div className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
-                            {c.fechaUltModif
-                              ? new Date(c.fechaUltModif).toLocaleDateString(
-                                  "es-UY",
-                                )
-                              : "—"}
+                            {fmtFecha(c.fechaAlta)}
+                          </div>
+                          <div className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                            {fmtFecha(c.fechaUltimaLlamada)}
                           </div>
                         </div>
                       );
@@ -430,12 +442,12 @@ function ColumnHeaders() {
     <tr className="text-left text-xs text-muted-foreground uppercase tracking-wide">
       <th className="px-4 py-3 font-medium w-24">Nro</th>
       <th className="px-4 py-3 font-medium">Nombre</th>
-      <th className="px-4 py-3 font-medium w-28">Tipo</th>
       <th className="px-4 py-3 font-medium w-28">Estado</th>
+      <th className="px-4 py-3 font-medium w-28">RUC</th>
       <th className="px-4 py-3 font-medium">Email</th>
-      <th className="px-4 py-3 font-medium w-36">Teléfono</th>
-      <th className="px-4 py-3 font-medium w-20 text-center">#Dir</th>
-      <th className="px-4 py-3 font-medium w-28">Últ. modif.</th>
+      <th className="px-4 py-3 font-medium w-20 text-center">Zona</th>
+      <th className="px-4 py-3 font-medium w-28">Alta</th>
+      <th className="px-4 py-3 font-medium w-28">Últ. llamada</th>
     </tr>
   );
 }

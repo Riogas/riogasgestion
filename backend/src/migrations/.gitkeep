@@ -1,3 +1,0 @@
-# Migrations directory
-# Las migraciones de TypeORM se generan aquí con:
-# pnpm migration:generate -- src/migrations/NombreMigracion

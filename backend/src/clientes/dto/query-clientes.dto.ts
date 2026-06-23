@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { TipoCliente, EstadoCliente } from '../enums';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryClientesDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
@@ -9,12 +8,17 @@ export class QueryClientesDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   pageSize?: number;
 
+  // Búsqueda libre por nombre / email / ruc
   @IsOptional() @IsString()
   search?: string;
 
-  @IsOptional() @IsEnum(EstadoCliente)
-  estado?: EstadoCliente;
+  // Código de estado (CHAR(1) en origen)
+  @IsOptional() @IsString()
+  estado?: string;
 
-  @IsOptional() @IsEnum(TipoCliente)
-  tipoCliente?: TipoCliente;
+  @IsOptional() @Type(() => Number) @IsInt()
+  zona?: number;
+
+  @IsOptional() @Type(() => Number) @IsInt()
+  tipoId?: number;
 }

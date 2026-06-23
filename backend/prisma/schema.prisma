@@ -1,0 +1,106 @@
+// Prisma schema — base goya (192.168.2.117). Nueva estructura canónica.
+// Modelo Cliente: espejo limpio de GXCALDTA.CLIENTE (AS400/DB2), sin campos AUX.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  // PK = CLIID del AS400 (no autogenerado, se importa con su id original)
+  id Int @id
+
+  // Datos del cliente
+  nombre                    String?   @db.VarChar(60) // CLINOM
+  ruc                       String?   @db.VarChar(12) // CLIRUC (DEC(12) en origen)
+  observaciones             String?   @db.VarChar(200) // CLIOBS
+  email                     String?   @db.VarChar(60) // CLIMAIL
+  estado                    String?   @db.VarChar(1) // CLIESTADO (código)
+  nroGci                    String?   @db.VarChar(6) // CLIGCINRO
+  vip                       Boolean? // CLIVIP (0/1)
+  observacionesComerciales  String?   @db.VarChar(80) // CLIOBSCOM
+
+  // Fechas (CHAR(8) YYYYMMDD en origen → convertidas en el ETL)
+  fechaAlta            DateTime? @db.Date // CLIFCHALTA
+  fecha                DateTime? @db.Date // CLIFCH
+  fechaGeolocalizacion DateTime? @db.Date // DIRFCHGEO
+  fechaUltimaLlamada   DateTime? // CLIULTLLAM (TIMESTMP real)
+
+  // Dirección
+  numeroPuerta           Int?     // NROPUERTA
+  bis                    String?  @db.VarChar(1) // BIS
+  apartamento            String?  @db.VarChar(5) // APTO
+  blockSolar             String?  @db.VarChar(4) // BLOCKSOL
+  nivel                  String?  @db.VarChar(4) // NIVEL
+  local                  String?  @db.VarChar(4) // LOCAL
+  numeroManzana          String?  @db.VarChar(5) // NROMANZ
+  km                     Decimal? @db.Decimal(6, 3) // KM
+  observacionesDireccion String?  @db.VarChar(60) // DIROBS
+  calleEsquina1Id        Int?     // CALESQ1ID
+  calleEsquina2Id        Int?     // CALESQ2ID
+  callePrincipalId       Int?     // CALPRINID
+
+  // Geolocalización
+  coordenadaX    Decimal? @db.Decimal(13, 5) // DIRCORX
+  coordenadaY    Decimal? @db.Decimal(13, 5) // DIRCORY
+  sadCoordenadaX Decimal? @db.Decimal(13, 9) // SADCORX
+  sadCoordenadaY Decimal? @db.Decimal(13, 9) // SADCORY
+  sadAsignadoMovil String? @db.VarChar(1)    // SADASIMOVM
+  icaCoordenadaX Decimal? @db.Decimal(13, 5) // DIRICAX
+  icaCoordenadaY Decimal? @db.Decimal(13, 5) // DIRICAY
+  icaMetodo      Int?     // ICAMET
+  icaSourceId    Int?     // ICASRCID
+  icaSourceCodigo Int?    // ICASRCOD
+  icaPosA        Decimal? @db.Decimal(10, 8) // ICAPOSA
+  icaSofDg       Int?     // ICASOFDG
+
+  // Clasificación / referencias
+  tipoId         Int? // CLITPOPID
+  zona           Int? // CLIZONA
+  radio          Int? // CLIRADIO
+  ultimoPedidoId Int? // CLIPEDID
+  tipoServicioId Int? // CLISERVTID
+
+  // Auditoría operadores (GeneXus)
+  operadorAlta         String? @db.VarChar(15) // CLIOPINS
+  operadorModificacion String? @db.VarChar(15) // CLIOPUPD
+
+  // Verificación de coordenadas / geoinversa (feature 2026-06-23)
+  direccion        String?  @db.VarChar(300) // dirección completa reconstruida (calle+nº+esquinas+solar+km+…)
+  calleGeo         String?  @db.VarChar(150) // calle según geoinversa (Nominatim)
+  numeroPuertaGeo  String?  @db.VarChar(30)  // nº de puerta según geoinversa
+  localidadGeo     String?  @db.VarChar(120) // ciudad/localidad geoinversa
+  departamentoGeo  String?  @db.VarChar(120) // estado/departamento geoinversa
+  cpGeo            String?  @db.VarChar(20)  // código postal geoinversa
+  calleMatch       Boolean? // ✅/❌: la calle geoinversa coincide con la que tenía
+  matchScore       Float?   // similitud 0-1 (debug)
+  geoLat           Decimal? @db.Decimal(10, 7) // coord usada (WGS84 lat)
+  geoLng           Decimal? @db.Decimal(10, 7) // coord usada (WGS84 lon)
+  geoFuente        String?  @db.VarChar(10)  // sad | ica | dircor
+  geoVerificadoAt  DateTime? // cuándo se corrió la geoinversa
+
+  // Metadatos locales (no vienen de GeneXus)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([nombre])
+  @@index([estado])
+  @@index([zona])
+  @@index([calleMatch])
+  @@map("cliente")
+}
+
+// Catálogo de calles (espejo de GXCALDTA.CALLE del AS400). Para resolver
+// callePrincipalId / calleEsquinaNId → nombre, y reconstruir la dirección.
+model Calle {
+  id        Int     @id // CALID
+  nombre    String? @db.VarChar(150) // CALNOM
+  nombreIca String? @db.VarChar(150) // CALNOMICA
+  createdAt DateTime @default(now())
+
+  @@map("calle")
+}

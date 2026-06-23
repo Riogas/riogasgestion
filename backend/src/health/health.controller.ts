@@ -1,15 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
-  constructor(
-    @InjectDataSource()
-    private readonly dataSource: DataSource,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   @Get()
   @ApiOperation({ summary: 'Health check general' })
@@ -20,7 +16,7 @@ export class HealthController {
 
     let dbStatus = 'disconnected';
     try {
-      await this.dataSource.query('SELECT 1');
+      await this.prisma.$queryRaw`SELECT 1`;
       dbStatus = 'connected';
     } catch {
       dbStatus = 'error';
@@ -45,9 +41,9 @@ export class HealthController {
   @ApiResponse({ status: 200, description: 'Base de datos conectada' })
   async checkDb() {
     try {
-      const result = await this.dataSource.query(
-        'SELECT current_database() as db, current_user as usr, version() as ver',
-      );
+      const result = await this.prisma.$queryRaw<
+        Array<{ db: string; usr: string; ver: string }>
+      >`SELECT current_database() as db, current_user as usr, version() as ver`;
       return {
         status: 'connected',
         ...result[0],

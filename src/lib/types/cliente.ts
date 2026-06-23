@@ -48,26 +48,69 @@ export interface ClienteDireccion {
   enZona: boolean | null;
 }
 
+// ─── Cliente — espejo plano de GXCALDTA.CLIENTE (base goya, vía Prisma) ──────
+// `estado` es un código CHAR(1) del AS400 (A=Activo, I=Inactivo, P=Pendiente…).
 export interface Cliente {
-  id: string;
-  nroCliente: number | null;
-  nombre: string;
-  apellido: string | null;
-  tipoCliente: TipoCliente;
-  categoria: CategoriaCliente | null;
-  rutCi: string | null;
-  gci: string | null;
+  id: number;
+  nombre: string | null;
+  ruc: string | null;
+  observaciones: string | null;
   email: string | null;
-  privilegio: string | null;
-  obsCliente: string | null;
-  obsGeneral: string | null;
-  obsComercial: string | null;
-  estado: EstadoCliente;
+  estado: string | null;
+  nroGci: string | null;
+  vip: boolean | null;
+  observacionesComerciales: string | null;
   fechaAlta: string | null;
-  fechaUltModif: string | null;
-  fechaUltCompra: string | null;
-  telefonos: ClienteTelefono[];
-  direcciones: ClienteDireccion[];
+  fecha: string | null;
+  fechaGeolocalizacion: string | null;
+  fechaUltimaLlamada: string | null;
+  // Dirección
+  numeroPuerta: number | null;
+  bis: string | null;
+  apartamento: string | null;
+  blockSolar: string | null;
+  nivel: string | null;
+  local: string | null;
+  numeroManzana: string | null;
+  km: string | null;
+  observacionesDireccion: string | null;
+  calleEsquina1Id: number | null;
+  calleEsquina2Id: number | null;
+  callePrincipalId: number | null;
+  // Geo
+  coordenadaX: string | null;
+  coordenadaY: string | null;
+  sadCoordenadaX: string | null;
+  sadCoordenadaY: string | null;
+  sadAsignadoMovil: string | null;
+  icaCoordenadaX: string | null;
+  icaCoordenadaY: string | null;
+  icaMetodo: number | null;
+  icaSourceId: number | null;
+  icaSourceCodigo: number | null;
+  icaPosA: string | null;
+  icaSofDg: number | null;
+  // Clasificación / referencias
+  tipoId: number | null;
+  zona: number | null;
+  radio: number | null;
+  ultimoPedidoId: number | null;
+  tipoServicioId: number | null;
+  operadorAlta: string | null;
+  operadorModificacion: string | null;
+  // Verificación de coordenadas / geoinversa
+  direccion: string | null;
+  calleGeo: string | null;
+  numeroPuertaGeo: string | null;
+  localidadGeo: string | null;
+  departamentoGeo: string | null;
+  cpGeo: string | null;
+  calleMatch: boolean | null;
+  matchScore: number | null;
+  geoLat: string | null;
+  geoLng: string | null;
+  geoFuente: string | null;
+  geoVerificadoAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,6 +194,7 @@ export interface QueryClientesParams {
   page?: number;
   pageSize?: number;
   search?: string;
-  estado?: EstadoCliente;
-  tipoCliente?: TipoCliente;
+  estado?: string;
+  zona?: number;
+  tipoId?: number;
 }

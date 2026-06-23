@@ -63,3 +63,7 @@ uploads/
 
 # Superpowers brainstorm scratch
 .superpowers/
+
+# Python cache (scripts ETL en backend/prisma)
+__pycache__/
+*.pyc

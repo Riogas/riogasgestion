@@ -26,9 +26,9 @@ const ROUTE_META: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /^\/pedidos\/[^/]+$/, name: 'Detalle de Pedido' },
 ];
 
-// AppId para el body
+// AppId para el body. goya = 2; fallback a 2 si la var no está en el entorno.
 const APP_ID = Number(
-  process.env.NEXT_PUBLIC_APLICACION_ID ?? process.env.APLICACION_ID ?? 0
+  process.env.NEXT_PUBLIC_APLICACION_ID ?? process.env.APLICACION_ID ?? 2
 );
 
 // =========================

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { headers, cookies } from "next/headers";
 import CopyClipboard from "./CopyClipboard";
 import CurrentDateTime from "./CurrentDateTime";
+import SolicitarAccesoButton from "./SolicitarAccesoButton";
 
 type Search = Record<string, string | string[] | undefined>;
 type PageProps = { searchParams: Promise<Search> };
@@ -20,17 +21,6 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
   const h = await headers();
   const c = await cookies();
   const userName = h.get("x-user-name") ?? c.get("userName")?.value ?? "—";
-
-  const adminEmail = "admin@tu-dominio.com";
-  const asunto = encodeURIComponent("Solicitud de acceso a pantalla");
-  const cuerpo  = encodeURIComponent(
-    `Hola,\n\nNecesito acceso a la siguiente pantalla:\n\n` +
-    `Pantalla: ${nombre || ruta || "(desconocido)"}\n` +
-    `Ruta: ${ruta || "(desconocido)"}\n` +
-    `Código: ${codeWithApp}\n` +
-    `Usuario: ${userName}\n\nGracias.`
-  );
-  const mailto = `mailto:${adminEmail}?subject=${asunto}&body=${cuerpo}`;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -88,9 +78,7 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
           <a href="/" className="flex-1 px-5 py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition text-center">
             Volver al inicio
           </a>
-          <a href={mailto} className="flex-1 px-5 py-2 rounded-lg bg-muted text-foreground border border-border font-semibold hover:bg-muted/70 transition text-center">
-            Solicitar acceso
-          </a>
+          <SolicitarAccesoButton code={code} ruta={ruta} nombre={nombre} />
         </div>
       </div>
     </div>

@@ -41,14 +41,17 @@ export const apiLogin = async (
         Password: password,
       };
 
-      const { data } = await api.post("/login", body);
+      // Login vía SecuritySuite (route handler /api/auth/login → secapi /api/db/login).
+      const { data } = await api.post("/auth/login", body);
 
-      // La API devuelve { RespuestaLogin: "{...json...} basura extra" }
-      // El backend GeneXus agrega texto extra después del JSON, hay que extraer solo el JSON
-      const raw = data?.RespuestaLogin ?? "{}";
-      const jsonEnd = raw.lastIndexOf("}");
-      const cleanJson = jsonEnd >= 0 ? raw.substring(0, jsonEnd + 1) : raw;
-      const parsed = JSON.parse(cleanJson);
+      // secapi devuelve JSON limpio { success, token, user, message }.
+      // Fallback: si viniera la forma vieja de GeneXus { RespuestaLogin: "...json+basura" }, parsearla.
+      let parsed: any = data;
+      if (data?.RespuestaLogin) {
+        const raw = data.RespuestaLogin as string;
+        const jsonEnd = raw.lastIndexOf("}");
+        parsed = JSON.parse(jsonEnd >= 0 ? raw.substring(0, jsonEnd + 1) : raw);
+      }
 
       if (!parsed?.success) {
         throw new Error(parsed?.message || "Credenciales inválidas");

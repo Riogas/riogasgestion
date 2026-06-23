@@ -84,8 +84,8 @@ export const apiLogin = async (
 
 // ✅ Menú por rol desde backend
 // 👇 si esto corre en el cliente, SOLO vas a ver NEXT_PUBLIC_*
-// goya = 2. Fallback a 2 si NEXT_PUBLIC_APLICACION_ID no quedó inyectada en el build.
-const APP_ID_GOYA = 2;
+// goya = 3. Fallback a 3 si NEXT_PUBLIC_APLICACION_ID no quedó inyectada en el build.
+const APP_ID_GOYA = 3;
 const APP_ID = Number(process.env.NEXT_PUBLIC_APLICACION_ID ?? APP_ID_GOYA);
 
 function getAppIdSafe(): number {

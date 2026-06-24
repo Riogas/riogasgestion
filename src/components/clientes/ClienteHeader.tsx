@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDeleteCliente } from "@/hooks/clientes";
-import { EstadoCliente, TipoCliente, type Cliente } from "@/lib/types/cliente";
+import { estadoLabel, estadoVariant, type Cliente } from "@/lib/types/cliente";
 import { openClienteCommandMenu } from "./ClienteCommandMenu";
 import {
   MoreHorizontal,
@@ -29,6 +29,7 @@ import {
   UserX,
   MapPin,
   Home,
+  AlertTriangle,
   Command as CommandIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,22 +38,10 @@ interface ClienteHeaderProps {
   cliente: Cliente;
 }
 
-function estadoBadgeVariant(estado: EstadoCliente) {
-  switch (estado) {
-    case EstadoCliente.ACTIVO:
-      return "success" as const;
-    case EstadoCliente.INACTIVO:
-      return "destructive" as const;
-    case EstadoCliente.PENDIENTE:
-      return "warn" as const;
-    default:
-      return "secondary" as const;
-  }
-}
-
-function getInitials(nombre: string, apellido: string | null) {
-  const a = nombre.trim()[0] ?? "";
-  const b = (apellido ?? "").trim()[0] ?? "";
+function getInitials(nombre: string | null) {
+  const parts = (nombre ?? "").trim().split(/\s+/).filter(Boolean);
+  const a = parts[0]?.[0] ?? "";
+  const b = parts[1]?.[0] ?? "";
   return (a + b).toUpperCase() || "??";
 }
 
@@ -61,11 +50,10 @@ export function ClienteHeader({ cliente }: ClienteHeaderProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { mutate: deleteCliente, isPending: isDeleting } = useDeleteCliente();
 
-  const initials = getInitials(cliente.nombre, cliente.apellido);
-  const nombreCompleto = [cliente.nombre, cliente.apellido].filter(Boolean).join(" ");
+  const initials = getInitials(cliente.nombre);
+  const nombreCompleto = cliente.nombre ?? "—";
 
-  const dirPrincipal = cliente.direcciones.find((d) => d.esPrincipal) ?? cliente.direcciones[0];
-  const zonaPrincipal = dirPrincipal?.zona ?? null;
+  const tipoNombre = cliente.tipoClienteNombre ?? null;
 
   const handleBaja = () => {
     deleteCliente(cliente.id, {
@@ -98,33 +86,40 @@ export function ClienteHeader({ cliente }: ClienteHeaderProps) {
               <h1 className="text-base font-semibold text-foreground truncate">
                 {nombreCompleto}
               </h1>
-              {cliente.nroCliente != null && (
-                <span className="text-xs text-muted-foreground font-mono shrink-0">
-                  #{cliente.nroCliente}
-                </span>
-              )}
+              <span className="text-xs text-muted-foreground font-mono shrink-0">
+                #{cliente.id}
+              </span>
             </div>
 
             {/* Badges */}
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <Badge variant={estadoBadgeVariant(cliente.estado)}>
-                {cliente.estado}
+              <Badge variant={estadoVariant(cliente.estado)}>
+                {estadoLabel(cliente.estado)}
               </Badge>
 
-              {zonaPrincipal && (
-                <Badge variant="info" className="gap-1">
-                  <MapPin className="size-3" />
-                  {zonaPrincipal}
+              <Badge variant="info" className="gap-1">
+                <MapPin className="size-3" />
+                {cliente.origen}
+              </Badge>
+
+              {tipoNombre && (
+                <Badge variant="secondary" className="gap-1">
+                  <Home className="size-3" />
+                  {tipoNombre}
                 </Badge>
               )}
 
-              <Badge variant="secondary" className="gap-1">
-                <Home className="size-3" />
-                {cliente.tipoCliente === TipoCliente.DOMESTICO ? "Doméstico" : "Comercial"}
-              </Badge>
+              {cliente.vip && <Badge variant="outline">VIP</Badge>}
 
-              {cliente.categoria && (
-                <Badge variant="outline">{cliente.categoria}</Badge>
+              {cliente.puntosSaldo != null && (
+                <Badge variant="outline">{cliente.puntosSaldo} pts</Badge>
+              )}
+
+              {cliente.dedupRevisar && (
+                <Badge variant="warn" className="gap-1">
+                  <AlertTriangle className="size-3" />
+                  Posible duplicado
+                </Badge>
               )}
             </div>
           </div>

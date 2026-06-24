@@ -31,9 +31,9 @@ export function ClienteResumen({ cliente }: ClienteResumenProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const telPrincipal =
-    cliente.telefonos.find((t) => t.esPrincipal) ?? cliente.telefonos[0];
+    cliente.telefonos.find((t) => t.principal) ?? cliente.telefonos[0];
   const dirPrincipal =
-    cliente.direcciones.find((d) => d.esPrincipal) ?? cliente.direcciones[0];
+    cliente.direcciones.find((d) => d.principal) ?? cliente.direcciones[0];
 
   const telNumero = telPrincipal?.numero ?? null;
   // Build WhatsApp number: strip non-digits, assume UY country code if no +
@@ -134,7 +134,7 @@ export function ClienteResumen({ cliente }: ClienteResumenProps) {
             <p className="text-xs text-muted-foreground mb-2 truncate">
               {[
                 dirPrincipal.calle,
-                dirPrincipal.nroPuerta,
+                dirPrincipal.nro,
                 dirPrincipal.esquina1 ? `esq. ${dirPrincipal.esquina1}` : null,
               ]
                 .filter(Boolean)
@@ -145,7 +145,7 @@ export function ClienteResumen({ cliente }: ClienteResumenProps) {
                 departamento={undefined}
                 localidad={undefined}
                 direccion={dirPrincipal.calle ?? ""}
-                nroPuerta={dirPrincipal.nroPuerta ?? ""}
+                nroPuerta={dirPrincipal.nro ?? ""}
                 esquina1={dirPrincipal.esquina1 ?? ""}
                 esquina2={dirPrincipal.esquina2 ?? ""}
                 zonas={[]}
@@ -161,11 +161,14 @@ export function ClienteResumen({ cliente }: ClienteResumenProps) {
             Dato maestro
           </h3>
           <dl className="space-y-1.5 text-xs">
-            {cliente.rutCi && (
-              <DataRow icon={<User className="size-3.5" />} label="RUT/CI" value={cliente.rutCi} />
+            {cliente.ruc && (
+              <DataRow icon={<User className="size-3.5" />} label="RUC" value={cliente.ruc} />
             )}
-            {cliente.gci && (
-              <DataRow icon={<Hash className="size-3.5" />} label="GCI" value={cliente.gci} />
+            {cliente.cedula && (
+              <DataRow icon={<User className="size-3.5" />} label="Cédula" value={cliente.cedula} />
+            )}
+            {cliente.gciNro && (
+              <DataRow icon={<Hash className="size-3.5" />} label="GCI" value={cliente.gciNro} />
             )}
             <DataRow
               icon={<Calendar className="size-3.5" />}

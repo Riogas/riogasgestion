@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,13 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateCliente } from "@/hooks/clientes";
+import { getTiposCliente, getCategoriasPrecio } from "@/services/catalogos";
 import {
   clienteSchema,
   type ClienteFormValues,
   type Cliente,
-  TipoCliente,
-  CategoriaCliente,
-  EstadoCliente,
 } from "@/lib/types/cliente";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +28,23 @@ interface DatosTabProps {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+const NONE = "__none__";
+
 export function DatosTab({ cliente }: DatosTabProps) {
   const { mutate: updateCliente } = useUpdateCliente();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: tipos = [] } = useQuery({
+    queryKey: ["catalogos", "tipos-cliente"],
+    queryFn: getTiposCliente,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: categorias = [] } = useQuery({
+    queryKey: ["catalogos", "categorias-precio"],
+    queryFn: getCategoriasPrecio,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const {
     register,
@@ -41,27 +53,23 @@ export function DatosTab({ cliente }: DatosTabProps) {
     watch,
     setValue,
     reset,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useForm<ClienteFormValues>({
-    resolver: zodResolver(clienteSchema) as any,
+    resolver: zodResolver(clienteSchema) as never,
     defaultValues: {
-      nombre: cliente.nombre,
-      apellido: cliente.apellido ?? "",
+      nombre: cliente.nombre ?? "",
+      ruc: cliente.ruc ?? "",
+      cedula: cliente.cedula ?? "",
       email: cliente.email ?? "",
-      tipoCliente: cliente.tipoCliente,
-      categoria: cliente.categoria ?? undefined,
-      rutCi: cliente.rutCi ?? "",
-      gci: cliente.gci ?? "",
-      privilegio: cliente.privilegio ?? "",
-      obsCliente: cliente.obsCliente ?? "",
-      obsGeneral: cliente.obsGeneral ?? "",
-      obsComercial: cliente.obsComercial ?? "",
-      estado: cliente.estado,
+      tipoClienteId: cliente.tipoClienteId ?? null,
+      categoriaPrecioId: cliente.categoriaPrecioId ?? null,
+      estado: cliente.estado ?? "A",
+      vip: cliente.vip ?? false,
+      observaciones: cliente.observaciones ?? "",
+      observacionesComerc: cliente.observacionesComerc ?? "",
     },
     mode: "onBlur",
   });
 
-  // Refs to keep stable access to latest values inside callbacks/cleanup
   const clienteIdRef = useRef(cliente.id);
   const dirtyFieldsRef = useRef(dirtyFields);
   const getValuesRef = useRef(getValues);
@@ -71,7 +79,6 @@ export function DatosTab({ cliente }: DatosTabProps) {
     getValuesRef.current = getValues;
   });
 
-  // Shared save executor — used both by debounce and flush-on-unmount
   const executeSave = useCallback(
     (dirty: Partial<ClienteFormValues>) => {
       if (Object.keys(dirty).length === 0) return;
@@ -87,13 +94,12 @@ export function DatosTab({ cliente }: DatosTabProps) {
             setSaveStatus("error");
             setTimeout(() => setSaveStatus("idle"), 3000);
           },
-        }
+        },
       );
     },
-    [updateCliente]
+    [updateCliente],
   );
 
-  // Build dirty payload from current form state
   const buildDirtyPayload = useCallback((): Partial<ClienteFormValues> => {
     const values = getValuesRef.current();
     const currentDirty = dirtyFieldsRef.current;
@@ -110,20 +116,15 @@ export function DatosTab({ cliente }: DatosTabProps) {
   const triggerAutosave = useCallback(
     (dirty: Partial<ClienteFormValues>) => {
       if (Object.keys(dirty).length === 0) return;
-
-      // Cancel any pending debounce — don't leave status stuck in "saving"
       if (debounceRef.current) clearTimeout(debounceRef.current);
-
-      // setSaveStatus("saving") happens INSIDE the timeout, not before
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
         executeSave(dirty);
       }, 600);
     },
-    [executeSave]
+    [executeSave],
   );
 
-  // Flush-on-unmount: if a debounce is pending, save immediately
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
@@ -137,7 +138,6 @@ export function DatosTab({ cliente }: DatosTabProps) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset when client changes (e.g., navigation) — cancel pending debounce first
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -145,61 +145,56 @@ export function DatosTab({ cliente }: DatosTabProps) {
     }
     setSaveStatus("idle");
     reset({
-      nombre: cliente.nombre,
-      apellido: cliente.apellido ?? "",
+      nombre: cliente.nombre ?? "",
+      ruc: cliente.ruc ?? "",
+      cedula: cliente.cedula ?? "",
       email: cliente.email ?? "",
-      tipoCliente: cliente.tipoCliente,
-      categoria: cliente.categoria ?? undefined,
-      rutCi: cliente.rutCi ?? "",
-      gci: cliente.gci ?? "",
-      privilegio: cliente.privilegio ?? "",
-      obsCliente: cliente.obsCliente ?? "",
-      obsGeneral: cliente.obsGeneral ?? "",
-      obsComercial: cliente.obsComercial ?? "",
-      estado: cliente.estado,
+      tipoClienteId: cliente.tipoClienteId ?? null,
+      categoriaPrecioId: cliente.categoriaPrecioId ?? null,
+      estado: cliente.estado ?? "A",
+      vip: cliente.vip ?? false,
+      observaciones: cliente.observaciones ?? "",
+      observacionesComerc: cliente.observacionesComerc ?? "",
     });
   }, [cliente.id, reset]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Collect only dirty fields and autosave on blur
   const handleBlur = useCallback(() => {
     const values = getValues();
     const dirty: Partial<ClienteFormValues> = {};
     for (const key of Object.keys(dirtyFields) as (keyof ClienteFormValues)[]) {
       if (dirtyFields[key]) {
         const v = values[key];
-        // Convert empty strings back to null for optional fields
-        (dirty as Record<string, unknown>)[key] =
-          v === "" ? null : v;
+        (dirty as Record<string, unknown>)[key] = v === "" ? null : v;
       }
     }
     triggerAutosave(dirty);
   }, [dirtyFields, getValues, triggerAutosave]);
 
-  // For Select fields that don't have onBlur naturally
-  const handleSelectChange = useCallback(
-    (field: keyof ClienteFormValues, value: string) => {
+  const handleSelectSave = useCallback(
+    (field: keyof ClienteFormValues, value: unknown) => {
       setValue(field, value as never, { shouldDirty: true });
-      // Cancel pending debounce before scheduling a new one
       if (debounceRef.current) clearTimeout(debounceRef.current);
-
-      // setSaveStatus("saving") happens INSIDE the timeout
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
-        executeSave({ [field]: value || null } as Partial<ClienteFormValues>);
-      }, 600);
+        executeSave({ [field]: value } as Partial<ClienteFormValues>);
+      }, 400);
     },
-    [executeSave, setValue]
+    [executeSave, setValue],
   );
+
+  const tipoValue = watch("tipoClienteId");
+  const categoriaValue = watch("categoriaPrecioId");
+  const estadoValue = watch("estado");
+  const vipValue = watch("vip");
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Save indicator */}
       <div
         aria-live="polite"
         aria-atomic="true"
         className={cn(
           "text-xs transition-opacity duration-200",
-          saveStatus === "idle" ? "opacity-0" : "opacity-100"
+          saveStatus === "idle" ? "opacity-0" : "opacity-100",
         )}
       >
         {saveStatus === "saving" && (
@@ -219,74 +214,20 @@ export function DatosTab({ cliente }: DatosTabProps) {
           Identificación
         </legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            label="Nombre"
-            id="nombre"
-            required
-            error={errors.nombre?.message}
-          >
-            <Input
-              id="nombre"
-              {...register("nombre")}
-              onBlur={handleBlur}
-              aria-required="true"
-              aria-invalid={!!errors.nombre}
-              aria-describedby={errors.nombre ? "nombre-error" : undefined}
-            />
-            {errors.nombre && (
-              <FieldError id="nombre-error" message={errors.nombre.message!} />
-            )}
-          </FormField>
-
-          <FormField label="Apellido" id="apellido" error={errors.apellido?.message}>
-            <Input
-              id="apellido"
-              {...register("apellido")}
-              onBlur={handleBlur}
-              aria-invalid={!!errors.apellido}
-              aria-describedby={errors.apellido ? "apellido-error" : undefined}
-            />
-            {errors.apellido && (
-              <FieldError id="apellido-error" message={errors.apellido.message!} />
-            )}
+          <FormField label="Nombre" id="nombre" required error={errors.nombre?.message}>
+            <Input id="nombre" {...register("nombre")} onBlur={handleBlur} aria-required="true" />
           </FormField>
 
           <FormField label="Email" id="email" error={errors.email?.message}>
-            <Input
-              id="email"
-              type="email"
-              {...register("email")}
-              onBlur={handleBlur}
-              aria-invalid={!!errors.email}
-              aria-describedby={errors.email ? "email-error" : undefined}
-            />
-            {errors.email && (
-              <FieldError id="email-error" message={errors.email.message!} />
-            )}
+            <Input id="email" type="email" {...register("email")} onBlur={handleBlur} />
           </FormField>
 
-          <FormField label="RUT / CI" id="rutCi">
-            <Input
-              id="rutCi"
-              {...register("rutCi")}
-              onBlur={handleBlur}
-            />
+          <FormField label="RUC" id="ruc">
+            <Input id="ruc" {...register("ruc")} onBlur={handleBlur} />
           </FormField>
 
-          <FormField label="GCI Nº" id="gci">
-            <Input
-              id="gci"
-              {...register("gci")}
-              onBlur={handleBlur}
-            />
-          </FormField>
-
-          <FormField label="Privilegio" id="privilegio">
-            <Input
-              id="privilegio"
-              {...register("privilegio")}
-              onBlur={handleBlur}
-            />
+          <FormField label="Cédula" id="cedula">
+            <Input id="cedula" {...register("cedula")} onBlur={handleBlur} />
           </FormField>
         </div>
       </fieldset>
@@ -297,53 +238,76 @@ export function DatosTab({ cliente }: DatosTabProps) {
           Clasificación
         </legend>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <FormField label="Tipo cliente" id="tipoCliente" required>
+          <FormField label="Tipo cliente" id="tipoClienteId">
             <Select
-              value={watch("tipoCliente")}
-              onValueChange={(v) => handleSelectChange("tipoCliente", v)}
+              value={tipoValue != null ? String(tipoValue) : NONE}
+              onValueChange={(v) =>
+                handleSelectSave("tipoClienteId", v === NONE ? null : Number(v))
+              }
             >
-              <SelectTrigger id="tipoCliente">
+              <SelectTrigger id="tipoClienteId">
                 <SelectValue placeholder="Seleccionar" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={TipoCliente.DOMESTICO}>Doméstico</SelectItem>
-                <SelectItem value={TipoCliente.COMERCIAL}>Comercial</SelectItem>
+                <SelectItem value={NONE}>— Sin tipo —</SelectItem>
+                {tipos.map((t) => (
+                  <SelectItem key={t.id} value={String(t.id)}>
+                    {t.descripcion ?? `Tipo ${t.id}`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FormField>
 
-          <FormField label="Categoría" id="categoria">
+          <FormField label="Categoría precio" id="categoriaPrecioId">
             <Select
-              value={watch("categoria") ?? ""}
-              onValueChange={(v) => handleSelectChange("categoria", v)}
+              value={categoriaValue != null ? String(categoriaValue) : NONE}
+              onValueChange={(v) =>
+                handleSelectSave("categoriaPrecioId", v === NONE ? null : Number(v))
+              }
             >
-              <SelectTrigger id="categoria">
+              <SelectTrigger id="categoriaPrecioId">
                 <SelectValue placeholder="Seleccionar" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— Sin categoría —</SelectItem>
-                <SelectItem value={CategoriaCliente.RESIDENCIAL}>Residencial</SelectItem>
-                <SelectItem value={CategoriaCliente.COMERCIAL}>Comercial</SelectItem>
-                <SelectItem value={CategoriaCliente.INDUSTRIAL}>Industrial</SelectItem>
+                <SelectItem value={NONE}>— Sin categoría —</SelectItem>
+                {categorias.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.nombre ?? `Categoría ${c.id}`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FormField>
 
           <FormField label="Estado" id="estado" required>
             <Select
-              value={watch("estado")}
-              onValueChange={(v) => handleSelectChange("estado", v)}
+              value={estadoValue ?? "A"}
+              onValueChange={(v) => handleSelectSave("estado", v)}
             >
               <SelectTrigger id="estado">
                 <SelectValue placeholder="Seleccionar" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={EstadoCliente.ACTIVO}>Activo</SelectItem>
-                <SelectItem value={EstadoCliente.INACTIVO}>Inactivo</SelectItem>
-                <SelectItem value={EstadoCliente.PENDIENTE}>Pendiente</SelectItem>
+                <SelectItem value="A">Activo</SelectItem>
+                <SelectItem value="I">Inactivo</SelectItem>
+                <SelectItem value="P">Pendiente</SelectItem>
               </SelectContent>
             </Select>
           </FormField>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="vip"
+            checked={!!vipValue}
+            onChange={(e) => handleSelectSave("vip", e.target.checked)}
+            className="rounded border-border"
+          />
+          <Label htmlFor="vip" className="text-sm cursor-pointer">
+            Cliente VIP
+          </Label>
         </div>
       </fieldset>
 
@@ -353,30 +317,20 @@ export function DatosTab({ cliente }: DatosTabProps) {
           Observaciones
         </legend>
         <div className="space-y-4">
-          <FormField label="Obs. cliente" id="obsCliente">
+          <FormField label="Observaciones" id="observaciones">
             <textarea
-              id="obsCliente"
-              {...register("obsCliente")}
+              id="observaciones"
+              {...register("observaciones")}
               onBlur={handleBlur}
               rows={3}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
             />
           </FormField>
 
-          <FormField label="Obs. general" id="obsGeneral">
+          <FormField label="Obs. comercial" id="observacionesComerc">
             <textarea
-              id="obsGeneral"
-              {...register("obsGeneral")}
-              onBlur={handleBlur}
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-            />
-          </FormField>
-
-          <FormField label="Obs. comercial" id="obsComercial">
-            <textarea
-              id="obsComercial"
-              {...register("obsComercial")}
+              id="observacionesComerc"
+              {...register("observacionesComerc")}
               onBlur={handleBlur}
               rows={3}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
@@ -387,8 +341,6 @@ export function DatosTab({ cliente }: DatosTabProps) {
     </div>
   );
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function FormField({
   label,
@@ -407,18 +359,18 @@ function FormField({
     <div className="space-y-1">
       <Label htmlFor={id} className="text-sm">
         {label}
-        {required && <span className="text-destructive ml-0.5" aria-hidden="true">*</span>}
+        {required && (
+          <span className="text-destructive ml-0.5" aria-hidden="true">
+            *
+          </span>
+        )}
       </Label>
       {children}
-      {error && <FieldError id={`${id}-error`} message={error} />}
+      {error && (
+        <p id={`${id}-error`} role="alert" className="text-xs text-destructive mt-0.5">
+          {error}
+        </p>
+      )}
     </div>
-  );
-}
-
-function FieldError({ id, message }: { id: string; message: string }) {
-  return (
-    <p id={id} role="alert" className="text-xs text-destructive mt-0.5">
-      {message}
-    </p>
   );
 }

@@ -94,9 +94,9 @@ export function ClienteCommandMenu({ cliente }: ClienteCommandMenuProps) {
 
   // Teléfono principal
   const telPrincipal =
-    cliente.telefonos.find((t) => t.esPrincipal) ?? cliente.telefonos[0] ?? null;
+    cliente.telefonos.find((t) => t.principal) ?? cliente.telefonos[0] ?? null;
 
-  const nombreCompleto = [cliente.nombre, cliente.apellido].filter(Boolean).join(" ");
+  const nombreCompleto = cliente.nombre ?? "—";
 
   return (
     <div

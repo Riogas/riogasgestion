@@ -66,6 +66,8 @@ puesto  (catálogo ya existente en goya)
 
 Patrón: PK surrogate `id @default(autoincrement())`, `origen` (`interior`|`capital`), `idOriginal` (PK del AS400), `@@unique([origen, idOriginal])`. Coords capital en UTM 21S (EPSG:32721) → WGS84 en el ETL (igual que clientes). Tablas `@@map` en snake_case.
 
+**Nombres amigables (regla):** los atributos en Postgres usan **nombres claros en español** (`latitud`/`longitud`, `nombre`, `telefono`, `capacidadLote`, `matricula`…), NUNCA los códigos crípticos del AS400 (`MOVBOD13TOPE`, `EFLNOM`…). El nombre AS400 de origen aparece solo como comentario de mapeo en esta spec y en el ETL; la trazabilidad al registro original va en `idOriginal`/`origen`.
+
 ### empresa_fletera (`EFLETERA` interior + capital)
 ```
 id, origen, idOriginal(EFLID), puestoId(FK puesto),
@@ -88,7 +90,7 @@ marca?(MOVMARCA), modelo?(MOVMODELO), matricula?(MOVMAT), telefono?(MOVTELFNRO),
 capacidadLote?(interior MOVBOD13TOPE | capital MOVT1/MOVT2 tamaño-lote),
 servicioPrincipalTxt?(interior MOVSERVPRINCIPAL | capital MOVTPOSERI), tipoServicio?(capital MOVTPOSERI),
 rutea?(capital MOVRUTEA S/N), pedidosPendientes?(capital MOVPEDPEND | interior MOVPEDLOTE),
-lat?, lng?(interior MOVULTCOORDX/Y dec | capital MOVX/MOVY o MOVACTENX/Y UTM→WGS84),
+latitud?, longitud?(interior MOVULTCOORDX/Y | capital MOVX/MOVY UTM→WGS84; MOVX/Y se actualiza con la posición),
 ultPosicionAt?(capital MOVPOSFCHA | interior MOVULTMODIFICACION),
 gpsMovId?(interior MOVGPSMOVID | capital MOVGPS), tieneGps?, gpsReportando?(capital MOVGPSOK),
 distanciaMaxMts?(interior MOVDISTANCIAMAXMTSCUMPPEDIDOS),
@@ -115,10 +117,17 @@ zonaId(ESCZONAID), tipo(ESCZONTPO), flag?(ESCZONFLAG)
 @@index([movilId]); @@index([zonaId])
 ```
 
+### servicio (catálogo, `GXCALDTA.SERVICIO`)
+```
+id, origen, idOriginal(SERID), nombre(SERNOM)
+@@unique([origen, idOriginal])
+// poblado desde GXCALDTA.SERVICIO; movil_servicio.servicioId resuelve vía (origen,idOriginal=MOVSERID)
+```
+
 ### movil_servicio (`MOVSERV` capital) — M:N móvil↔servicio
 ```
-id, movilId(FK movil), origen, servicioCodigo(MOVSERID)  // sin catálogo nombre (ver ambigüedad #1)
-@@index([movilId])
+id, movilId(FK movil), origen, servicioId(FK servicio; MOVSERID→servicio.idOriginal)
+@@index([movilId]); @@index([servicioId])
 ```
 
 ### movil_bodega (`MOVBODEG` capital / `MOVBODEGALEVEL1` interior vacía) — capacidad por producto
@@ -152,7 +161,7 @@ movil_horario_excepcion: id, horarioId(FK), horaDesde?(MOVHEHORDE), horaHasta?(M
 ### movil_destino (`MOVDESTI` capital) — puntos de reubicación
 ```
 id, origen, idOriginal(MOVDESTID), nombre(MOVDESTNOM),
-lat?, lng?(MOVDESTX/Y UTM→WGS84), direccion?(MOVDESTOBS)
+latitud?, longitud?(MOVDESTX/Y UTM→WGS84), direccion?(MOVDESTOBS)
 @@unique([origen, idOriginal])
 ```
 
@@ -181,10 +190,11 @@ usuario?(MOVHISTUSE), detalle?(MOVHISTDSC)
 
 Orden (respeta FKs):
 1. `etl_movil_estados.py` — `MOVESTADO`(interior)+`MOVESTAD`(capital) → `movil_estado`.
+1b. `etl_servicios.py` — `GXCALDTA.SERVICIO` (`SERID`→`SERNOM`) → `servicio` (catálogo).
 2. `etl_fleteras.py` — `EFLETERA`(interior+capital) → `empresa_fletera`. Capital: `puestoId=100`, `baseOperativa=EFLUSER`, resolver `direccion` desde `EFLCALID`+`EFLNROPUER` vía catálogo `calle`. Interior: `puestoId=EFLPUESTOID`.
 3. `etl_movil_destinos.py` — `MOVDESTI`(capital) → `movil_destino` (UTM→WGS84).
 4. `etl_moviles.py` — `MOVILES`(interior+capital) → `movil`. Resolver `fleteraId` vía `(origen, idOriginal=MOVEFLID)`; huérfano interior → null + log. Capital `puestoId=100`. Coords UTM→WGS84. `destinoId` vía `(origen, idOriginal=MOVDESTID)`.
-5. Sub-dominios capital (dependen de `movil`): `etl_movil_zonas.py`, `etl_movil_servicios.py`, `etl_movil_bodega_stock.py`, `etl_movil_horarios.py`, `etl_movil_ica.py`, `etl_movil_cantidades.py`.
+5. Sub-dominios capital (dependen de `movil`): `etl_movil_zonas.py`, `etl_movil_servicios.py` (resuelve `servicioId` vía `(origen,idOriginal=MOVSERID)`), `etl_movil_bodega_stock.py`, `etl_movil_horarios.py`, `etl_movil_ica.py`, `etl_movil_cantidades.py`.
 6. `etl_cliente_movil.py` — `CLIMOVIL`(capital) → `cliente_movil`. Resolver `clienteId` vía `cliente_uni(origen='capital', idOriginal=CLIID)`; `CLIID=0`→null; `movilId` vía `(origen='capital', idOriginal=CLIMOVID)`.
 7. `movil_historico` — crear tabla, NO ejecutar bulk.
 
@@ -194,7 +204,7 @@ Cada ETL: `DELETE WHERE origen=...` antes de insertar (re-ejecutable), `execute_
 
 - **Fletera huérfana (interior, 1 móvil):** `fleteraId=null` + log. No se crea fletera placeholder.
 - **CLIID=0 en CLIMOVIL:** `clienteId=null` (móvil genérico/sin cliente).
-- **Coords capital:** preferir `MOVACTENX/Y` (posición actual) si válidas; fallback `MOVX/Y`. Validar rango Uruguay (igual criterio que clientes) antes de convertir; fuera de rango → null.
+- **Coords capital:** usar `MOVX/Y` (se actualiza con la posición). Validar rango Uruguay (igual criterio que clientes) antes de convertir a `latitud`/`longitud`; fuera de rango → null.
 - **`MOVSERV.MOVSERID` sin catálogo de nombre:** se guarda el código; el nombre se resuelve en una fase posterior (ver ambigüedad #1).
 - **`MOVASOCR` (sin columna móvil clara):** NO se modela en esta fase (ver ambigüedad #2).
 - **Campos `MOVAUX*`/`MOVEXT*` genéricos GeneXus:** se omiten (mayormente vacíos); se revisan si surge necesidad.
@@ -208,12 +218,12 @@ Cada ETL: `DELETE WHERE origen=...` antes de insertar (re-ejecutable), `execute_
 
 ## Ambigüedades abiertas (a resolver durante implementación / con negocio)
 
-1. **`MOVSERV.MOVSERID` → nombre de servicio:** el catálogo de tipos de servicio no está en las tablas MOV*; probablemente en otra librería/tabla (`SERVICIO`?). Se migra el código; el nombre queda pendiente.
+1. **RESUELTO — `MOVSERV.MOVSERID` → servicio:** catálogo `servicio` desde `GXCALDTA.SERVICIO` (`SERID`→`SERNOM`); `movil_servicio.servicioId` con FK al catálogo.
 2. **`MOVASOCR`:** las 3 columnas vistas (FCHI/OPER/FCHF) no incluyen `MOVID` explícito. Confirmar cómo liga al móvil antes de modelarla (excluida por ahora).
 3. **Espacio de ids de zona:** `MOVZONAS.ESCZONAID` (capital) vs el catálogo `zona` ya migrado (280, per-puesto). Confirmar si comparten id-space o requieren mapeo antes de poner FK dura (por ahora `zonaId` sin FK forzada).
 4. **Redundancia puesto↔fletera:** `movil.puestoId` (de `MOVPUESTOID`) puede no coincidir con el puesto de su fletera. Se conservan ambos; verificar consistencia.
-5. **`EFLESTADO`/`estado` `A`/`P`:** significado de `P` (¿pendiente? ¿pasivo?) a confirmar con negocio (se guarda crudo).
-6. **Coords capital `MOVX/Y` vs `MOVACTENX/Y`:** confirmar cuál es la "última posición" operativa.
+5. **RESUELTO — `EFLESTADO` `P` = pasivo** (se guarda crudo `A`/`P`; etiqueta `P`→pasivo en UI).
+6. **RESUELTO — coords capital = `MOVX/Y`** (se actualiza con la posición); se convierte a `latitud`/`longitud`.
 7. **Descripciones GeneXus ausentes en DB2** (TABLE_TEXT/COLUMN_TEXT NULL): semántica fina inferida de nombres+samples; validar con usuario funcional.
 
 ## Fases siguientes (NO en esta spec)

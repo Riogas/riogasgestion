@@ -1,7 +1,8 @@
 // menuApp → SecuritySuite (secapi), mismo patrón que el login.
-// El front postea acá; reenvía a {SECAPI_URL}/api/Menu (GeneXus, fuente principal
-// del sidebar) con el token de la cookie + { AplicacionId }.
-// Alternativa limpia disponible en secapi: GET /api/db/menu (no usada acá).
+// El front postea acá; este handler consulta GET {SECAPI_URL}/api/db/menu?aplicacionId=N
+// con el token de la cookie (el menú es por usuario/app). Devuelve { success, menu:[...] }
+// con la forma que mapMenuItem ya entiende (key/label/path/icon/type/order/children).
+// (El POST /api/Menu de GeneXus devuelve vacío para goya; por eso usamos /api/db/menu.)
 import { NextRequest, NextResponse } from "next/server";
 
 const SECAPI_URL = (
@@ -26,13 +27,12 @@ export async function POST(req: NextRequest) {
   const aplicacionId = Number(body?.AplicacionId) > 0 ? Number(body.AplicacionId) : APP_ID;
 
   try {
-    const res = await fetch(`${SECAPI_URL}/api/Menu`, {
-      method: "POST",
+    const res = await fetch(`${SECAPI_URL}/api/db/menu?aplicacionId=${aplicacionId}`, {
+      method: "GET",
       headers: {
-        "Content-Type": "application/json",
+        Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ AplicacionId: aplicacionId }),
       signal: AbortSignal.timeout(20000),
     });
 

@@ -194,9 +194,10 @@ export const apiGetMenuByRole = async (role: Role): Promise<MenuItem[]> => {
     "/menuApp",
     async () => {
       const body = { AplicacionId: appId };
-      console.log("[api.menuApp] POST /menuApp body=", body, "role=", role);
+      console.log("[api.menuApp] POST /auth/menuApp body=", body, "role=", role);
 
-      const { data } = await api.post("/menuApp", body);
+      // menuApp ahora va a SecuritySuite (secapi) vía route handler, igual que el login.
+      const { data } = await api.post("/auth/menuApp", body);
       console.log("[api.menuApp] raw axios data keys=", typeof data === "object" ? Object.keys(data || {}) : typeof data);
 
       const parsed = safeParseMenuEnvelope(data);

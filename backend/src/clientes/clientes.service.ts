@@ -39,7 +39,13 @@ export class ClientesService {
         include: { direcciones: { where: { principal: true }, take: 1 } },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: { id: 'asc' },
+        // Más recientes primero por última llamada (nulls al final);
+        // id desc como desempate estable. Apoyado por el índice
+        // (estado, ultimaLlamada DESC) para evitar el full sort.
+        orderBy: [
+          { ultimaLlamada: { sort: 'desc', nulls: 'last' } },
+          { id: 'desc' },
+        ],
       }),
       this.prisma.clienteUni.count({ where }),
     ]);

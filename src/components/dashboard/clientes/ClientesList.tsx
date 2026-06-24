@@ -98,7 +98,9 @@ export default function ClientesList() {
     "ps",
     parseAsInteger.withDefault(20),
   );
-  const [estado, setEstado] = useQueryState("estado", parseAsString.withDefault(""));
+  // Por defecto filtra Activos (reduce el set de 1.13M y acelera la lista).
+  // El usuario puede elegir "Estado: todos" para ver todo.
+  const [estado, setEstado] = useQueryState("estado", parseAsString.withDefault("A"));
   const [origen, setOrigen] = useQueryState("origen", parseAsString.withDefault(""));
 
   // ── Debounced search → params ─────────────────────────────────────────────

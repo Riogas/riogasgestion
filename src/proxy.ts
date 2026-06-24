@@ -11,9 +11,13 @@ const DEBUG = process.env.DEBUG_MW === '1';
 // Rutas públicas que no requieren permisos
 const PUBLIC_PATHS = ['/', '/login', '/no-autorizado', '/dashboard'];
 
-// API de permisos (¡no usa rewrites!)
-const PERMISOS_API_URL =
-  process.env.PERMISOS_API_URL || 'http://localhost:8082/permisos';
+// API de permisos: ahora vía secapi (SecuritySuite), igual que login/menú.
+const SECAPI_URL = (
+  process.env.SECAPI_URL || 'https://secapi-dev.glp.riogas.com.uy'
+).replace(/\/$/, '');
+// Nombre de la aplicación registrada en SecuritySuite (NO el id numérico).
+const PERMISOS_APLICACION =
+  process.env.PERMISOS_APLICACION || process.env.LOGIN_SISTEMA || 'GOYA';
 
 // Salt para generar códigos de pantalla (cambiarlo regenera todos los códigos)
 const ROUTE_SALT = process.env.ROUTE_SALT ?? 's';
@@ -25,11 +29,6 @@ const ROUTE_META: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /^\/pedidos$/, name: 'Pedidos' },
   { pattern: /^\/pedidos\/[^/]+$/, name: 'Detalle de Pedido' },
 ];
-
-// AppId para el body. goya = 3; fallback a 3 si la var no está en el entorno.
-const APP_ID = Number(
-  process.env.NEXT_PUBLIC_APLICACION_ID ?? process.env.APLICACION_ID ?? 3
-);
 
 // =========================
 // Utils (scope de módulo)
@@ -92,23 +91,27 @@ function decodeJwtPayload(token: string): any | null {
 // =========================
 async function apiCheckPermisoEdge(
   pathname: string,
-  code: string,
+  _code: string,
   token: string
 ): Promise<boolean> {
   try {
+    const objetoKey = getObjetoKey(pathname); // p.ej. "clientes"
+    const accionKey = 'view';
+    const url = `${SECAPI_URL}/api/db/permisos`;
+
+    // Contrato secapi (igual que TrackMovil):
+    //   body  → { aplicacion, permisos: [{ ObjetoKey, AccionKey }] }
+    //   resp  → { resultados: [{ accionKey, permitido: 'GRANTED' }] }
     const body = {
-      AplicacionId: APP_ID,
-      ObjetoKey: getObjetoKey(pathname), // p.ej. "clientes"
-      ObjetoTipo: 'PAGE',
-      AccionKey: 'view',
-      AccionCodigo: code, // XXXX-XXXX
+      aplicacion: PERMISOS_APLICACION,
+      permisos: [{ ObjetoKey: objetoKey, AccionKey: accionKey }],
     };
 
-    console.log('[MW] → Checando permiso');
-    console.log('[MW] URL:', PERMISOS_API_URL);
+    console.log('[MW] → Checando permiso (secapi)');
+    console.log('[MW] URL:', url);
     console.log('[MW] Body enviado:', body);
 
-    const resp = await fetch(PERMISOS_API_URL, {
+    const resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -118,7 +121,6 @@ async function apiCheckPermisoEdge(
     });
 
     console.log('[MW] Status:', resp.status, resp.statusText);
-    console.log('[MW] Headers:', Object.fromEntries(resp.headers.entries()));
 
     const raw = await resp.text();
     console.log('[MW] Raw body:', raw);
@@ -129,15 +131,24 @@ async function apiCheckPermisoEdge(
     try {
       json = raw ? JSON.parse(raw) : {};
     } catch {
-      // puede no ser JSON
+      return false;
     }
 
-    // Ajustar según respuesta real de tu backend:
+    const resultados: any[] = Array.isArray(json?.resultados)
+      ? json.resultados
+      : Array.isArray(json)
+      ? json
+      : [];
+
+    // Buscar el resultado de nuestra acción; si no viene tipado, usar el primero.
+    const match =
+      resultados.find(
+        (r) => (r?.accionKey ?? r?.AccionKey) === accionKey
+      ) ?? resultados[0];
+
+    const val = match?.permitido ?? match?.Permitido;
     const permitido =
-      json.Permitido === true ||
-      json.allowed === true ||
-      json.ok === true ||
-      json.Permitido === 'S';
+      val === 'GRANTED' || val === true || val === 'S' || val === 'GRANTED';
 
     console.log('[MW] → permitido?', permitido);
     return permitido;

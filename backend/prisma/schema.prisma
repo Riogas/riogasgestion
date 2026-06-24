@@ -15,14 +15,14 @@ model Cliente {
   id Int @id
 
   // Datos del cliente
-  nombre                    String?   @db.VarChar(60) // CLINOM
-  ruc                       String?   @db.VarChar(12) // CLIRUC (DEC(12) en origen)
-  observaciones             String?   @db.VarChar(200) // CLIOBS
-  email                     String?   @db.VarChar(60) // CLIMAIL
-  estado                    String?   @db.VarChar(1) // CLIESTADO (código)
-  nroGci                    String?   @db.VarChar(6) // CLIGCINRO
-  vip                       Boolean? // CLIVIP (0/1)
-  observacionesComerciales  String?   @db.VarChar(80) // CLIOBSCOM
+  nombre                   String?  @db.VarChar(60) // CLINOM
+  ruc                      String?  @db.VarChar(12) // CLIRUC (DEC(12) en origen)
+  observaciones            String?  @db.VarChar(200) // CLIOBS
+  email                    String?  @db.VarChar(60) // CLIMAIL
+  estado                   String?  @db.VarChar(1) // CLIESTADO (código)
+  nroGci                   String?  @db.VarChar(6) // CLIGCINRO
+  vip                      Boolean? // CLIVIP (0/1)
+  observacionesComerciales String?  @db.VarChar(80) // CLIOBSCOM
 
   // Fechas (CHAR(8) YYYYMMDD en origen → convertidas en el ETL)
   fechaAlta            DateTime? @db.Date // CLIFCHALTA
@@ -31,7 +31,7 @@ model Cliente {
   fechaUltimaLlamada   DateTime? // CLIULTLLAM (TIMESTMP real)
 
   // Dirección
-  numeroPuerta           Int?     // NROPUERTA
+  numeroPuerta           Int? // NROPUERTA
   bis                    String?  @db.VarChar(1) // BIS
   apartamento            String?  @db.VarChar(5) // APTO
   blockSolar             String?  @db.VarChar(4) // BLOCKSOL
@@ -40,23 +40,23 @@ model Cliente {
   numeroManzana          String?  @db.VarChar(5) // NROMANZ
   km                     Decimal? @db.Decimal(6, 3) // KM
   observacionesDireccion String?  @db.VarChar(60) // DIROBS
-  calleEsquina1Id        Int?     // CALESQ1ID
-  calleEsquina2Id        Int?     // CALESQ2ID
-  callePrincipalId       Int?     // CALPRINID
+  calleEsquina1Id        Int? // CALESQ1ID
+  calleEsquina2Id        Int? // CALESQ2ID
+  callePrincipalId       Int? // CALPRINID
 
   // Geolocalización
-  coordenadaX    Decimal? @db.Decimal(13, 5) // DIRCORX
-  coordenadaY    Decimal? @db.Decimal(13, 5) // DIRCORY
-  sadCoordenadaX Decimal? @db.Decimal(13, 9) // SADCORX
-  sadCoordenadaY Decimal? @db.Decimal(13, 9) // SADCORY
-  sadAsignadoMovil String? @db.VarChar(1)    // SADASIMOVM
-  icaCoordenadaX Decimal? @db.Decimal(13, 5) // DIRICAX
-  icaCoordenadaY Decimal? @db.Decimal(13, 5) // DIRICAY
-  icaMetodo      Int?     // ICAMET
-  icaSourceId    Int?     // ICASRCID
-  icaSourceCodigo Int?    // ICASRCOD
-  icaPosA        Decimal? @db.Decimal(10, 8) // ICAPOSA
-  icaSofDg       Int?     // ICASOFDG
+  coordenadaX      Decimal? @db.Decimal(13, 5) // DIRCORX
+  coordenadaY      Decimal? @db.Decimal(13, 5) // DIRCORY
+  sadCoordenadaX   Decimal? @db.Decimal(13, 9) // SADCORX
+  sadCoordenadaY   Decimal? @db.Decimal(13, 9) // SADCORY
+  sadAsignadoMovil String?  @db.VarChar(1) // SADASIMOVM
+  icaCoordenadaX   Decimal? @db.Decimal(13, 5) // DIRICAX
+  icaCoordenadaY   Decimal? @db.Decimal(13, 5) // DIRICAY
+  icaMetodo        Int? // ICAMET
+  icaSourceId      Int? // ICASRCID
+  icaSourceCodigo  Int? // ICASRCOD
+  icaPosA          Decimal? @db.Decimal(10, 8) // ICAPOSA
+  icaSofDg         Int? // ICASOFDG
 
   // Clasificación / referencias
   tipoId         Int? // CLITPOPID
@@ -70,18 +70,18 @@ model Cliente {
   operadorModificacion String? @db.VarChar(15) // CLIOPUPD
 
   // Verificación de coordenadas / geoinversa (feature 2026-06-23)
-  direccion        String?  @db.VarChar(300) // dirección completa reconstruida (calle+nº+esquinas+solar+km+…)
-  calleGeo         String?  @db.VarChar(150) // calle según geoinversa (Nominatim)
-  numeroPuertaGeo  String?  @db.VarChar(30)  // nº de puerta según geoinversa
-  localidadGeo     String?  @db.VarChar(120) // ciudad/localidad geoinversa
-  departamentoGeo  String?  @db.VarChar(120) // estado/departamento geoinversa
-  cpGeo            String?  @db.VarChar(20)  // código postal geoinversa
-  calleMatch       Boolean? // ✅/❌: la calle geoinversa coincide con la que tenía
-  matchScore       Float?   // similitud 0-1 (debug)
-  geoLat           Decimal? @db.Decimal(10, 7) // coord usada (WGS84 lat)
-  geoLng           Decimal? @db.Decimal(10, 7) // coord usada (WGS84 lon)
-  geoFuente        String?  @db.VarChar(10)  // sad | ica | dircor
-  geoVerificadoAt  DateTime? // cuándo se corrió la geoinversa
+  direccion       String?   @db.VarChar(300) // dirección completa reconstruida (calle+nº+esquinas+solar+km+…)
+  calleGeo        String?   @db.VarChar(150) // calle según geoinversa (Nominatim)
+  numeroPuertaGeo String?   @db.VarChar(30) // nº de puerta según geoinversa
+  localidadGeo    String?   @db.VarChar(120) // ciudad/localidad geoinversa
+  departamentoGeo String?   @db.VarChar(120) // estado/departamento geoinversa
+  cpGeo           String?   @db.VarChar(20) // código postal geoinversa
+  calleMatch      Boolean? // ✅/❌: la calle geoinversa coincide con la que tenía
+  matchScore      Float? // similitud 0-1 (debug)
+  geoLat          Decimal?  @db.Decimal(10, 7) // coord usada (WGS84 lat)
+  geoLng          Decimal?  @db.Decimal(10, 7) // coord usada (WGS84 lon)
+  geoFuente       String?   @db.VarChar(10) // sad | ica | dircor
+  geoVerificadoAt DateTime? // cuándo se corrió la geoinversa
 
   // Metadatos locales (no vienen de GeneXus)
   createdAt DateTime @default(now())
@@ -97,9 +97,9 @@ model Cliente {
 // Catálogo de calles (espejo de GXCALDTA.CALLE del AS400). Para resolver
 // callePrincipalId / calleEsquinaNId → nombre, y reconstruir la dirección.
 model Calle {
-  id        Int     @id // CALID
-  nombre    String? @db.VarChar(150) // CALNOM
-  nombreIca String? @db.VarChar(150) // CALNOMICA
+  id        Int      @id // CALID
+  nombre    String?  @db.VarChar(150) // CALNOM
+  nombreIca String?  @db.VarChar(150) // CALNOMICA
   createdAt DateTime @default(now())
 
   @@map("calle")
@@ -113,8 +113,8 @@ model Calle {
 model ClienteUni {
   id                   Int       @id @default(autoincrement())
   origen               String    @db.VarChar(10) // 'interior' | 'capital'
-  idOriginal           Int                       // CLIID del AS400
-  idOriginalPuesto     Int?                      // CLIPUESTOID (interior; null capital) — solo trazabilidad/sync
+  idOriginal           Int // CLIID del AS400
+  idOriginalPuesto     Int? // CLIPUESTOID (interior; null capital) — solo trazabilidad/sync
   nombre               String?   @db.VarChar(60)
   ruc                  String?   @db.VarChar(12)
   cedula               String?   @db.VarChar(12) // NUEVO, nullable
@@ -139,8 +139,9 @@ model ClienteUni {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  telefonos   ClienteTelefono[]
-  direcciones ClienteDireccion[]
+  telefonos         ClienteTelefono[]
+  direcciones       ClienteDireccion[]
+  movilesPreferidos ClienteMovil[]
 
   @@unique([origen, idOriginal, idOriginalPuesto])
   @@index([nombre])
@@ -273,4 +274,276 @@ model Zona {
 
   @@index([puestoId])
   @@map("zona")
+}
+
+// =====================================================================
+// MODELO UNIFICADO DE MÓVILES Y EMPRESAS FLETERAS (interior + capital)
+// spec/plan 2026-06-24. Patrón origen+idOriginal. Nombres amigables en
+// español; el código AS400 va solo en comentarios de mapeo.
+// =====================================================================
+
+model EmpresaFletera {
+  id              Int      @id @default(autoincrement())
+  origen          String   @db.VarChar(10)
+  idOriginal      Int // EFLID
+  puestoId        Int? // interior EFLPUESTOID | capital 100
+  baseOperativa   String?  @db.VarChar(20) // capital EFLUSER (PSTCENTRO…)
+  nombre          String?  @db.VarChar(80) // EFLNOM
+  nombreComercial String?  @db.VarChar(40) // capital EFLNOMCOMO
+  razonSocial     String?  @db.VarChar(80) // interior EFLRAZONSOCIAL
+  ruc             String?  @db.VarChar(12) // EFLRUC
+  direccion       String?  @db.VarChar(120) // interior EFLDIRECCION | capital EFLCALID+EFLNROPUER
+  telefono        String?  @db.VarChar(60) // EFLTEL
+  email           String?  @db.VarChar(60) // EFLMAIL
+  estado          String?  @db.VarChar(1) // EFLESTADO A=activo / P=pasivo
+  observaciones   String?  @db.VarChar(60) // EFLOBS
+  gpsId           Int? // interior EFLGPSEFLETERA
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  moviles         Movil[]
+
+  @@unique([origen, idOriginal])
+  @@index([puestoId])
+  @@map("empresa_fletera")
+}
+
+model Movil {
+  id                    Int              @id @default(autoincrement())
+  origen                String           @db.VarChar(10)
+  idOriginal            Int // MOVID
+  fleteraId             Int? // resuelto de MOVEFLID
+  puestoId              Int? // MOVPUESTOID | capital 100
+  estadoCodigo          Int? // MOVESTCOD (→ movil_estado[origen,codigo])
+  descripcion           String?          @db.VarChar(40) // MOVDSC/MOVDESCRIPCION
+  marca                 String?          @db.VarChar(30)
+  modelo                String?          @db.VarChar(30)
+  matricula             String?          @db.VarChar(10) // MOVMAT
+  telefono              String?          @db.VarChar(30) // MOVTELFNRO
+  capacidadLote         Int? // interior MOVBOD13TOPE | capital MOVT1
+  servicioPrincipal     String?          @db.VarChar(30) // interior MOVSERVPRINCIPAL | capital MOVTPOSERI
+  tipoServicio          String?          @db.VarChar(10) // capital MOVTPOSERI
+  rutea                 Boolean? // capital MOVRUTEA (S/N)
+  pedidosPendientes     Int? // MOVPEDPEND / MOVPEDLOTE
+  latitud               Decimal?         @db.Decimal(10, 7) // interior MOVULTCOORDX | capital MOVX (UTM→WGS84)
+  longitud              Decimal?         @db.Decimal(10, 7) // interior MOVULTCOORDY | capital MOVY
+  ultimaPosicionAt      DateTime? // capital MOVPOSFCHA | interior MOVULTMODIFICACION
+  gpsMovilId            Int? // interior MOVGPSMOVID | capital MOVGPS
+  tieneGps              Boolean?
+  gpsReportando         Boolean? // capital MOVGPSOK
+  distanciaMaxMetros    Int? // interior MOVDISTANCIAMAXMTSCUMPPEDIDOS
+  appPuedeDesactivar    Boolean? // interior MOVAPPPUEDEDESACTIVAR
+  permiteBajaMomentanea Boolean? // interior MOVPERMITEBAJAMOMENTANEA
+  destinoId             Int? // capital MOVDESTID → movil_destino
+  numeroMovil           Int? // interior MOVNROMOVIL
+  activoDesde           DateTime?        @db.Date // capital MOVACTDESD
+  activoHasta           DateTime?        @db.Date // capital MOVACTHAST
+  observaciones         String?          @db.VarChar(60) // interior MOVOBS
+  firebaseEnviado       DateTime? // interior
+  firebaseEliminado     DateTime? // interior
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  fletera               EmpresaFletera?  @relation(fields: [fleteraId], references: [id])
+  destino               MovilDestino?    @relation(fields: [destinoId], references: [id])
+  zonas                 MovilZona[]
+  servicios             MovilServicio[]
+  bodega                MovilBodega[]
+  stock                 MovilStock[]
+  horarios              MovilHorario[]
+  ica                   MovilIca[]
+  clientes              ClienteMovil[]
+  historico             MovilHistorico[]
+
+  @@unique([origen, idOriginal])
+  @@index([fleteraId])
+  @@index([puestoId])
+  @@map("movil")
+}
+
+model MovilEstado {
+  id        Int     @id @default(autoincrement())
+  origen    String  @db.VarChar(10)
+  codigo    Int // MOVESTCOD
+  nombre    String? @db.VarChar(30) // MOVESTNOM
+  actividad String? @db.VarChar(4) // interior MOVESTACT | capital MOVESTICA
+
+  @@unique([origen, codigo])
+  @@map("movil_estado")
+}
+
+model Servicio {
+  id             Int             @id @default(autoincrement())
+  origen         String          @db.VarChar(10)
+  idOriginal     Int // SERID
+  nombre         String?         @db.VarChar(60) // SERNOM
+  movilServicios MovilServicio[]
+
+  @@unique([origen, idOriginal])
+  @@map("servicio")
+}
+
+model MovilZona {
+  id          Int     @id @default(autoincrement())
+  movilId     Int
+  origen      String  @db.VarChar(10)
+  escenarioId Int? // ESCID
+  canalId     Int? // ESCCANALID
+  zonaId      Int? // ESCZONAID (sin FK dura; id-space a confirmar)
+  tipo        Int? // ESCZONTPO
+  flag        String? @db.VarChar(2) // ESCZONFLAG
+  movil       Movil   @relation(fields: [movilId], references: [id], onDelete: Cascade)
+
+  @@index([movilId])
+  @@index([zonaId])
+  @@map("movil_zona")
+}
+
+model MovilServicio {
+  id         Int       @id @default(autoincrement())
+  movilId    Int
+  origen     String    @db.VarChar(10)
+  servicioId Int? // resuelto de MOVSERID
+  movil      Movil     @relation(fields: [movilId], references: [id], onDelete: Cascade)
+  servicio   Servicio? @relation(fields: [servicioId], references: [id])
+
+  @@index([movilId])
+  @@index([servicioId])
+  @@map("movil_servicio")
+}
+
+model MovilBodega {
+  id              Int       @id @default(autoincrement())
+  movilId         Int
+  origen          String    @db.VarChar(10)
+  productoEmpresa String?   @db.VarChar(4) // MOVPRODEMP
+  productoCodigo  String?   @db.VarChar(15) // MOVPRODCOD
+  capacidad       Int? // MOVBODEGA
+  sinActivar      Int? // MOVBODSINA
+  fecha           DateTime?
+  movil           Movil     @relation(fields: [movilId], references: [id], onDelete: Cascade)
+
+  @@index([movilId])
+  @@map("movil_bodega")
+}
+
+model MovilStock {
+  id              Int     @id @default(autoincrement())
+  movilId         Int
+  origen          String  @db.VarChar(10)
+  productoEmpresa String? @db.VarChar(4) // MOVPRDEMPC
+  productoCodigo  String? @db.VarChar(15) // MOVPRDCOD
+  stockMovil      Int? // MOVPRDSTKM
+  stockOcupado    Int? // MOVPRDSTKO
+  tiempoCarga     Int? // MOVPRDTIEC
+  tiempoDescarga  Int? // MOVPRDTIED
+  movil           Movil   @relation(fields: [movilId], references: [id], onDelete: Cascade)
+
+  @@index([movilId])
+  @@map("movil_stock")
+}
+
+model MovilCantidadObjetivo {
+  id        Int     @id @default(autoincrement())
+  origen    String  @db.VarChar(10)
+  escenario Int? // MOVCANTESC
+  zona      Int? // MOVCANTZON
+  servicio  Int? // MOVCANTSER
+  cantidad  Int? // MOVCANTCAN
+  flag      String? @db.VarChar(2) // MOVCANTFLA
+
+  @@map("movil_cantidad_objetivo")
+}
+
+model MovilHorario {
+  id            Int                     @id @default(autoincrement())
+  movilId       Int
+  origen        String                  @db.VarChar(10)
+  vigenciaDesde DateTime?               @db.Date // MOVHORFCHV
+  vigenciaHasta DateTime?               @db.Date // MOVHORFCHF
+  dias          String?                 @db.VarChar(20) // MOVHORSDIA
+  observaciones String?                 @db.VarChar(60) // MOVHOROBS
+  usuario       String?                 @db.VarChar(15) // MOVHORUSUA
+  movil         Movil                   @relation(fields: [movilId], references: [id], onDelete: Cascade)
+  detalleDias   MovilHorarioDia[]
+  excepciones   MovilHorarioExcepcion[]
+
+  @@index([movilId])
+  @@map("movil_horario")
+}
+
+model MovilHorarioDia {
+  id        Int          @id @default(autoincrement())
+  horarioId Int
+  diaId     Int? // DIAID 1-7
+  horaDesde String?      @db.VarChar(8) // DIAHORDESD
+  horaHasta String?      @db.VarChar(8) // DIAHORHAST
+  horario   MovilHorario @relation(fields: [horarioId], references: [id], onDelete: Cascade)
+
+  @@index([horarioId])
+  @@map("movil_horario_dia")
+}
+
+model MovilHorarioExcepcion {
+  id            Int          @id @default(autoincrement())
+  horarioId     Int
+  horaDesde     String?      @db.VarChar(8) // MOVHEHORDE
+  horaHasta     String?      @db.VarChar(8) // MOVHEHORHA
+  observaciones String?      @db.VarChar(60) // MOVHEOBS
+  fecha         DateTime? // MOVHEFCHAL
+  horario       MovilHorario @relation(fields: [horarioId], references: [id], onDelete: Cascade)
+
+  @@index([horarioId])
+  @@map("movil_horario_excepcion")
+}
+
+model MovilDestino {
+  id         Int      @id @default(autoincrement())
+  origen     String   @db.VarChar(10)
+  idOriginal Int // MOVDESTID
+  nombre     String?  @db.VarChar(60) // MOVDESTNOM
+  latitud    Decimal? @db.Decimal(10, 7) // MOVDESTX (UTM→WGS84)
+  longitud   Decimal? @db.Decimal(10, 7) // MOVDESTY
+  direccion  String?  @db.VarChar(120) // MOVDESTOBS
+  moviles    Movil[]
+
+  @@unique([origen, idOriginal])
+  @@map("movil_destino")
+}
+
+model MovilIca {
+  id             Int    @id @default(autoincrement())
+  movilId        Int
+  origen         String @db.VarChar(10)
+  distribuidorId Int? // DISTID
+  movil          Movil  @relation(fields: [movilId], references: [id], onDelete: Cascade)
+
+  @@index([movilId])
+  @@map("movil_ica")
+}
+
+model ClienteMovil {
+  id        Int         @id @default(autoincrement())
+  clienteId Int? // resuelto de CLIID (0→null)
+  movilId   Int // CLIMOVID
+  origen    String      @db.VarChar(10)
+  prioridad Int? // CLIMOVPRIO
+  movil     Movil       @relation(fields: [movilId], references: [id], onDelete: Cascade)
+  cliente   ClienteUni? @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@index([movilId])
+  @@map("cliente_movil")
+}
+
+model MovilHistorico {
+  id      Int       @id @default(autoincrement())
+  movilId Int
+  origen  String    @db.VarChar(10)
+  fecha   DateTime? // MOVHISEFCH
+  accion  String?   @db.VarChar(40) // MOVHISEST
+  usuario String?   @db.VarChar(30) // MOVHISTUSE
+  detalle String?   @db.VarChar(200) // MOVHISTDSC
+  movil   Movil     @relation(fields: [movilId], references: [id], onDelete: Cascade)
+
+  @@index([movilId])
+  @@map("movil_historico")
 }

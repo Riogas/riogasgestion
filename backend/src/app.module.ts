@@ -4,6 +4,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { ClientesModule } from './clientes/clientes.module';
+import { CatalogosModule } from './catalogos/catalogos.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ClientesModule } from './clientes/clientes.module';
     // Módulos de la app
     HealthModule,
     ClientesModule,
+    CatalogosModule,
     // TODO: Agregar módulos a medida que se migran las APIs
     // ZonasModule,
     // UsuariosModule,

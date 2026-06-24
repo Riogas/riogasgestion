@@ -1,7 +1,7 @@
 import { PartialType, OmitType } from '@nestjs/swagger';
 import { CreateClienteDto } from './create-cliente.dto';
 
-// Update parcial: todos los campos opcionales, sin permitir cambiar el id (PK = CLIID).
+// Update parcial de la cabecera del cliente; los arrays se editan por sub-recurso.
 export class UpdateClienteDto extends PartialType(
-  OmitType(CreateClienteDto, ['id'] as const),
+  OmitType(CreateClienteDto, ['direcciones', 'telefonos'] as const),
 ) {}

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class QueryClientesDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
@@ -8,7 +9,7 @@ export class QueryClientesDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   pageSize?: number;
 
-  // Búsqueda libre por nombre / email / ruc
+  // Búsqueda libre por nombre / email / ruc / cédula
   @IsOptional() @IsString()
   search?: string;
 
@@ -16,9 +17,15 @@ export class QueryClientesDto {
   @IsOptional() @IsString()
   estado?: string;
 
-  @IsOptional() @Type(() => Number) @IsInt()
-  zona?: number;
+  // 'interior' | 'capital'
+  @IsOptional() @IsString()
+  origen?: string;
 
   @IsOptional() @Type(() => Number) @IsInt()
-  tipoId?: number;
+  tipoClienteId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  dedupRevisar?: boolean;
 }

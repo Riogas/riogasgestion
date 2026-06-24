@@ -148,6 +148,11 @@ model ClienteUni {
   @@index([ruc])
   @@index([cedula])
   @@index([estado])
+  // Lista de clientes: filtro por estado + orden por última llamada desc.
+  // Nombres explícitos = coinciden con los índices ya creados en la base, así
+  // `prisma db push` los reconoce y NO los borra/recrea.
+  @@index([estado, ultimaLlamada(sort: Desc), id(sort: Desc)], map: "idx_cliente_uni_estado_ultllam")
+  @@index([ultimaLlamada(sort: Desc), id(sort: Desc)], map: "idx_cliente_uni_ultllam")
   @@map("cliente_uni")
 }
 

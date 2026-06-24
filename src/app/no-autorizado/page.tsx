@@ -15,12 +15,33 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
   const ruta   = (sp.ruta as string)   || "";
   const nombre = (sp.nombre as string) || "";
 
-  const appId = process.env.NEXT_PUBLIC_APLICACION_ID || "0";
+  const appId = process.env.NEXT_PUBLIC_APLICACION_ID || "3";
   const codeWithApp = `${appId}|${code}`;
 
   const h = await headers();
   const c = await cookies();
-  const userName = h.get("x-user-name") ?? c.get("userName")?.value ?? "—";
+
+  // El middleware setea x-user-name, pero NO se pasa en el redirect a /no-autorizado
+  // (ruta pública). Fallback: decodificar el JWT de la cookie `token` (campo username).
+  function userFromToken(tok?: string): string | null {
+    if (!tok) return null;
+    try {
+      const payload = JSON.parse(
+        Buffer.from(
+          tok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"),
+          "base64",
+        ).toString("utf8"),
+      );
+      return payload?.username || payload?.userName || payload?.name || null;
+    } catch {
+      return null;
+    }
+  }
+  const userName =
+    h.get("x-user-name") ??
+    c.get("userName")?.value ??
+    userFromToken(c.get("token")?.value) ??
+    "—";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -75,8 +96,8 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
         )}
 
         <div className="flex w-full gap-3">
-          <a href="/" className="flex-1 px-5 py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition text-center">
-            Volver al inicio
+          <a href="/dashboard" className="flex-1 px-5 py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition text-center">
+            Volver al dashboard
           </a>
           <SolicitarAccesoButton code={code} ruta={ruta} nombre={nombre} />
         </div>

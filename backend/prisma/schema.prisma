@@ -364,7 +364,7 @@ model MovilEstado {
   origen    String  @db.VarChar(10)
   codigo    Int // MOVESTCOD
   nombre    String? @db.VarChar(30) // MOVESTNOM
-  actividad String? @db.VarChar(4) // interior MOVESTACT | capital MOVESTICA
+  actividad String? @db.VarChar(40) // interior MOVESTACT (A/I/N) | capital MOVESTICA (texto ACTIVO/PASIVO/…)
 
   @@unique([origen, codigo])
   @@map("movil_estado")

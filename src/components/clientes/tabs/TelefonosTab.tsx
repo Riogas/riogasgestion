@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/dialog";
 import { useTelefonoMutations } from "@/hooks/clientes";
 import {
+  estadoLabel,
+  estadoVariant,
   type Cliente,
   type ClienteTelefono,
   type TelefonoFormValues,
@@ -43,20 +45,12 @@ interface TelefonosTabProps {
   cliente: Cliente;
 }
 
-const TIPO_OPTIONS = [
-  { value: "MOVIL", label: "Móvil" },
-  { value: "FIJO", label: "Fijo" },
-  { value: "WHATSAPP", label: "WhatsApp" },
-  { value: "FAX", label: "Fax" },
-  { value: "OTRO", label: "Otro" },
-];
-
 const ESTADO_OPTIONS = [
-  { value: "ACTIVO", label: "Activo" },
-  { value: "INACTIVO", label: "Inactivo" },
+  { value: "A", label: "Activo" },
+  { value: "I", label: "Inactivo" },
 ];
 
-type EditingTel = Partial<TelefonoFormValues> & { id?: string };
+type EditingTel = Partial<TelefonoFormValues> & { id?: number };
 
 export function TelefonosTab({ cliente }: TelefonosTabProps) {
   const { add, update, remove } = useTelefonoMutations(cliente.id);
@@ -68,9 +62,9 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
     setEditing({
       numero: "",
       alias: "",
-      tipo: "MOVIL",
-      estado: "ACTIVO",
-      esPrincipal: false,
+      tipo: "",
+      estado: "A",
+      principal: cliente.telefonos.length === 0,
     });
     setFormOpen(true);
   };
@@ -80,9 +74,9 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
       id: tel.id,
       numero: tel.numero,
       alias: tel.alias ?? "",
-      tipo: tel.tipo ?? "MOVIL",
-      estado: tel.estado,
-      esPrincipal: tel.esPrincipal,
+      tipo: tel.tipo ?? "",
+      estado: tel.estado ?? "A",
+      principal: tel.principal,
     });
     setFormOpen(true);
   };
@@ -99,24 +93,30 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
     }
 
     const dto: TelefonoFormValues = {
-      numero: editing.numero!,
+      numero: editing.numero,
       alias: editing.alias || null,
       tipo: editing.tipo || null,
-      estado: editing.estado ?? "ACTIVO",
-      esPrincipal: editing.esPrincipal ?? false,
+      estado: editing.estado ?? "A",
+      principal: editing.principal ?? false,
     };
 
     if (editing.id) {
       update.mutate(
         { telId: editing.id, dto },
         {
-          onSuccess: () => { toast.success("Teléfono actualizado"); cancel(); },
+          onSuccess: () => {
+            toast.success("Teléfono actualizado");
+            cancel();
+          },
           onError: () => toast.error("Error al actualizar el teléfono"),
-        }
+        },
       );
     } else {
       add.mutate(dto, {
-        onSuccess: () => { toast.success("Teléfono agregado"); cancel(); },
+        onSuccess: () => {
+          toast.success("Teléfono agregado");
+          cancel();
+        },
         onError: () => toast.error("Error al agregar el teléfono"),
       });
     }
@@ -130,7 +130,7 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
         setConfirmTel(null);
       },
       onError: () => {
-        toast.error("Error al eliminar el teléfono");
+        toast.error("No se pudo eliminar el teléfono");
         setConfirmTel(null);
       },
     });
@@ -181,21 +181,15 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
                 <TableCell className="font-mono text-sm">{tel.numero}</TableCell>
                 <TableCell className="text-sm">{tel.alias ?? "—"}</TableCell>
                 <TableCell>
-                  {tel.tipo ? (
-                    <Badge variant="outline">{tel.tipo}</Badge>
-                  ) : (
-                    "—"
-                  )}
+                  {tel.tipo ? <Badge variant="outline">{tel.tipo}</Badge> : "—"}
                 </TableCell>
                 <TableCell>
-                  <Badge
-                    variant={tel.estado === "ACTIVO" ? "success" : "secondary"}
-                  >
-                    {tel.estado}
+                  <Badge variant={estadoVariant(tel.estado)}>
+                    {estadoLabel(tel.estado)}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {tel.esPrincipal && (
+                  {tel.principal && (
                     <Star
                       role="img"
                       className="size-4 text-amber-500 fill-amber-500"
@@ -233,7 +227,6 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
         </Table>
       )}
 
-      {/* Inline form */}
       {formOpen && editing && (
         <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
           <h3 className="text-sm font-medium">
@@ -247,9 +240,7 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
               <Input
                 id="tel-numero"
                 value={editing.numero ?? ""}
-                onChange={(e) =>
-                  setEditing((prev) => ({ ...prev!, numero: e.target.value }))
-                }
+                onChange={(e) => setEditing((prev) => ({ ...prev!, numero: e.target.value }))}
                 placeholder="Ej: 098 123 456"
                 aria-required="true"
               />
@@ -260,41 +251,27 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
               <Input
                 id="tel-alias"
                 value={editing.alias ?? ""}
-                onChange={(e) =>
-                  setEditing((prev) => ({ ...prev!, alias: e.target.value }))
-                }
+                onChange={(e) => setEditing((prev) => ({ ...prev!, alias: e.target.value }))}
                 placeholder="Ej: Casa, trabajo"
               />
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="tel-tipo">Tipo</Label>
-              <Select
+              <Input
+                id="tel-tipo"
                 value={editing.tipo ?? ""}
-                onValueChange={(v) =>
-                  setEditing((prev) => ({ ...prev!, tipo: v }))
-                }
-              >
-                <SelectTrigger id="tel-tipo">
-                  <SelectValue placeholder="Seleccionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPO_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(e) => setEditing((prev) => ({ ...prev!, tipo: e.target.value }))}
+                placeholder="Ej: PE, VE"
+                maxLength={2}
+              />
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="tel-estado">Estado</Label>
               <Select
-                value={editing.estado ?? "ACTIVO"}
-                onValueChange={(v) =>
-                  setEditing((prev) => ({ ...prev!, estado: v }))
-                }
+                value={editing.estado ?? "A"}
+                onValueChange={(v) => setEditing((prev) => ({ ...prev!, estado: v }))}
               >
                 <SelectTrigger id="tel-estado">
                   <SelectValue placeholder="Seleccionar" />
@@ -314,10 +291,8 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
             <input
               type="checkbox"
               id="tel-principal"
-              checked={editing.esPrincipal ?? false}
-              onChange={(e) =>
-                setEditing((prev) => ({ ...prev!, esPrincipal: e.target.checked }))
-              }
+              checked={editing.principal ?? false}
+              onChange={(e) => setEditing((prev) => ({ ...prev!, principal: e.target.checked }))}
               className="rounded border-border"
             />
             <Label htmlFor="tel-principal" className="text-sm cursor-pointer">
@@ -336,28 +311,25 @@ export function TelefonosTab({ cliente }: TelefonosTabProps) {
         </div>
       )}
 
-      {/* Confirm delete dialog */}
-      <Dialog open={!!confirmTel} onOpenChange={(open) => { if (!open) setConfirmTel(null); }}>
+      <Dialog
+        open={!!confirmTel}
+        onOpenChange={(open) => {
+          if (!open) setConfirmTel(null);
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Eliminar teléfono</DialogTitle>
             <DialogDescription>
-              ¿Eliminar el teléfono <strong>{confirmTel?.numero}</strong>? Esta acción no se puede deshacer.
+              ¿Eliminar el teléfono <strong>{confirmTel?.numero}</strong>? Esta acción no se
+              puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmTel(null)}
-              disabled={remove.isPending}
-            >
+            <Button variant="outline" onClick={() => setConfirmTel(null)} disabled={remove.isPending}>
               Cancelar
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleRemoveConfirmed}
-              disabled={remove.isPending}
-            >
+            <Button variant="destructive" onClick={handleRemoveConfirmed} disabled={remove.isPending}>
               {remove.isPending ? "Eliminando…" : "Eliminar"}
             </Button>
           </DialogFooter>

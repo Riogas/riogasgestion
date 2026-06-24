@@ -11,8 +11,8 @@ import { createClienteSchema, telefonoSchema, clienteSchema } from "./cliente";
 {
   const result = createClienteSchema.safeParse({
     nombre: "",
-    telefonos: [{ numero: "099123456" }],
-    direcciones: [{ calle: "Av. Italia" }],
+    telefonos: [{ numero: "099123456", principal: true }],
+    direcciones: [{ calle: "Av. Italia", principal: true }],
   });
   assert.equal(result.success, false, "Should fail: nombre is empty");
   const issues = (result as { success: false; error: { issues: { path: string[] }[] } }).error.issues;
@@ -28,7 +28,7 @@ import { createClienteSchema, telefonoSchema, clienteSchema } from "./cliente";
   const result = createClienteSchema.safeParse({
     nombre: "Juan",
     telefonos: [],
-    direcciones: [{ calle: "Av. Italia" }],
+    direcciones: [{ calle: "Av. Italia", principal: true }],
   });
   assert.equal(result.success, false, "Should fail: no telefonos");
   console.log("PASS: createClienteSchema rejects empty telefonos");
@@ -38,9 +38,8 @@ import { createClienteSchema, telefonoSchema, clienteSchema } from "./cliente";
 {
   const result = createClienteSchema.safeParse({
     nombre: "María",
-    apellido: "García",
-    telefonos: [{ numero: "099123456", esPrincipal: true }],
-    direcciones: [{ calle: "Av. Italia 2345", esPrincipal: true }],
+    telefonos: [{ numero: "099123456", principal: true }],
+    direcciones: [{ calle: "Av. Italia 2345", principal: true }],
   });
   assert.equal(result.success, true, "Should succeed with valid payload");
   if (result.success) {
@@ -65,13 +64,13 @@ import { createClienteSchema, telefonoSchema, clienteSchema } from "./cliente";
   const result = telefonoSchema.safeParse({
     numero: "26001234",
     alias: "Casa",
-    tipo: "FIJO",
-    esPrincipal: true,
+    tipo: "FI",
+    principal: true,
   });
   assert.equal(result.success, true, "Should accept valid telefono");
   if (result.success) {
     assert.equal(result.data.numero, "26001234");
-    assert.equal(result.data.esPrincipal, true);
+    assert.equal(result.data.principal, true);
   }
   console.log("PASS: telefonoSchema accepts valid telefono");
 }

@@ -114,6 +114,7 @@ model ClienteUni {
   id                   Int       @id @default(autoincrement())
   origen               String    @db.VarChar(10) // 'interior' | 'capital'
   idOriginal           Int                       // CLIID del AS400
+  idOriginalPuesto     Int?                      // CLIPUESTOID (interior; null capital) — solo trazabilidad/sync
   nombre               String?   @db.VarChar(60)
   ruc                  String?   @db.VarChar(12)
   cedula               String?   @db.VarChar(12) // NUEVO, nullable
@@ -141,7 +142,7 @@ model ClienteUni {
   telefonos   ClienteTelefono[]
   direcciones ClienteDireccion[]
 
-  @@unique([origen, idOriginal])
+  @@unique([origen, idOriginal, idOriginalPuesto])
   @@index([nombre])
   @@index([ruc])
   @@index([cedula])

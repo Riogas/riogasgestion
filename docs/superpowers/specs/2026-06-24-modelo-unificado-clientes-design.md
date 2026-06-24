@@ -54,9 +54,11 @@ orígenes (más lo ya migrado de GXCALDTA que hay que re-dimensionar).
    → con índice.
 4. **Sacar de `cliente` todo lo de teléfono y dirección** → tablas asociadas `cliente_telefono` y
    `cliente_direccion`.
-5. **El puesto vive en la dirección** ("punto de venta" dentro de un departamento). Hay catálogo de
-   **puesto** (nombre, departamento, localidad opcional, config). Para los clientes **de capital**
-   (GXCALDTA) las direcciones se asocian a un **puesto nuevo "Montevideo"**.
+5. **El puesto es un atributo de la DIRECCIÓN** (no del cliente). El puesto representa el
+   **departamento o depto/localidad** donde está el cliente y **dónde se entrega** — por eso vive en
+   `cliente_direccion`. Hay catálogo de **puesto** (nombre, departamento, localidad opcional, config).
+   Para los clientes **de capital** (GXCALDTA) las direcciones se asocian a un **puesto nuevo
+   "Montevideo"**. Un cliente puede tener direcciones en distintos puestos (distintas entregas).
 6. **Calles**: se **elimina** el catálogo `calle`. La calle queda como **texto** dentro de la dirección
    (ya no hace falta catálogo teniendo geolocalización + Nominatim/Overpass propios).
 7. **Incluir todos** los campos de negocio de ambos (nullable según origen).
@@ -335,6 +337,7 @@ Subsistema aparte (spec propia), pero a alto nivel:
   falta una tabla de mapeo o un `origen` en el catálogo. (A confirmar cuando lleguemos a configuración.)
 - **Direcciones 1:N de interior** (`CLIENTEDIRECCION`) solo cubren 9.865 de 196k → para el resto la
   dirección sale de la embebida en `CLIENTE`.
-- **Puesto en la dirección**: el detalle fino de cómo se asigna/usa el puesto el usuario lo definirá
-  más adelante; acá queda como FK nullable.
+- **Puesto en la dirección** (DEFINIDO): el puesto es atributo de la dirección de entrega — representa
+  el depto/localidad donde está/se entrega al cliente. Un cliente puede tener direcciones en distintos
+  puestos. FK nullable a `puesto`.
 - **Pedidos y configuración**: fuera de alcance de esta spec (specs propias).

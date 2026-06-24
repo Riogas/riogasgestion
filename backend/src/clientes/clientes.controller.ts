@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '../common/guards/auth.guard';
@@ -7,6 +7,10 @@ import { ClientesService } from './clientes.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { QueryClientesDto } from './dto/query-clientes.dto';
+
+interface AuthedRequest {
+  user?: { username?: string; [k: string]: unknown };
+}
 
 @ApiTags('clientes')
 @ApiBearerAuth()
@@ -26,17 +30,21 @@ export class ClientesController {
   }
 
   @Post()
-  create(@Body() dto: CreateClienteDto) {
-    return this.clientes.create(dto);
+  create(@Body() dto: CreateClienteDto, @Req() req: AuthedRequest) {
+    return this.clientes.create(dto, req.user?.username);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateClienteDto) {
-    return this.clientes.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateClienteDto,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.clientes.update(id, dto, req.user?.username);
   }
 
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
-    return this.clientes.remove(id);
+    return this.clientes.softDelete(id);
   }
 }

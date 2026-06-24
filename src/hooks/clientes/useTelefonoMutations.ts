@@ -6,7 +6,7 @@ import {
 } from "@/services/clientes";
 import type { TelefonoFormValues } from "@/lib/types/cliente";
 
-export function useTelefonoMutations(clienteId: string) {
+export function useTelefonoMutations(clienteId: number | string) {
   const queryClient = useQueryClient();
 
   const invalidate = () => {
@@ -19,13 +19,13 @@ export function useTelefonoMutations(clienteId: string) {
   });
 
   const update = useMutation({
-    mutationFn: ({ telId, dto }: { telId: string; dto: Partial<TelefonoFormValues> }) =>
+    mutationFn: ({ telId, dto }: { telId: number | string; dto: Partial<TelefonoFormValues> }) =>
       updateTelefono(clienteId, telId, dto),
     onSuccess: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (telId: string) => removeTelefono(clienteId, telId),
+    mutationFn: (telId: number | string) => removeTelefono(clienteId, telId),
     onSuccess: invalidate,
   });
 

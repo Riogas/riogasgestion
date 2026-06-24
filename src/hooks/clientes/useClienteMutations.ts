@@ -22,7 +22,7 @@ export function useUpdateCliente() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: Partial<ClienteFormValues> }) =>
+    mutationFn: ({ id, dto }: { id: number | string; dto: Partial<ClienteFormValues> }) =>
       updateCliente(id, dto),
 
     // Optimistic update
@@ -66,7 +66,7 @@ export function useDeleteCliente() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => deleteCliente(id),
+    mutationFn: (id: number | string) => deleteCliente(id),
     onSuccess: (_data, id) => {
       queryClient.removeQueries({ queryKey: ["clientes", id] });
       queryClient.invalidateQueries({ queryKey: ["clientes"] });

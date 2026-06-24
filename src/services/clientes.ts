@@ -9,7 +9,6 @@ import type {
   CreateClienteFormValues,
   TelefonoFormValues,
   DireccionFormValues,
-  EstadoCliente,
 } from "@/lib/types/cliente";
 
 // ─── Clientes CRUD ────────────────────────────────────────────────────────────
@@ -21,7 +20,7 @@ export async function getClientes(
   return data;
 }
 
-export async function getCliente(id: string): Promise<Cliente> {
+export async function getCliente(id: number | string): Promise<Cliente> {
   const { data } = await api.get<Cliente>(`/clientes/${id}`);
   return data;
 }
@@ -34,7 +33,7 @@ export async function createCliente(
 }
 
 export async function updateCliente(
-  id: string,
+  id: number | string,
   dto: Partial<ClienteFormValues>,
 ): Promise<Cliente> {
   const { data } = await api.patch<Cliente>(`/clientes/${id}`, dto);
@@ -42,9 +41,9 @@ export async function updateCliente(
 }
 
 export async function deleteCliente(
-  id: string,
-): Promise<{ id: string; estado: EstadoCliente }> {
-  const { data } = await api.delete<{ id: string; estado: EstadoCliente }>(
+  id: number | string,
+): Promise<{ id: number; estado: string }> {
+  const { data } = await api.delete<{ id: number; estado: string }>(
     `/clientes/${id}`,
   );
   return data;
@@ -53,7 +52,7 @@ export async function deleteCliente(
 // ─── Teléfonos ────────────────────────────────────────────────────────────────
 
 export async function addTelefono(
-  clienteId: string,
+  clienteId: number | string,
   dto: TelefonoFormValues,
 ): Promise<ClienteTelefono> {
   const { data } = await api.post<ClienteTelefono>(
@@ -64,8 +63,8 @@ export async function addTelefono(
 }
 
 export async function updateTelefono(
-  clienteId: string,
-  telId: string,
+  clienteId: number | string,
+  telId: number | string,
   dto: Partial<TelefonoFormValues>,
 ): Promise<ClienteTelefono> {
   const { data } = await api.patch<ClienteTelefono>(
@@ -76,8 +75,8 @@ export async function updateTelefono(
 }
 
 export async function removeTelefono(
-  clienteId: string,
-  telId: string,
+  clienteId: number | string,
+  telId: number | string,
 ): Promise<void> {
   await api.delete(`/clientes/${clienteId}/telefonos/${telId}`);
 }
@@ -85,7 +84,7 @@ export async function removeTelefono(
 // ─── Direcciones ──────────────────────────────────────────────────────────────
 
 export async function addDireccion(
-  clienteId: string,
+  clienteId: number | string,
   dto: DireccionFormValues,
 ): Promise<ClienteDireccion> {
   const { data } = await api.post<ClienteDireccion>(
@@ -96,8 +95,8 @@ export async function addDireccion(
 }
 
 export async function updateDireccion(
-  clienteId: string,
-  dirId: string,
+  clienteId: number | string,
+  dirId: number | string,
   dto: Partial<DireccionFormValues>,
 ): Promise<ClienteDireccion> {
   const { data } = await api.patch<ClienteDireccion>(
@@ -108,8 +107,8 @@ export async function updateDireccion(
 }
 
 export async function removeDireccion(
-  clienteId: string,
-  dirId: string,
+  clienteId: number | string,
+  dirId: number | string,
 ): Promise<void> {
   await api.delete(`/clientes/${clienteId}/direcciones/${dirId}`);
 }

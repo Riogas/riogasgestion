@@ -6,7 +6,7 @@ import {
 } from "@/services/clientes";
 import type { DireccionFormValues } from "@/lib/types/cliente";
 
-export function useDireccionMutations(clienteId: string) {
+export function useDireccionMutations(clienteId: number | string) {
   const queryClient = useQueryClient();
 
   const invalidate = () => {
@@ -23,14 +23,14 @@ export function useDireccionMutations(clienteId: string) {
       dirId,
       dto,
     }: {
-      dirId: string;
+      dirId: number | string;
       dto: Partial<DireccionFormValues>;
     }) => updateDireccion(clienteId, dirId, dto),
     onSuccess: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (dirId: string) => removeDireccion(clienteId, dirId),
+    mutationFn: (dirId: number | string) => removeDireccion(clienteId, dirId),
     onSuccess: invalidate,
   });
 

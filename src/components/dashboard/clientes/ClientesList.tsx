@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import { useRouter } from "next/navigation";
@@ -20,10 +20,10 @@ import {
   SearchX,
   RefreshCw,
   Plus,
+  AlertTriangle,
 } from "lucide-react";
 import { useClientes } from "@/hooks/clientes";
-import { type Cliente } from "@/lib/types/cliente";
-import { AltaSlideOver } from "@/components/clientes/AltaSlideOver";
+import { estadoLabel, estadoVariant, type Cliente } from "@/lib/types/cliente";
 import Link from "next/link";
 
 // ─── Debounce hook — C2: standard useEffect pattern, no setState in render ────
@@ -40,53 +40,33 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 // ─── Badge helpers ─────────────────────────────────────────────────────────────
-// `estado` es un código CHAR(1) de GeneXus (A=Activo, I=Inactivo, P=Pendiente…).
 
-const ESTADO_META: Record<
-  string,
-  { label: string; variant: "success" | "secondary" | "warn" }
-> = {
-  A: { label: "Activo", variant: "success" },
-  I: { label: "Inactivo", variant: "secondary" },
-  P: { label: "Pendiente", variant: "warn" },
-  B: { label: "Baja", variant: "secondary" },
-};
-
-function estadoMeta(code: string | null) {
-  return (
-    (code ? ESTADO_META[code] : undefined) ?? {
-      label: code || "—",
-      variant: "secondary" as const,
-    }
-  );
+function dirPrincipal(c: Cliente) {
+  return c.direcciones.find((d) => d.principal) ?? c.direcciones[0];
 }
 
-// Verificación de coordenadas: ✓ verde si la calle coincide, ✗ rojo si difiere,
-// — gris si todavía no se verificó la geoinversa.
+// Verificación de coordenadas (calleMatch de la dirección principal):
+// ✓ verde coincide, ✗ rojo difiere, "s/coord" si null (interior sin coordenadas).
 function GpsCheck({ c }: { c: Cliente }) {
-  if (c.calleMatch === true) {
+  const dir = dirPrincipal(c);
+  const match = dir?.calleMatch ?? null;
+  if (match === true) {
     return (
-      <span
-        className="text-green-600 font-bold"
-        title={`Coincide · ${c.direccion ?? ""}`}
-      >
+      <span className="text-green-600 font-bold" title={`Coincide · ${dir?.direccion ?? ""}`}>
         ✓
       </span>
     );
   }
-  if (c.calleMatch === false) {
+  if (match === false) {
     return (
-      <span
-        className="text-red-600 font-bold"
-        title={`Calle distinta · tenía «${c.direccion ?? "?"}» · geoinversa: «${c.calleGeo ?? "?"}»`}
-      >
+      <span className="text-red-600 font-bold" title="Calle distinta a la geoinversa">
         ✗
       </span>
     );
   }
   return (
-    <span className="text-muted-foreground/50" title="Sin verificar">
-      —
+    <span className="text-muted-foreground/50 text-[10px]" title="Sin coordenadas">
+      s/coord
     </span>
   );
 }
@@ -101,7 +81,7 @@ function fmtFecha(value: string | null) {
 // ─── Column grid template (must match header and rows exactly) ────────────────
 
 const GRID_COLS =
-  "104px 1fr 56px 112px 120px 1fr 72px 112px 120px";
+  "96px 88px 1fr 64px 112px 130px 1fr 120px 100px 110px";
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
@@ -118,6 +98,8 @@ export default function ClientesList() {
     "ps",
     parseAsInteger.withDefault(20),
   );
+  const [estado, setEstado] = useQueryState("estado", parseAsString.withDefault(""));
+  const [origen, setOrigen] = useQueryState("origen", parseAsString.withDefault(""));
 
   // ── Debounced search → params ─────────────────────────────────────────────
   // C3: debounce with 400ms; clearing resets page immediately
@@ -128,8 +110,10 @@ export default function ClientesList() {
       page,
       pageSize,
       search: debouncedSearch || undefined,
+      estado: estado || undefined,
+      origen: origen || undefined,
     }),
-    [page, pageSize, debouncedSearch],
+    [page, pageSize, debouncedSearch, estado, origen],
   );
 
   const { data, isLoading, isError, refetch, isFetching } =
@@ -138,9 +122,6 @@ export default function ClientesList() {
   const clientes: Cliente[] = data?.data ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  // ── Slide-over state ──────────────────────────────────────────────────────
-  const [slideOverOpen, setSlideOverOpen] = useState(false);
 
   // ── Virtualizer — C1: parentRef points to the scrollable div ─────────────
   const parentRef = useRef<HTMLDivElement>(null);
@@ -211,6 +192,16 @@ export default function ClientesList() {
     setPage(1);
   };
 
+  const handleEstado = (v: string) => {
+    setEstado(v);
+    setPage(1);
+  };
+
+  const handleOrigen = (v: string) => {
+    setOrigen(v);
+    setPage(1);
+  };
+
   // ── Skeleton rows ─────────────────────────────────────────────────────────
 
   const skeletonRows = Array.from({ length: pageSize > 20 ? 20 : pageSize });
@@ -231,21 +222,33 @@ export default function ClientesList() {
                 {isFetching && !isLoading && (
                   <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="text-xs"
+                <select
+                  value={origen}
+                  onChange={(e) => handleOrigen(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  aria-label="Filtrar por origen"
                 >
-                  <Link href="/dashboard/clientes/nuevo">Alta detallada</Link>
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setSlideOverOpen(true)}
-                  className="shrink-0"
+                  <option value="">Origen: todos</option>
+                  <option value="capital">Capital</option>
+                  <option value="interior">Interior</option>
+                </select>
+                <select
+                  value={estado}
+                  onChange={(e) => handleEstado(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  aria-label="Filtrar por estado"
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Nuevo
+                  <option value="">Estado: todos</option>
+                  <option value="A">Activo</option>
+                  <option value="I">Inactivo</option>
+                  <option value="P">Pendiente</option>
+                  <option value="R">Revisión</option>
+                </select>
+                <Button size="sm" asChild className="shrink-0">
+                  <Link href="/dashboard/clientes/nuevo">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Nuevo
+                  </Link>
                 </Button>
               </div>
             }
@@ -325,12 +328,13 @@ export default function ClientesList() {
                   }}
                 >
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Nro</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Origen</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre</div>
-                  <div className="px-2 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center" title="Verificación GPS: ✓ calle coincide, ✗ calle distinta">GPS</div>
+                  <div className="px-2 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center" title="Verificación GPS: ✓ calle coincide, ✗ calle distinta, s/coord sin coordenadas">GPS</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Estado</div>
-                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">RUC</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">RUC/Cédula</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</div>
-                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">Zona</div>
+                  <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Localidad</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Alta</div>
                   <div className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Últ. llamada</div>
                 </div>
@@ -350,7 +354,7 @@ export default function ClientesList() {
                   >
                     {virtualizer.getVirtualItems().map((virtualRow) => {
                       const c = clientes[virtualRow.index];
-                      const est = estadoMeta(c.estado);
+                      const dir = dirPrincipal(c);
 
                       return (
                         <div
@@ -375,31 +379,42 @@ export default function ClientesList() {
                           <div className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
                             {c.id}
                           </div>
-                          <div className="px-4 py-2.5 font-medium whitespace-nowrap overflow-hidden text-ellipsis text-sm">
-                            {c.nombre || "—"}
+                          <div className="px-4 py-2.5">
+                            <Badge variant="secondary" className="text-[10px] capitalize">
+                              {c.origen}
+                            </Badge>
+                          </div>
+                          <div className="px-4 py-2.5 font-medium whitespace-nowrap overflow-hidden text-ellipsis text-sm flex items-center gap-1">
+                            {c.dedupRevisar && (
+                              <AlertTriangle
+                                className="size-3.5 text-amber-500 shrink-0"
+                                aria-label="Posible duplicado"
+                              />
+                            )}
+                            <span className="truncate">{c.nombre || "—"}</span>
                           </div>
                           <div className="px-2 py-2.5 text-center text-sm">
                             <GpsCheck c={c} />
                           </div>
                           <div className="px-4 py-2.5">
-                            <Badge variant={est.variant} className="text-[11px]">
-                              {est.label}
+                            <Badge variant={estadoVariant(c.estado)} className="text-[11px]">
+                              {estadoLabel(c.estado)}
                             </Badge>
                           </div>
                           <div className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
-                            {c.ruc || "—"}
+                            {c.ruc || c.cedula || "—"}
                           </div>
                           <div className="px-4 py-2.5 text-muted-foreground overflow-hidden text-ellipsis text-sm whitespace-nowrap">
                             {c.email || "—"}
                           </div>
-                          <div className="px-4 py-2.5 text-center tabular-nums text-muted-foreground text-sm">
-                            {c.zona ?? "—"}
+                          <div className="px-4 py-2.5 text-muted-foreground overflow-hidden text-ellipsis text-sm whitespace-nowrap">
+                            {dir?.localidadId ?? "—"}
                           </div>
                           <div className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
                             {fmtFecha(c.fechaAlta)}
                           </div>
                           <div className="px-4 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
-                            {fmtFecha(c.fechaUltimaLlamada)}
+                            {fmtFecha(c.ultimaLlamada)}
                           </div>
                         </div>
                       );
@@ -425,12 +440,6 @@ export default function ClientesList() {
           />
         )}
       </TableCard>
-
-      {/* ── Alta slide-over ── */}
-      <AltaSlideOver
-        open={slideOverOpen}
-        onOpenChange={setSlideOverOpen}
-      />
     </>
   );
 }
@@ -441,11 +450,13 @@ function ColumnHeaders() {
   return (
     <tr className="text-left text-xs text-muted-foreground uppercase tracking-wide">
       <th className="px-4 py-3 font-medium w-24">Nro</th>
+      <th className="px-4 py-3 font-medium w-20">Origen</th>
       <th className="px-4 py-3 font-medium">Nombre</th>
+      <th className="px-4 py-3 font-medium w-16 text-center">GPS</th>
       <th className="px-4 py-3 font-medium w-28">Estado</th>
-      <th className="px-4 py-3 font-medium w-28">RUC</th>
+      <th className="px-4 py-3 font-medium w-28">RUC/Cédula</th>
       <th className="px-4 py-3 font-medium">Email</th>
-      <th className="px-4 py-3 font-medium w-20 text-center">Zona</th>
+      <th className="px-4 py-3 font-medium w-28">Localidad</th>
       <th className="px-4 py-3 font-medium w-28">Alta</th>
       <th className="px-4 py-3 font-medium w-28">Últ. llamada</th>
     </tr>
@@ -455,7 +466,7 @@ function ColumnHeaders() {
 function SkeletonRow() {
   return (
     <tr className="border-b border-border/40">
-      {[24, 40, 20, 20, 36, 24, 12, 24].map((w, i) => (
+      {[24, 18, 40, 14, 20, 24, 36, 24, 24, 24].map((w, i) => (
         <td key={i} className="px-4 py-2.5">
           <div
             className="h-4 rounded bg-muted animate-pulse"

@@ -313,55 +313,88 @@ model EmpresaFletera {
 }
 
 model Movil {
-  id                    Int              @id @default(autoincrement())
-  origen                String           @db.VarChar(10)
-  idOriginal            Int // MOVID
-  fleteraId             Int? // resuelto de MOVEFLID
-  puestoId              Int? // MOVPUESTOID | capital 100
-  estadoCodigo          Int? // MOVESTCOD (→ movil_estado[origen,codigo])
-  descripcion           String?          @db.VarChar(40) // MOVDSC/MOVDESCRIPCION
-  marca                 String?          @db.VarChar(30)
-  modelo                String?          @db.VarChar(30)
-  matricula             String?          @db.VarChar(10) // MOVMAT
-  telefono              String?          @db.VarChar(30) // MOVTELFNRO
-  capacidadLote         Int? // interior MOVBOD13TOPE | capital MOVT1
-  servicioPrincipal     String?          @db.VarChar(30) // interior MOVSERVPRINCIPAL | capital MOVTPOSERI
-  tipoServicio          String?          @db.VarChar(10) // capital MOVTPOSERI
-  rutea                 Boolean? // capital MOVRUTEA (S/N)
-  pedidosPendientes     Int? // MOVPEDPEND / MOVPEDLOTE
-  latitud               Decimal?         @db.Decimal(10, 7) // interior MOVULTCOORDX | capital MOVX (UTM→WGS84)
-  longitud              Decimal?         @db.Decimal(10, 7) // interior MOVULTCOORDY | capital MOVY
-  ultimaPosicionAt      DateTime? // capital MOVPOSFCHA | interior MOVULTMODIFICACION
-  gpsMovilId            Int? // interior MOVGPSMOVID | capital MOVGPS
-  tieneGps              Boolean?
-  gpsReportando         Boolean? // capital MOVGPSOK
-  distanciaMaxMetros    Int? // interior MOVDISTANCIAMAXMTSCUMPPEDIDOS
-  appPuedeDesactivar    Boolean? // interior MOVAPPPUEDEDESACTIVAR
-  permiteBajaMomentanea Boolean? // interior MOVPERMITEBAJAMOMENTANEA
-  destinoId             Int? // capital MOVDESTID → movil_destino
-  numeroMovil           Int? // interior MOVNROMOVIL
-  activoDesde           DateTime?        @db.Date // capital MOVACTDESD
-  activoHasta           DateTime?        @db.Date // capital MOVACTHAST
-  observaciones         String?          @db.VarChar(60) // interior MOVOBS
-  firebaseEnviado       DateTime? // interior
-  firebaseEliminado     DateTime? // interior
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  fletera               EmpresaFletera?  @relation(fields: [fleteraId], references: [id])
-  destino               MovilDestino?    @relation(fields: [destinoId], references: [id])
-  zonas                 MovilZona[]
-  servicios             MovilServicio[]
-  bodega                MovilBodega[]
-  stock                 MovilStock[]
-  horarios              MovilHorario[]
-  ica                   MovilIca[]
-  clientes              ClienteMovil[]
-  historico             MovilHistorico[]
+  id                         Int                 @id @default(autoincrement())
+  origen                     String              @db.VarChar(10)
+  idOriginal                 Int // MOVID
+  fleteraId                  Int? // resuelto de MOVEFLID
+  puestoId                   Int? // MOVPUESTOID | capital 100
+  estadoCodigo               Int? // MOVESTCOD (→ movil_estado[origen,codigo])
+  descripcion                String?             @db.VarChar(40) // MOVDSC/MOVDESCRIPCION
+  marca                      String?             @db.VarChar(30)
+  modelo                     String?             @db.VarChar(30)
+  matricula                  String?             @db.VarChar(10) // MOVMAT
+  telefono                   String?             @db.VarChar(30) // MOVTELFNRO
+  capacidadLote              Int? // interior MOVBOD13TOPE | capital MOVT1
+  servicioPrincipal          String?             @db.VarChar(30) // interior MOVSERVPRINCIPAL | capital MOVTPOSERI
+  tipoServicio               String?             @db.VarChar(10) // capital MOVTPOSERI
+  rutea                      Boolean? // capital MOVRUTEA (S/N)
+  pedidosPendientes          Int? // MOVPEDPEND / MOVPEDLOTE
+  latitud                    Decimal?            @db.Decimal(10, 7) // interior MOVULTCOORDX | capital MOVX (UTM→WGS84)
+  longitud                   Decimal?            @db.Decimal(10, 7) // interior MOVULTCOORDY | capital MOVY
+  ultimaPosicionAt           DateTime? // capital MOVPOSFCHA | interior MOVULTMODIFICACION
+  gpsMovilId                 Int? // interior MOVGPSMOVID | capital MOVGPS
+  tieneGps                   Boolean?
+  gpsReportando              Boolean? // capital MOVGPSOK
+  distanciaMaxMetros         Int? // interior MOVDISTANCIAMAXMTSCUMPPEDIDOS
+  appPuedeDesactivar         Boolean? // interior MOVAPPPUEDEDESACTIVAR
+  permiteBajaMomentanea      Boolean? // interior MOVPERMITEBAJAMOMENTANEA
+  destinoId                  Int? // capital MOVDESTID → movil_destino
+  numeroMovil                Int? // interior MOVNROMOVIL
+  activoDesde                DateTime?           @db.Date // capital MOVACTDESD
+  activoHasta                DateTime?           @db.Date // capital MOVACTHAST
+  observaciones              String?             @db.VarChar(60) // interior MOVOBS
+  firebaseEnviado            DateTime? // interior
+  firebaseEliminado          DateTime? // interior
+  // --- Config traída de AS400 (poblar por re-ETL UPDATE in-place, spec 2026-06-25) ---
+  enviarPedidosCelular       Boolean? // capital MOVENVPEDI='S' | interior MOVCELACT='S'
+  reasignacionPuesto         String?             @db.VarChar(2) // capital MOVREASIGN
+  activarDireccionCalleId    Int? // capital MOVCALID (→ catálogo calle)
+  activarDireccionNro        Int? // capital MOVCALNROP
+  coordActivaX               Decimal?            @db.Decimal(13, 5) // capital MOVACTENX (UTM 21S, crudo)
+  coordActivaY               Decimal?            @db.Decimal(13, 5) // capital MOVACTENY (UTM 21S, crudo)
+  tiempoCumplimientoServicio Int? // interior MOVTIEMPOCUMPLSERVICIO
+  // --- Config NUEVA de goya (editable, vacía hasta cargar) ---
+  dirSms                     String?             @db.VarChar(60)
+  usaIca                     Boolean?            @default(false) // toggle "Ruta ICA" (inicial: existe fila en movil_ica)
+  mostrarEnMapa              Boolean?            @default(true)
+  actualizarCoord30s         Boolean?            @default(true)
+  radioMinIcaMetros          Int?
+  finalizacionRutas1         Int?
+  finalizacionRutas2         Int?
+  activarPorApp              Boolean?
+  capturaPantalla            Boolean?
+  grabarPantalla             Boolean?
+  debugDelivery              Boolean?
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  fletera                    EmpresaFletera?     @relation(fields: [fleteraId], references: [id])
+  destino                    MovilDestino?       @relation(fields: [destinoId], references: [id])
+  zonas                      MovilZona[]
+  servicios                  MovilServicio[]
+  bodega                     MovilBodega[]
+  stock                      MovilStock[]
+  horarios                   MovilHorario[]
+  ica                        MovilIca[]
+  clientes                   ClienteMovil[]
+  historico                  MovilHistorico[]
+  puntosRecarga              MovilPuntoRecarga[]
 
   @@unique([origen, idOriginal])
   @@index([fleteraId])
   @@index([puestoId])
   @@map("movil")
+}
+
+model MovilPuntoRecarga {
+  id      Int     @id @default(autoincrement())
+  movilId Int
+  origen  String  @db.VarChar(10)
+  puntoId Int? // id en V_PTOSRECARGA (backfill futuro)
+  nombre  String? @db.VarChar(60)
+  movil   Movil   @relation(fields: [movilId], references: [id], onDelete: Cascade)
+
+  @@index([movilId])
+  @@map("movil_punto_recarga")
 }
 
 model MovilEstado {

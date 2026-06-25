@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { CatalogosModule } from './catalogos/catalogos.module';
 import { MovilesModule } from './moviles/moviles.module';
+import { FleterasModule } from './fleteras/fleteras.module';
 
 @Module({
   imports: [
@@ -23,10 +24,10 @@ import { MovilesModule } from './moviles/moviles.module';
     ClientesModule,
     CatalogosModule,
     MovilesModule,
+    FleterasModule,
     // TODO: Agregar módulos a medida que se migran las APIs
     // ZonasModule,
     // UsuariosModule,
-    // FleterasModule,
     // AsignacionesModule,
   ],
 })

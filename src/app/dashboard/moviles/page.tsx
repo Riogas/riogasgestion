@@ -1,16 +1,13 @@
 "use client";
 
-import { PageHeader } from "@/components/ui/PageHeader";
+import { Suspense } from "react";
 import Moviles from "@/components/dashboard/moviles/Moviles";
 
 export default function MovilesPage() {
+  // Suspense: Moviles usa nuqs (useSearchParams); evita el CSR bailout en build.
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Móviles"
-        description="Flota, ubicaciones y estado de cada unidad."
-      />
+    <Suspense fallback={null}>
       <Moviles />
-    </div>
+    </Suspense>
   );
 }

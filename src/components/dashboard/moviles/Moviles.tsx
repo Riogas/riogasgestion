@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -276,6 +277,8 @@ function IconAction({
 // ─── Pantalla principal ────────────────────────────────────────────────────────
 
 export default function Moviles() {
+  const router = useRouter();
+
   // URL state (nuqs)
   const [searchInput, setSearchInput] = useQueryState(
     "q",
@@ -650,7 +653,7 @@ export default function Moviles() {
                             key={m.id}
                             data-state={selected ? "selected" : undefined}
                             className="cursor-pointer"
-                            onClick={() => setSel(m.id)}
+                            onClick={() => router.push(`/dashboard/moviles/${m.id}`)}
                           >
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <Checkbox
@@ -730,13 +733,15 @@ export default function Moviles() {
                                 <IconAction
                                   icon={Pencil}
                                   label="Editar"
-                                  onClick={() => todo(`Editar móvil ${m.numero}`)}
+                                  onClick={() =>
+                                    router.push(`/dashboard/moviles/${m.id}`)
+                                  }
                                 />
                                 <IconAction
                                   icon={Cog}
                                   label="Configurar"
                                   onClick={() =>
-                                    todo(`Configurar móvil ${m.numero}`)
+                                    router.push(`/dashboard/moviles/${m.id}`)
                                   }
                                 />
                                 <IconAction

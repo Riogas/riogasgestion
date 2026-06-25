@@ -57,8 +57,81 @@ export interface MovilDetalle {
   destinoId: number | null;
   destinoNombre: string | null;
   observaciones: string | null;
+  activoDesde: string | null;
+  activoHasta: string | null;
   ultimaActualizacion: string | null;
+
+  // Config AS400
+  enviarPedidosCelular: boolean | null;
+  reasignacionPuesto: string | null;
+  activarDireccionCalleId: number | null;
+  activarDireccionCalleNombre: string | null;
+  activarDireccionNro: number | null;
+  coordActivaX: number | string | null;
+  coordActivaY: number | string | null;
+  tiempoCumplimientoServicio: number | null;
+
+  // Config goya
+  dirSms: string | null;
+  usaIca: boolean | null;
+  mostrarEnMapa: boolean | null;
+  actualizarCoord30s: boolean | null;
+  radioMinIcaMetros: number | null;
+  finalizacionRutas1: number | null;
+  finalizacionRutas2: number | null;
+  activarPorApp: boolean | null;
+  capturaPantalla: boolean | null;
+  grabarPantalla: boolean | null;
+  debugDelivery: boolean | null;
+  appPuedeDesactivar: boolean | null;
+  permiteBajaMomentanea: boolean | null;
+  distanciaMaxMetros: number | null;
+
+  // Sub-dominios
+  productos: MovilProducto[];
+  puntosRecarga: MovilPunto[];
+  servicios: MovilServicioItem[];
+  escenarios: MovilEscenario[];
+  bodega: MovilBodegaItem[];
   historico: MovilHistoricoItem[];
+}
+
+export interface MovilProducto {
+  id: number;
+  productoEmpresa: string | null;
+  productoCodigo: string | null;
+  stockMin: number | null;
+  stockDps: number | null;
+  tiempoCarga: number | null;
+  tiempoDescarga: number | null;
+}
+
+export interface MovilPunto {
+  id: number;
+  puntoId: number | null;
+  nombre: string | null;
+}
+
+export interface MovilServicioItem {
+  id: number;
+  servicioId: number | null;
+  nombre: string | null;
+}
+
+export interface MovilEscenario {
+  id: number;
+  escenarioId: number | null;
+  canalId: number | null;
+  zonaId: number | null;
+  tipo: number | null;
+}
+
+export interface MovilBodegaItem {
+  id: number;
+  productoEmpresa: string | null;
+  productoCodigo: string | null;
+  capacidad: number | null;
+  sinActivar: number | null;
 }
 
 export interface MovilHistoricoItem {
@@ -67,6 +140,79 @@ export interface MovilHistoricoItem {
   accion: string | null;
   usuario: string | null;
   detalle: string | null;
+}
+
+// ─── Mutaciones ────────────────────────────────────────────────────────────────
+
+export interface UpdateMovilPayload {
+  descripcion?: string | null;
+  matricula?: string | null;
+  fleteraId?: number | null;
+  marca?: string | null;
+  modelo?: string | null;
+  tipoServicio?: string | null;
+  servicioPrincipal?: string | null;
+  capacidadLote?: number | null;
+  observaciones?: string | null;
+  estadoCodigo?: number | null;
+  pedidosPendientes?: number | null;
+  telefono?: string | null;
+  dirSms?: string | null;
+  activoDesde?: string | null;
+  activoHasta?: string | null;
+  rutea?: boolean;
+  enviarPedidosCelular?: boolean;
+  actualizarCoord30s?: boolean;
+  usaIca?: boolean;
+  mostrarEnMapa?: boolean;
+  reasignacionPuesto?: string | null;
+  activarDireccionCalleId?: number | null;
+  activarDireccionNro?: number | null;
+  coordActivaX?: number | null;
+  coordActivaY?: number | null;
+  tiempoCumplimientoServicio?: number | null;
+  finalizacionRutas1?: number | null;
+  finalizacionRutas2?: number | null;
+  radioMinIcaMetros?: number | null;
+  activarPorApp?: boolean;
+  appPuedeDesactivar?: boolean;
+  capturaPantalla?: boolean;
+  grabarPantalla?: boolean;
+  debugDelivery?: boolean;
+  permiteBajaMomentanea?: boolean;
+  distanciaMaxMetros?: number | null;
+}
+
+export interface ProductoPayload {
+  productoEmpresa?: string | null;
+  productoCodigo?: string | null;
+  stockMin?: number | null;
+  stockDps?: number | null;
+  tiempoCarga?: number | null;
+  tiempoDescarga?: number | null;
+}
+
+export interface PuntoPayload {
+  nombre?: string | null;
+  puntoId?: number | null;
+}
+
+export interface ServicioPayload {
+  servicioId?: number | null;
+}
+
+export interface EscenarioPayload {
+  escenarioId?: number | null;
+  canalId?: number | null;
+  zonaId?: number | null;
+  tipo?: number | null;
+}
+
+export interface MovilCatalogos {
+  estados: { codigo: number; nombre: string }[];
+  fleteras: { id: number; nombre: string | null }[];
+  servicios: { id: number; nombre: string | null }[];
+  calles: { id: number; nombre: string | null }[];
 }
 
 // ─── KPIs ────────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueryMovilesDto } from './dto/query-moviles.dto';
+import { UpdateMovilDto } from './dto/update-movil.dto';
 
 // ─── Tipos de respuesta ───────────────────────────────────────────────────────
 
@@ -162,7 +163,15 @@ export class MovilesService {
   async findOne(id: number) {
     const m = await this.prisma.movil.findUnique({
       where: { id },
-      include: { fletera: true, destino: true },
+      include: {
+        fletera: true,
+        destino: true,
+        stock: { orderBy: { id: 'asc' } },
+        puntosRecarga: { orderBy: { id: 'asc' } },
+        servicios: { include: { servicio: true }, orderBy: { id: 'asc' } },
+        zonas: { orderBy: { id: 'asc' } },
+        bodega: { orderBy: { id: 'asc' } },
+      },
     });
     if (!m) {
       throw new NotFoundException(`Móvil ${id} no encontrado`);
@@ -170,6 +179,16 @@ export class MovilesService {
 
     const estadoMap = await this.loadEstadoMap();
     const servicioNombre = m.tipoServicio ?? m.servicioPrincipal;
+
+    // Nombre de la calle de "activar por dirección" (catálogo calle).
+    let activarDireccionCalleNombre: string | null = null;
+    if (m.activarDireccionCalleId) {
+      const calle = await this.prisma.calle.findUnique({
+        where: { id: m.activarDireccionCalleId },
+        select: { nombre: true },
+      });
+      activarDireccionCalleNombre = calle?.nombre ?? null;
+    }
 
     return {
       id: m.id,
@@ -199,9 +218,284 @@ export class MovilesService {
       destinoId: m.destinoId,
       destinoNombre: m.destino?.nombre ?? null,
       observaciones: m.observaciones,
+      activoDesde: m.activoDesde,
+      activoHasta: m.activoHasta,
       ultimaActualizacion: m.ultimaPosicionAt ?? m.updatedAt,
+
+      // Config AS400
+      enviarPedidosCelular: m.enviarPedidosCelular,
+      reasignacionPuesto: m.reasignacionPuesto,
+      activarDireccionCalleId: m.activarDireccionCalleId,
+      activarDireccionCalleNombre,
+      activarDireccionNro: m.activarDireccionNro,
+      coordActivaX: m.coordActivaX,
+      coordActivaY: m.coordActivaY,
+      tiempoCumplimientoServicio: m.tiempoCumplimientoServicio,
+
+      // Config goya
+      dirSms: m.dirSms,
+      usaIca: m.usaIca,
+      mostrarEnMapa: m.mostrarEnMapa,
+      actualizarCoord30s: m.actualizarCoord30s,
+      radioMinIcaMetros: m.radioMinIcaMetros,
+      finalizacionRutas1: m.finalizacionRutas1,
+      finalizacionRutas2: m.finalizacionRutas2,
+      activarPorApp: m.activarPorApp,
+      capturaPantalla: m.capturaPantalla,
+      grabarPantalla: m.grabarPantalla,
+      debugDelivery: m.debugDelivery,
+      appPuedeDesactivar: m.appPuedeDesactivar,
+      permiteBajaMomentanea: m.permiteBajaMomentanea,
+      distanciaMaxMetros: m.distanciaMaxMetros,
+
+      // Sub-dominios
+      productos: m.stock.map((s) => ({
+        id: s.id,
+        productoEmpresa: s.productoEmpresa,
+        productoCodigo: s.productoCodigo,
+        stockMin: s.stockMovil,
+        stockDps: s.stockOcupado,
+        tiempoCarga: s.tiempoCarga,
+        tiempoDescarga: s.tiempoDescarga,
+      })),
+      puntosRecarga: m.puntosRecarga.map((p) => ({
+        id: p.id,
+        puntoId: p.puntoId,
+        nombre: p.nombre,
+      })),
+      servicios: m.servicios.map((sv) => ({
+        id: sv.id,
+        servicioId: sv.servicioId,
+        nombre: sv.servicio?.nombre ?? null,
+      })),
+      escenarios: m.zonas.map((z) => ({
+        id: z.id,
+        escenarioId: z.escenarioId,
+        canalId: z.canalId,
+        zonaId: z.zonaId,
+        tipo: z.tipo,
+      })),
+      bodega: m.bodega.map((b) => ({
+        id: b.id,
+        productoEmpresa: b.productoEmpresa,
+        productoCodigo: b.productoCodigo,
+        capacidad: b.capacidad,
+        sinActivar: b.sinActivar,
+      })),
       historico: [] as unknown[],
     };
+  }
+
+  async update(id: number, dto: UpdateMovilDto) {
+    const existing = await this.prisma.movil.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Móvil ${id} no encontrado`);
+    }
+
+    const data: Prisma.MovilUpdateInput = {
+      descripcion: dto.descripcion,
+      matricula: dto.matricula,
+      marca: dto.marca,
+      modelo: dto.modelo,
+      tipoServicio: dto.tipoServicio,
+      servicioPrincipal: dto.servicioPrincipal,
+      capacidadLote: dto.capacidadLote,
+      observaciones: dto.observaciones,
+      estadoCodigo: dto.estadoCodigo,
+      pedidosPendientes: dto.pedidosPendientes,
+      telefono: dto.telefono,
+      dirSms: dto.dirSms,
+      activoDesde: dto.activoDesde ? new Date(dto.activoDesde) : undefined,
+      activoHasta: dto.activoHasta ? new Date(dto.activoHasta) : undefined,
+      rutea: dto.rutea,
+      enviarPedidosCelular: dto.enviarPedidosCelular,
+      actualizarCoord30s: dto.actualizarCoord30s,
+      usaIca: dto.usaIca,
+      mostrarEnMapa: dto.mostrarEnMapa,
+      reasignacionPuesto: dto.reasignacionPuesto,
+      activarDireccionCalleId: dto.activarDireccionCalleId,
+      activarDireccionNro: dto.activarDireccionNro,
+      coordActivaX:
+        dto.coordActivaX !== undefined ? new Prisma.Decimal(dto.coordActivaX) : undefined,
+      coordActivaY:
+        dto.coordActivaY !== undefined ? new Prisma.Decimal(dto.coordActivaY) : undefined,
+      tiempoCumplimientoServicio: dto.tiempoCumplimientoServicio,
+      finalizacionRutas1: dto.finalizacionRutas1,
+      finalizacionRutas2: dto.finalizacionRutas2,
+      radioMinIcaMetros: dto.radioMinIcaMetros,
+      activarPorApp: dto.activarPorApp,
+      appPuedeDesactivar: dto.appPuedeDesactivar,
+      capturaPantalla: dto.capturaPantalla,
+      grabarPantalla: dto.grabarPantalla,
+      debugDelivery: dto.debugDelivery,
+      permiteBajaMomentanea: dto.permiteBajaMomentanea,
+      distanciaMaxMetros: dto.distanciaMaxMetros,
+    };
+
+    // fleteraId vía relación (connect/disconnect) para respetar la FK.
+    if (dto.fleteraId !== undefined) {
+      data.fletera = dto.fleteraId
+        ? { connect: { id: dto.fleteraId } }
+        : { disconnect: true };
+    }
+
+    await this.prisma.movil.update({ where: { id }, data });
+    return this.findOne(id);
+  }
+
+  // Catálogos para los selects de la pantalla de detalle (además de /filtros).
+  async catalogos() {
+    const [estados, fleteras, servicios, calles] = await Promise.all([
+      this.prisma.movilEstado.findMany({ orderBy: { codigo: 'asc' } }),
+      this.prisma.empresaFletera.findMany({ orderBy: { nombre: 'asc' } }),
+      this.prisma.servicio.findMany({ orderBy: { nombre: 'asc' } }),
+      this.prisma.calle.findMany({
+        where: { nombre: { not: null } },
+        select: { id: true, nombre: true },
+        orderBy: { nombre: 'asc' },
+      }),
+    ]);
+
+    const estadoSeen = new Set<string>();
+    const estadosOut: { codigo: number; nombre: string }[] = [];
+    for (const e of estados) {
+      const nombre = e.nombre ?? '';
+      if (!nombre || estadoSeen.has(nombre)) continue;
+      estadoSeen.add(nombre);
+      estadosOut.push({ codigo: e.codigo, nombre });
+    }
+
+    return {
+      estados: estadosOut,
+      fleteras: fleteras.map((f) => ({ id: f.id, nombre: f.nombre })),
+      servicios: servicios.map((s) => ({ id: s.id, nombre: s.nombre })),
+      calles: calles.map((c) => ({ id: c.id, nombre: c.nombre })),
+    };
+  }
+
+  // Duplica config + sub-dominios. idOriginal placeholder = nuevo id (como clientes).
+  async duplicar(id: number) {
+    const src = await this.prisma.movil.findUnique({
+      where: { id },
+      include: {
+        stock: true,
+        puntosRecarga: true,
+        servicios: true,
+        zonas: true,
+        bodega: true,
+      },
+    });
+    if (!src) {
+      throw new NotFoundException(`Móvil ${id} no encontrado`);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.movil.create({
+        data: {
+          origen: 'capital',
+          idOriginal: 0, // placeholder; se reescribe con el id nuevo
+          fleteraId: src.fleteraId,
+          puestoId: src.puestoId,
+          estadoCodigo: src.estadoCodigo,
+          descripcion: src.descripcion ? `${src.descripcion} (copia)` : 'Copia',
+          marca: src.marca,
+          modelo: src.modelo,
+          matricula: null,
+          telefono: src.telefono,
+          capacidadLote: src.capacidadLote,
+          servicioPrincipal: src.servicioPrincipal,
+          tipoServicio: src.tipoServicio,
+          rutea: src.rutea,
+          enviarPedidosCelular: src.enviarPedidosCelular,
+          reasignacionPuesto: src.reasignacionPuesto,
+          activarDireccionCalleId: src.activarDireccionCalleId,
+          activarDireccionNro: src.activarDireccionNro,
+          coordActivaX: src.coordActivaX,
+          coordActivaY: src.coordActivaY,
+          tiempoCumplimientoServicio: src.tiempoCumplimientoServicio,
+          dirSms: src.dirSms,
+          usaIca: src.usaIca,
+          mostrarEnMapa: src.mostrarEnMapa,
+          actualizarCoord30s: src.actualizarCoord30s,
+          radioMinIcaMetros: src.radioMinIcaMetros,
+          finalizacionRutas1: src.finalizacionRutas1,
+          finalizacionRutas2: src.finalizacionRutas2,
+          activarPorApp: src.activarPorApp,
+          capturaPantalla: src.capturaPantalla,
+          grabarPantalla: src.grabarPantalla,
+          debugDelivery: src.debugDelivery,
+          appPuedeDesactivar: src.appPuedeDesactivar,
+          permiteBajaMomentanea: src.permiteBajaMomentanea,
+          distanciaMaxMetros: src.distanciaMaxMetros,
+        },
+      });
+
+      const updated = await tx.movil.update({
+        where: { id: created.id },
+        data: { idOriginal: created.id },
+      });
+
+      if (src.stock.length) {
+        await tx.movilStock.createMany({
+          data: src.stock.map((s) => ({
+            movilId: updated.id,
+            origen: 'capital',
+            productoEmpresa: s.productoEmpresa,
+            productoCodigo: s.productoCodigo,
+            stockMovil: s.stockMovil,
+            stockOcupado: s.stockOcupado,
+            tiempoCarga: s.tiempoCarga,
+            tiempoDescarga: s.tiempoDescarga,
+          })),
+        });
+      }
+      if (src.puntosRecarga.length) {
+        await tx.movilPuntoRecarga.createMany({
+          data: src.puntosRecarga.map((p) => ({
+            movilId: updated.id,
+            origen: 'capital',
+            puntoId: p.puntoId,
+            nombre: p.nombre,
+          })),
+        });
+      }
+      if (src.servicios.length) {
+        await tx.movilServicio.createMany({
+          data: src.servicios.map((sv) => ({
+            movilId: updated.id,
+            origen: 'capital',
+            servicioId: sv.servicioId,
+          })),
+        });
+      }
+      if (src.zonas.length) {
+        await tx.movilZona.createMany({
+          data: src.zonas.map((z) => ({
+            movilId: updated.id,
+            origen: 'capital',
+            escenarioId: z.escenarioId,
+            canalId: z.canalId,
+            zonaId: z.zonaId,
+            tipo: z.tipo,
+            flag: z.flag,
+          })),
+        });
+      }
+      if (src.bodega.length) {
+        await tx.movilBodega.createMany({
+          data: src.bodega.map((b) => ({
+            movilId: updated.id,
+            origen: 'capital',
+            productoEmpresa: b.productoEmpresa,
+            productoCodigo: b.productoCodigo,
+            capacidad: b.capacidad,
+            sinActivar: b.sinActivar,
+          })),
+        });
+      }
+
+      return { id: updated.id };
+    });
   }
 
   async filtros() {

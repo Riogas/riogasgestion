@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { CatalogosModule } from './catalogos/catalogos.module';
+import { MovilesModule } from './moviles/moviles.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CatalogosModule } from './catalogos/catalogos.module';
     HealthModule,
     ClientesModule,
     CatalogosModule,
+    MovilesModule,
     // TODO: Agregar módulos a medida que se migran las APIs
     // ZonasModule,
     // UsuariosModule,

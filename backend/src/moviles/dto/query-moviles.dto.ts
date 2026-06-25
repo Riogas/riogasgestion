@@ -35,6 +35,12 @@ export class QueryMovilesDto {
   @IsOptional() @IsString()
   origen?: string;
 
+  // Por defecto la lista trae SOLO móviles activos (estado que empieza con
+  // "ACTIVO"). Enviar 'false' para traer todos. Se ignora si se filtra por
+  // un estadoCodigo explícito.
+  @IsOptional() @IsString()
+  soloActivos?: string;
+
   // 'movil' | '-movil'
   @IsOptional() @IsString()
   sort?: string;

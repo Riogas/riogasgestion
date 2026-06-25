@@ -251,6 +251,8 @@ export interface QueryMovilesParams {
   rutaIca?: string;
   origen?: string;
   sort?: string;
+  /** 'false' para traer todos; por defecto (undefined) solo activos. */
+  soloActivos?: string;
 }
 
 // ─── Badge helpers ───────────────────────────────────────────────────────────

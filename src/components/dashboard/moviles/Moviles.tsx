@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
+import {
+  useQueryState,
+  parseAsInteger,
+  parseAsString,
+  parseAsBoolean,
+} from "nuqs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -306,6 +311,11 @@ export default function Moviles() {
     parseAsString.withDefault(""),
   );
   const [sort, setSort] = useQueryState("sort", parseAsString.withDefault(""));
+  // Por defecto la lista muestra SOLO móviles activos. Destildar para ver todos.
+  const [soloActivos, setSoloActivos] = useQueryState(
+    "activos",
+    parseAsBoolean.withDefault(true),
+  );
   const [sel, setSel] = useQueryState("sel", parseAsInteger);
 
   const debouncedSearch = useDebounce(searchInput, 400);
@@ -320,6 +330,9 @@ export default function Moviles() {
       fleteraId: fleteraId ? Number(fleteraId) : undefined,
       rutaIca: rutaIca || undefined,
       sort: sort || undefined,
+      // checked = solo activos (backend lo hace por defecto) → no mandar nada;
+      // destildado = traer todos → mandar 'false'.
+      soloActivos: soloActivos ? undefined : "false",
     }),
     [
       page,
@@ -330,6 +343,7 @@ export default function Moviles() {
       fleteraId,
       rutaIca,
       sort,
+      soloActivos,
     ],
   );
 
@@ -355,6 +369,7 @@ export default function Moviles() {
     setFleteraId("");
     setRutaIca("");
     setSort("");
+    setSoloActivos(true);
     setPage(1);
   };
 
@@ -581,6 +596,17 @@ export default function Moviles() {
             <History className="size-4" />
             Histórico
           </Button>
+
+          <label className="ml-auto flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground">
+            <Checkbox
+              checked={soloActivos}
+              onCheckedChange={(v) => {
+                setSoloActivos(v === true);
+                setPage(1);
+              }}
+            />
+            Solo activos
+          </label>
         </div>
       </Card>
 

@@ -84,24 +84,48 @@ export class MovilesService {
     const pageSize = q.pageSize ?? 20;
     const where = this.buildWhere(q);
 
+    // Catálogo de estados (resolver nombre + filtro "solo activos").
+    const estados = await this.prisma.movilEstado.findMany();
+    const estadoMap = new Map<string, string | null>();
+    for (const e of estados) estadoMap.set(`${e.origen}:${e.codigo}`, e.nombre);
+
+    // Por defecto la lista trae SOLO activos (estado que empieza con "ACTIVO"),
+    // salvo soloActivos='false' o filtro por estadoCodigo explícito.
+    if (q.soloActivos !== 'false' && q.estadoCodigo === undefined) {
+      const activos = estados.filter((e) =>
+        (e.nombre ?? '').toUpperCase().startsWith('ACTIVO'),
+      );
+      if (activos.length) {
+        const and = Array.isArray(where.AND)
+          ? where.AND
+          : where.AND
+            ? [where.AND]
+            : [];
+        and.push({
+          OR: activos.map((e) => ({
+            origen: e.origen,
+            estadoCodigo: e.codigo,
+          })),
+        });
+        where.AND = and;
+      }
+    }
+
     // sort: 'movil' | '-movil' (por numeroMovil/idOriginal)
     const desc = q.sort?.startsWith('-');
     const orderBy: Prisma.MovilOrderByWithRelationInput[] = q.sort
       ? [{ numeroMovil: desc ? 'desc' : 'asc' }, { idOriginal: desc ? 'desc' : 'asc' }]
       : [{ idOriginal: 'asc' }];
 
-    const [estadoMap, [rows, total]] = await Promise.all([
-      this.loadEstadoMap(),
-      this.prisma.$transaction([
-        this.prisma.movil.findMany({
-          where,
-          include: { fletera: true },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-          orderBy,
-        }),
-        this.prisma.movil.count({ where }),
-      ]),
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.movil.findMany({
+        where,
+        include: { fletera: true },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy,
+      }),
+      this.prisma.movil.count({ where }),
     ]);
 
     const data: MovilListItem[] = rows.map((m) => ({

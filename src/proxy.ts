@@ -99,12 +99,17 @@ async function apiCheckPermisoEdge(
     const accionKey = 'view';
     const url = `${SECAPI_URL}/api/db/permisos`;
 
-    // Contrato secapi (igual que TrackMovil):
-    //   body  → { aplicacion, permisos: [{ ObjetoKey, AccionKey }] }
+    // Contrato secapi:
+    //   body  → { aplicacion, permisos: [{ ObjetoKey, AccionKey, ObjetoPath }] }
     //   resp  → { resultados: [{ accionKey, permitido: 'GRANTED' }] }
+    // ObjetoPath = ruta concreta. Necesario para que secapi resuelva rutas
+    // dinámicas por patrón (ej. /dashboard/moviles/108 → /moviles/:id) cuando el
+    // ObjetoKey (último segmento = el id) no matchea ningún objeto.
     const body = {
       aplicacion: PERMISOS_APLICACION,
-      permisos: [{ ObjetoKey: objetoKey, AccionKey: accionKey }],
+      permisos: [
+        { ObjetoKey: objetoKey, AccionKey: accionKey, ObjetoPath: pathname },
+      ],
     };
 
     console.log('[MW] → Checando permiso (secapi)');

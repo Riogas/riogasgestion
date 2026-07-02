@@ -585,3 +585,38 @@ model MovilHistorico {
   @@index([movilId])
   @@map("movil_historico")
 }
+
+// =====================================================================
+// ZONIFICACIÓN (goya-owned, 2026-07-02). Zonas operativas por puesto,
+// espejadas con la tabla `zonas` del Supabase de TrackMovil.
+// spec: docs/superpowers/specs/2026-07-02-zonificacion-backend-sync-design.md
+// =====================================================================
+
+model ZonaOperativa {
+  id          Int       @id @default(autoincrement())
+  puestoId    Int
+  nombre      String    @db.VarChar(60)
+  descripcion String?   @db.VarChar(200)
+  color       String    @db.VarChar(9)
+  tipoZona    String    @db.VarChar(15) // DISTRIBUCION | FLETE (solo goya)
+  servicios   String[] // URGENTE | SERVICE | NOCTURNO (solo goya)
+  estado      String    @db.VarChar(10) // ACTIVE | ARCHIVED
+  poligono    Json // [{lat: number, lng: number}]
+  trackZonaId Int?      @unique // zona_id en Supabase track
+  syncEstado  String    @db.VarChar(10) @default("PENDING") // SYNCED|PENDING|ERROR|NA
+  syncedAt    DateTime?
+  syncError   String?   @db.VarChar(300)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([puestoId])
+  @@map("zona_operativa")
+}
+
+// Mapeo puesto (goya) → escenario (TrackMovil) para el espejo de zonas.
+model PuestoEscenario {
+  puestoId    Int @id
+  escenarioId Int
+
+  @@map("puesto_escenario")
+}

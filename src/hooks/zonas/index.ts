@@ -17,15 +17,15 @@ export function usePuestos() {
   });
 }
 
-export function useZones(puestoId: string) {
+export function useZones(puestoId: number | null) {
   return useQuery({
     queryKey: ["zonas", puestoId] as const,
-    queryFn: () => getZones(puestoId),
-    enabled: !!puestoId,
+    queryFn: () => getZones(puestoId as number),
+    enabled: puestoId !== null && puestoId > 0,
   });
 }
 
-export function useZoneMutations(puestoId: string) {
+export function useZoneMutations(puestoId: number | null) {
   const queryClient = useQueryClient();
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["zonas", puestoId] });
@@ -36,18 +36,18 @@ export function useZoneMutations(puestoId: string) {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<ZonePayload> }) =>
+    mutationFn: ({ id, patch }: { id: number; patch: Partial<ZonePayload> }) =>
       updateZone(id, patch),
     onSuccess: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => deleteZone(id),
+    mutationFn: (id: number) => deleteZone(id),
     onSuccess: invalidate,
   });
 
   const duplicate = useMutation({
-    mutationFn: (id: string) => duplicateZone(id),
+    mutationFn: (id: number) => duplicateZone(id),
     onSuccess: invalidate,
   });
 

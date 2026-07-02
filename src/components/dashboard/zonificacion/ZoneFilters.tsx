@@ -44,12 +44,12 @@ function FilterSelect({
 
 interface ZoneFiltersProps {
   puestos: Puesto[];
-  puestoId: string;
+  puestoId: number | null;
   zoneType: ZoneType | "";
   service: ServiceType | "";
   search: string;
   creating: boolean;
-  onPuestoChange: (id: string) => void;
+  onPuestoChange: (id: number) => void;
   onZoneTypeChange: (v: ZoneType | "") => void;
   onServiceChange: (v: ServiceType | "") => void;
   onSearchChange: (v: string) => void;
@@ -76,9 +76,12 @@ export function ZoneFilters({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
         <FilterSelect
           label="Puesto"
-          value={puestoId}
-          onChange={onPuestoChange}
-          options={puestos.map((p) => ({ value: p.id, label: p.name }))}
+          value={puestoId != null ? String(puestoId) : ""}
+          onChange={(v) => v && onPuestoChange(Number(v))}
+          options={puestos.map((p) => ({
+            value: String(p.id),
+            label: p.name,
+          }))}
         />
 
         <FilterSelect

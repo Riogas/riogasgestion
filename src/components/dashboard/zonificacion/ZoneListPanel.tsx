@@ -165,12 +165,12 @@ function ZoneListItem({
 interface ZoneListPanelProps {
   zones: Zone[];
   isLoading: boolean;
-  selectedId: string | null;
+  selectedId: number | null;
   showArchived: boolean;
   onToggleArchived: () => void;
-  onSelect: (id: string) => void;
-  onEditGeometry: (id: string) => void;
-  onDuplicate: (id: string) => void;
+  onSelect: (id: number) => void;
+  onEditGeometry: (id: number) => void;
+  onDuplicate: (id: number) => void;
   onArchiveToggle: (zone: Zone) => void;
   onDelete: (zone: Zone) => void;
   onNewZone: () => void;

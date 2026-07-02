@@ -7,6 +7,7 @@ import { ClientesModule } from './clientes/clientes.module';
 import { CatalogosModule } from './catalogos/catalogos.module';
 import { MovilesModule } from './moviles/moviles.module';
 import { FleterasModule } from './fleteras/fleteras.module';
+import { ZonasModule } from './zonas/zonas.module';
 
 @Module({
   imports: [
@@ -25,8 +26,8 @@ import { FleterasModule } from './fleteras/fleteras.module';
     CatalogosModule,
     MovilesModule,
     FleterasModule,
+    ZonasModule,
     // TODO: Agregar módulos a medida que se migran las APIs
-    // ZonasModule,
     // UsuariosModule,
     // AsignacionesModule,
   ],

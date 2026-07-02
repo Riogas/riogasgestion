@@ -36,7 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { LatLng, Puesto, Zone } from "@/lib/types/zona";
+import { URUGUAY_CENTER, type LatLng, type Puesto, type Zone } from "@/lib/types/zona";
 import { MapLegend } from "./MapLegend";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -119,22 +119,48 @@ function polygonCenter(polygon: LatLng[]): [number, number] {
 
 // ─── Sub-componentes de mapa ──────────────────────────────────────────────────
 
-// Vuela al puesto cuando cambia.
-function FlyToPuesto({ puesto }: { puesto: Puesto | null }) {
+// Vuela al puesto cuando cambia. Si el puesto no tiene coordenadas (ej.
+// Montevideo id 100), centra en las zonas apenas llegan.
+function FlyToPuesto({
+  puesto,
+  zones,
+}: {
+  puesto: Puesto | null;
+  zones: Zone[];
+}) {
   const map = useMap();
-  const lastId = useRef<string | null>(null);
+  const lastId = useRef<number | null>(null);
+  const pendingZonesFit = useRef(false);
+
   useEffect(() => {
     if (!puesto || puesto.id === lastId.current) return;
     lastId.current = puesto.id;
-    map.flyTo([puesto.lat, puesto.lng], 12, { duration: 0.8 });
+    if (puesto.lat != null && puesto.lng != null) {
+      pendingZonesFit.current = false;
+      map.flyTo([puesto.lat, puesto.lng], 12, { duration: 0.8 });
+    } else {
+      pendingZonesFit.current = true; // esperar a que carguen las zonas
+    }
   }, [puesto, map]);
+
+  useEffect(() => {
+    if (!pendingZonesFit.current || zones.length === 0) return;
+    const bounds = L.latLngBounds(
+      zones.flatMap((z) => toLatLngTuples(z.polygon)),
+    );
+    if (bounds.isValid()) {
+      pendingZonesFit.current = false;
+      map.flyToBounds(bounds, { padding: [40, 40], duration: 0.8 });
+    }
+  }, [zones, map]);
+
   return null;
 }
 
 // Centra la zona seleccionada.
 function FlyToZone({ zone }: { zone: Zone | null }) {
   const map = useMap();
-  const lastId = useRef<string | null>(null);
+  const lastId = useRef<number | null>(null);
   useEffect(() => {
     if (!zone) {
       lastId.current = null;
@@ -279,7 +305,7 @@ function EditableZonePolygon({
 interface ZoneMapProps {
   zones: Zone[]; // ya filtradas (incluye archivadas si la capa está activa)
   puesto: Puesto | null;
-  selectedId: string | null;
+  selectedId: number | null;
   drawing: boolean;
   draftPolygon: LatLng[] | null;
   editingZone: Zone | null;
@@ -287,8 +313,8 @@ interface ZoneMapProps {
   layers: MapLayersState;
   onToolChange: (t: MapTool) => void;
   onLayersChange: (l: MapLayersState) => void;
-  onSelect: (id: string) => void;
-  onEditGeometry: (id: string) => void;
+  onSelect: (id: number) => void;
+  onEditGeometry: (id: number) => void;
   onDrawComplete: (polygon: LatLng[]) => void;
   onCancelDraw: () => void;
   onGeometrySave: (polygon: LatLng[]) => void;
@@ -352,7 +378,9 @@ export function ZoneMap({
         return;
       }
     }
-    if (puesto) map.setView([puesto.lat, puesto.lng], 12);
+    if (puesto && puesto.lat != null && puesto.lng != null) {
+      map.setView([puesto.lat, puesto.lng], 12);
+    }
   };
 
   const toolBtn = (t: MapTool, Icon: typeof MousePointer2, label: string) => (
@@ -378,8 +406,12 @@ export function ZoneMap({
 
       <MapContainer
         ref={setMap as any}
-        center={puesto ? [puesto.lat, puesto.lng] : [-31.3883, -57.9606]}
-        zoom={12}
+        center={
+          puesto && puesto.lat != null && puesto.lng != null
+            ? ([puesto.lat, puesto.lng] as [number, number])
+            : ([URUGUAY_CENTER.lat, URUGUAY_CENTER.lng] as [number, number])
+        }
+        zoom={puesto?.lat != null ? 12 : 7}
         zoomControl={false}
         doubleClickZoom={false}
         className="zonif-map h-full min-h-[560px] w-full"
@@ -392,7 +424,7 @@ export function ZoneMap({
           maxZoom={19}
         />
 
-        <FlyToPuesto puesto={puesto} />
+        <FlyToPuesto puesto={puesto} zones={zones} />
         <FlyToZone zone={selectedZone} />
         <DrawController
           drawing={drawing}

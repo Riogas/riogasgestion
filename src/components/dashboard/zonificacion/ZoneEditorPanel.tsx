@@ -193,12 +193,29 @@ export function ZoneEditorPanel({
             <p className="truncate text-base font-semibold text-foreground">
               {creating ? "Nueva zona" : zone?.name}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               {creating
                 ? draftPoints >= 3
                   ? `Polígono listo (${draftPoints} puntos)`
                   : "Dibujá el polígono en el mapa"
                 : `ID: ${zone?.code}`}
+              {!creating && zone?.syncEstado === "SYNCED" && (
+                <span
+                  className="text-success"
+                  title={`Espejada en TrackMovil (zona ${zone.trackZonaId})`}
+                >
+                  ⇄
+                </span>
+              )}
+              {!creating && zone?.syncEstado === "ERROR" && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-destructive"
+                  title={zone?.syncError ?? "Error de sincronización con TrackMovil"}
+                >
+                  <AlertTriangle className="size-3" />
+                  sync
+                </span>
+              )}
             </p>
           </div>
         </div>

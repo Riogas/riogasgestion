@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQueryState, parseAsString } from "nuqs";
+import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import { toast } from "sonner";
 import { usePuestos, useZones, useZoneMutations } from "@/hooks/zonas";
 import type {
@@ -26,9 +26,9 @@ function normalize(s: string): string {
 
 export default function Zonificacion() {
   // ── Filtros (URL state, mismo patrón que Móviles) ──────────────────────────
-  const [puestoId, setPuestoId] = useQueryState(
+  const [puestoIdParam, setPuestoIdParam] = useQueryState(
     "puesto",
-    parseAsString.withDefault("salto"),
+    parseAsInteger.withDefault(0), // 0 = sin elegir → se resuelve al cargar puestos
   );
   const [zoneType, setZoneType] = useQueryState(
     "tz",
@@ -39,12 +39,12 @@ export default function Zonificacion() {
     parseAsString.withDefault(""),
   );
   const [search, setSearch] = useQueryState("q", parseAsString.withDefault(""));
-  const [selectedId, setSelectedId] = useQueryState("sel", parseAsString);
+  const [selectedId, setSelectedId] = useQueryState("sel", parseAsInteger);
 
   // ── Estado de interacción ──────────────────────────────────────────────────
   const [creating, setCreating] = useState(false);
   const [draftPolygon, setDraftPolygon] = useState<LatLng[] | null>(null);
-  const [editingGeometryId, setEditingGeometryId] = useState<string | null>(
+  const [editingGeometryId, setEditingGeometryId] = useState<number | null>(
     null,
   );
   const [tool, setTool] = useState<MapTool>("select");
@@ -57,6 +57,14 @@ export default function Zonificacion() {
 
   // ── Datos ──────────────────────────────────────────────────────────────────
   const { data: puestos = [] } = usePuestos();
+
+  // Sin puesto en la URL: por defecto el primero con espejo en track
+  // (Montevideo) o, si no hay, el primero de la lista.
+  const puestoId =
+    puestoIdParam > 0
+      ? puestoIdParam
+      : (puestos.find((p) => p.escenarioId != null) ?? puestos[0])?.id ?? null;
+
   const { data: zones = [], isLoading } = useZones(puestoId);
   const { create, update, remove, duplicate } = useZoneMutations(puestoId);
 
@@ -87,10 +95,15 @@ export default function Zonificacion() {
   // Si la zona seleccionada dejó de ser visible (cambio de puesto/filtros),
   // limpiar selección.
   useEffect(() => {
-    if (selectedId && !isLoading && !visibleZones.some((z) => z.id === selectedId)) {
+    if (
+      selectedId != null &&
+      !isLoading &&
+      zones.length >= 0 &&
+      !visibleZones.some((z) => z.id === selectedId)
+    ) {
       setSelectedId(null);
     }
-  }, [selectedId, visibleZones, isLoading, setSelectedId]);
+  }, [selectedId, visibleZones, isLoading, zones.length, setSelectedId]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -101,8 +114,8 @@ export default function Zonificacion() {
     setTool("select");
   };
 
-  const handlePuestoChange = (id: string) => {
-    setPuestoId(id);
+  const handlePuestoChange = (id: number) => {
+    setPuestoIdParam(id);
     setSelectedId(null);
     resetInteraction();
   };
@@ -146,13 +159,13 @@ export default function Zonificacion() {
     );
   };
 
-  const handleSelect = (id: string) => {
+  const handleSelect = (id: number) => {
     if (creating) return; // no perder el borrador por un click accidental
     setEditingGeometryId(null);
     setSelectedId(id);
   };
 
-  const handleEditGeometry = (id: string) => {
+  const handleEditGeometry = (id: number) => {
     if (creating) return;
     setSelectedId(id);
     setEditingGeometryId(id);
@@ -160,7 +173,7 @@ export default function Zonificacion() {
   };
 
   const handleGeometrySave = async (polygon: LatLng[]) => {
-    if (!editingGeometryId) return;
+    if (editingGeometryId == null) return;
     try {
       await update.mutateAsync({ id: editingGeometryId, patch: { polygon } });
       toast.success("Polígono actualizado.");
@@ -172,6 +185,7 @@ export default function Zonificacion() {
   };
 
   const handleSave = async (values: ZoneFormValues) => {
+    if (puestoId == null) return;
     try {
       if (creating) {
         if (!draftPolygon || draftPolygon.length < 3) return;
@@ -194,7 +208,7 @@ export default function Zonificacion() {
     }
   };
 
-  const handleDuplicate = async (id: string) => {
+  const handleDuplicate = async (id: number) => {
     try {
       const copy = await duplicate.mutateAsync(id);
       setSelectedId(copy.id);
@@ -273,7 +287,7 @@ export default function Zonificacion() {
           <ZoneListPanel
             zones={visibleZones}
             isLoading={isLoading}
-            selectedId={selectedId}
+            selectedId={selectedId ?? null}
             showArchived={layers.archived}
             onToggleArchived={() =>
               setLayers((l) => ({ ...l, archived: !l.archived }))
@@ -291,7 +305,7 @@ export default function Zonificacion() {
           <ZoneMap
             zones={visibleZones}
             puesto={puesto}
-            selectedId={selectedId}
+            selectedId={selectedId ?? null}
             drawing={creating && draftPolygon === null}
             draftPolygon={draftPolygon}
             editingZone={editingZone}

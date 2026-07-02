@@ -28,9 +28,10 @@ export async function getPuestos(): Promise<Puesto[]> {
   return data;
 }
 
-export async function getZones(puestoId: number): Promise<Zone[]> {
+/** Sin puestoId → zonas de todos los puestos. */
+export async function getZones(puestoId?: number): Promise<Zone[]> {
   const { data } = await api.get<Zone[]>("/zonas", {
-    params: { puestoId },
+    params: puestoId != null ? { puestoId } : {},
     ...sinOverlay,
   });
   return data;

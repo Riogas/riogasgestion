@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet-draw"; // extiende L con L.Draw
 import {
-  CircleMarker,
   MapContainer,
+  Marker,
   Polygon,
   TileLayer,
   Tooltip,
@@ -83,6 +83,21 @@ const mapStyles = `
   .zonif-map .leaflet-editing-icon:hover {
     transform: scale(1.3);
   }
+  .zonif-draw-handle {
+    border-radius: 9999px;
+    background: #e5edf7;
+    border: 2px solid #2878ff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.5);
+    cursor: grab;
+  }
+  .zonif-draw-handle:hover {
+    transform: scale(1.25);
+  }
+  .zonif-draw-first {
+    background: #2878ff;
+    border-color: #e5edf7;
+    cursor: pointer;
+  }
   .zonif-map .leaflet-draw-tooltip {
     background: #0f172a;
     border: 1px solid #1e293b;
@@ -120,28 +135,30 @@ function polygonCenter(polygon: LatLng[]): [number, number] {
 // ─── Sub-componentes de mapa ──────────────────────────────────────────────────
 
 // Vuela al puesto cuando cambia. Si el puesto no tiene coordenadas (ej.
-// Montevideo id 100), centra en las zonas apenas llegan.
+// Montevideo id 100) o se eligió "Todos", centra en las zonas apenas llegan.
 function FlyToPuesto({
   puesto,
   zones,
+  focusKey,
 }: {
   puesto: Puesto | null;
   zones: Zone[];
+  focusKey: string;
 }) {
   const map = useMap();
-  const lastId = useRef<number | null>(null);
+  const lastKey = useRef<string | null>(null);
   const pendingZonesFit = useRef(false);
 
   useEffect(() => {
-    if (!puesto || puesto.id === lastId.current) return;
-    lastId.current = puesto.id;
-    if (puesto.lat != null && puesto.lng != null) {
+    if (focusKey === lastKey.current) return;
+    lastKey.current = focusKey;
+    if (puesto && puesto.lat != null && puesto.lng != null) {
       pendingZonesFit.current = false;
       map.flyTo([puesto.lat, puesto.lng], 12, { duration: 0.8 });
     } else {
       pendingZonesFit.current = true; // esperar a que carguen las zonas
     }
-  }, [puesto, map]);
+  }, [focusKey, puesto, map]);
 
   useEffect(() => {
     if (!pendingZonesFit.current || zones.length === 0) return;
@@ -175,23 +192,31 @@ function FlyToZone({ zone }: { zone: Zone | null }) {
 }
 
 // Herramienta de dibujo propia (click = vértice; click en el 1er punto o
-// doble click = cerrar). No usa L.Draw.Polygon: leaflet-draw tiene un bug
-// conocido en equipos con pantalla táctil (modo leaflet-touch) donde los
-// clicks del mouse no agregan vértices.
+// doble click = cerrar; arrastrar un vértice lo corrige; click derecho lo
+// borra). No usa L.Draw.Polygon: leaflet-draw tiene un bug conocido en
+// equipos con pantalla táctil (modo leaflet-touch) donde los clicks del
+// mouse no agregan vértices.
 function DrawController({
   drawing,
   points,
   onAddPoint,
+  onMovePoint,
+  onRemovePoint,
   onFinish,
 }: {
   drawing: boolean;
   points: LatLng[];
   onAddPoint: (p: LatLng) => void;
+  onMovePoint: (index: number, p: LatLng) => void;
+  onRemovePoint: (index: number) => void;
   onFinish: () => void;
 }) {
   const map = useMap();
   const stateRef = useRef({ points, onAddPoint, onFinish });
   stateRef.current = { points, onAddPoint, onFinish };
+  // Al soltar el drag de un vértice, el browser dispara un click que llega al
+  // mapa y agregaba un punto fantasma: se ignoran clicks pegados a un dragend.
+  const lastDragEnd = useRef(0);
 
   useEffect(() => {
     if (!drawing) return;
@@ -200,6 +225,7 @@ function DrawController({
     container.style.cursor = "crosshair";
 
     const onClick = (e: L.LeafletMouseEvent) => {
+      if (Date.now() - lastDragEnd.current < 300) return;
       stateRef.current.onAddPoint({ lat: e.latlng.lat, lng: e.latlng.lng });
     };
     const onDblClick = (e: L.LeafletMouseEvent) => {
@@ -234,28 +260,36 @@ function DrawController({
         />
       )}
       {points.map((p, i) => (
-        <CircleMarker
+        <Marker
           key={i}
-          center={[p.lat, p.lng]}
-          radius={i === 0 ? 7 : 5}
-          pathOptions={{
-            color: "#2878ff",
-            weight: 2,
-            fillColor: i === 0 ? "#2878ff" : "#e5edf7",
-            fillOpacity: 1,
+          position={[p.lat, p.lng]}
+          draggable
+          // sin bubbling: el click que cierra un drag no debe llegar al mapa
+          // (agregaba un punto fantasma al soltar el arrastre)
+          bubblingMouseEvents={false}
+          icon={L.divIcon({
+            className: `zonif-draw-handle${i === 0 ? " zonif-draw-first" : ""}`,
+            iconSize: i === 0 ? [16, 16] : [12, 12],
+            iconAnchor: i === 0 ? [8, 8] : [6, 6],
+          })}
+          eventHandlers={{
+            dragend: (e) => {
+              lastDragEnd.current = Date.now();
+              const ll = (e.target as L.Marker).getLatLng();
+              onMovePoint(i, { lat: ll.lat, lng: ll.lng });
+            },
+            contextmenu: (e) => {
+              L.DomEvent.stopPropagation(e as any);
+              onRemovePoint(i);
+            },
+            click: (e: L.LeafletMouseEvent) => {
+              L.DomEvent.stopPropagation(e as any);
+              // click en el primer punto cierra el polígono
+              if (i === 0 && stateRef.current.points.length >= 3) {
+                stateRef.current.onFinish();
+              }
+            },
           }}
-          eventHandlers={
-            i === 0
-              ? {
-                  // click en el primer punto cierra el polígono
-                  click: (e) => {
-                    L.DomEvent.stopPropagation(e as any);
-                    if (stateRef.current.points.length >= 3)
-                      stateRef.current.onFinish();
-                  },
-                }
-              : undefined
-          }
         />
       ))}
     </>
@@ -424,12 +458,22 @@ export function ZoneMap({
           maxZoom={19}
         />
 
-        <FlyToPuesto puesto={puesto} zones={zones} />
+        <FlyToPuesto
+          puesto={puesto}
+          zones={zones}
+          focusKey={puesto ? String(puesto.id) : "all"}
+        />
         <FlyToZone zone={selectedZone} />
         <DrawController
           drawing={drawing}
           points={drawPoints}
           onAddPoint={(p) => setDrawPoints((prev) => [...prev, p])}
+          onMovePoint={(i, p) =>
+            setDrawPoints((prev) => prev.map((x, j) => (j === i ? p : x)))
+          }
+          onRemovePoint={(i) =>
+            setDrawPoints((prev) => prev.filter((_, j) => j !== i))
+          }
           onFinish={finishDraw}
         />
 
@@ -627,12 +671,12 @@ export function ZoneMap({
       {/* Aviso: dibujando nueva zona */}
       {drawing && (
         <div className="absolute left-1/2 top-3 z-[1000] -translate-x-1/2">
-          <div className="flex items-center gap-3 rounded-xl border border-primary/50 bg-card/95 px-4 py-2 shadow-lg backdrop-blur">
-            <PenLine className="size-4 text-primary" />
-            <span className="text-sm text-foreground">
+          <div className="flex w-max max-w-[90vw] items-center gap-3 rounded-xl border border-primary/50 bg-card/95 px-4 py-2 shadow-lg backdrop-blur">
+            <PenLine className="size-4 shrink-0 text-primary" />
+            <span className="whitespace-nowrap text-sm text-foreground">
               {drawPoints.length === 0
                 ? "Dibujá los puntos de la nueva zona sobre el mapa."
-                : `${drawPoints.length} punto${drawPoints.length === 1 ? "" : "s"} — cerrá en el primer punto o tocá Finalizar.`}
+                : `${drawPoints.length} punto${drawPoints.length === 1 ? "" : "s"} · arrastrá para corregir · click derecho borra`}
             </span>
             {drawPoints.length >= 3 && (
               <Button size="sm" onClick={finishDraw}>

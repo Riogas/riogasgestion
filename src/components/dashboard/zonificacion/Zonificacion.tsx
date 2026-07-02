@@ -58,17 +58,20 @@ export default function Zonificacion() {
   // ── Datos ──────────────────────────────────────────────────────────────────
   const { data: puestos = [] } = usePuestos();
 
-  // Sin puesto en la URL: por defecto el primero con espejo en track
-  // (Montevideo) o, si no hay, el primero de la lista.
-  const puestoId =
-    puestoIdParam > 0
-      ? puestoIdParam
-      : (puestos.find((p) => p.escenarioId != null) ?? puestos[0])?.id ?? null;
+  // puesto=-1 en la URL = "Todos los puestos". Sin puesto: por defecto el
+  // primero con espejo en track (Montevideo) o el primero de la lista.
+  const puestoId: number | "all" | null =
+    puestoIdParam === -1
+      ? "all"
+      : puestoIdParam > 0
+        ? puestoIdParam
+        : (puestos.find((p) => p.escenarioId != null) ?? puestos[0])?.id ?? null;
 
   const { data: zones = [], isLoading } = useZones(puestoId);
   const { create, update, remove, duplicate } = useZoneMutations(puestoId);
 
-  const puesto = puestos.find((p) => p.id === puestoId) ?? null;
+  const puesto =
+    puestoId === "all" ? null : puestos.find((p) => p.id === puestoId) ?? null;
 
   // Zonas visibles según capas + filtros.
   const visibleZones = useMemo(() => {
@@ -127,6 +130,10 @@ export default function Zonificacion() {
   };
 
   const startCreate = () => {
+    if (typeof puestoId !== "number") {
+      toast.info("Elegí un puesto concreto para crear una zona.");
+      return;
+    }
     setCreating(true);
     setDraftPolygon(null);
     setSelectedId(null);
@@ -185,9 +192,9 @@ export default function Zonificacion() {
   };
 
   const handleSave = async (values: ZoneFormValues) => {
-    if (puestoId == null) return;
     try {
       if (creating) {
+        if (typeof puestoId !== "number") return;
         if (!draftPolygon || draftPolygon.length < 3) return;
         const created = await create.mutateAsync({
           ...values,
@@ -283,7 +290,7 @@ export default function Zonificacion() {
 
       {/* Lista + mapa + editor */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_340px] xl:h-[660px]">
-        <div className="h-full min-h-0 max-lg:order-2">
+        <div className="min-h-0 max-lg:order-2">
           <ZoneListPanel
             zones={visibleZones}
             isLoading={isLoading}

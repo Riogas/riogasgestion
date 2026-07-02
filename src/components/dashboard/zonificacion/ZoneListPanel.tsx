@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -176,6 +177,9 @@ interface ZoneListPanelProps {
   onNewZone: () => void;
 }
 
+// Carga incremental: arranca mostrando ~7 y agrega de a PAGE al scrollear.
+const LIST_PAGE = 20;
+
 export function ZoneListPanel({
   zones,
   isLoading,
@@ -189,6 +193,25 @@ export function ZoneListPanel({
   onDelete,
   onNewZone,
 }: ZoneListPanelProps) {
+  const [visibleCount, setVisibleCount] = useState(LIST_PAGE);
+
+  // Reset del paginado cuando cambia el conjunto (filtros/puesto).
+  useEffect(() => {
+    setVisibleCount(LIST_PAGE);
+  }, [zones.length]);
+
+  const visible = zones.slice(0, visibleCount);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (
+      visibleCount < zones.length &&
+      el.scrollTop + el.clientHeight >= el.scrollHeight - 120
+    ) {
+      setVisibleCount((c) => Math.min(c + LIST_PAGE, zones.length));
+    }
+  };
+
   return (
     <Card className="gap-3 overflow-hidden px-0 py-4">
       <div className="flex items-center justify-between px-4">
@@ -198,7 +221,11 @@ export function ZoneListPanel({
         <Layers className="size-4 text-muted-foreground" />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2">
+      {/* ~7 filas visibles; el resto entra con scroll (carga incremental). */}
+      <div
+        onScroll={handleScroll}
+        className="flex max-h-[440px] min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2"
+      >
         {isLoading &&
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex items-center gap-2.5 px-3 py-3">
@@ -223,7 +250,7 @@ export function ZoneListPanel({
         )}
 
         {!isLoading &&
-          zones.map((z) => (
+          visible.map((z) => (
             <ZoneListItem
               key={z.id}
               zone={z}
@@ -235,6 +262,12 @@ export function ZoneListPanel({
               onDelete={() => onDelete(z)}
             />
           ))}
+
+        {!isLoading && visibleCount < zones.length && (
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            Mostrando {visible.length} de {zones.length} — deslizá para ver más
+          </p>
+        )}
       </div>
 
       <div className="border-t border-border/60 px-4 pt-3">

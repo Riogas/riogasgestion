@@ -3,8 +3,9 @@ import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 import { SERVICIOS_ZONA, TIPOS_ZONA } from './create-zona.dto';
 
 export class QueryZonasDto {
-  @Type(() => Number) @IsInt()
-  puestoId!: number;
+  // Sin puestoId → devuelve las zonas de TODOS los puestos.
+  @IsOptional() @Type(() => Number) @IsInt()
+  puestoId?: number;
 
   @IsOptional() @IsIn(TIPOS_ZONA)
   tipoZona?: string;

@@ -92,7 +92,8 @@ export class ZonasService {
   // ─── Consultas ──────────────────────────────────────────────────────────────
 
   async findAll(q: QueryZonasDto): Promise<ZonaOut[]> {
-    const where: Prisma.ZonaOperativaWhereInput = { puestoId: q.puestoId };
+    const where: Prisma.ZonaOperativaWhereInput = {};
+    if (q.puestoId !== undefined) where.puestoId = q.puestoId;
     if (q.incluirArchivadas === 'false') where.estado = 'ACTIVE';
     if (q.tipoZona) where.tipoZona = q.tipoZona;
     if (q.servicio) where.servicios = { has: q.servicio };

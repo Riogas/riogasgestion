@@ -44,7 +44,7 @@ function FilterSelect({
 
 interface ZoneFiltersProps {
   puestos: Puesto[];
-  puestoId: number | null;
+  puestoId: number | "all" | null;
   zoneType: ZoneType | "";
   service: ServiceType | "";
   search: string;
@@ -76,12 +76,13 @@ export function ZoneFilters({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
         <FilterSelect
           label="Puesto"
-          value={puestoId != null ? String(puestoId) : ""}
+          value={puestoId === "all" ? "-1" : puestoId != null ? String(puestoId) : ""}
           onChange={(v) => v && onPuestoChange(Number(v))}
-          options={puestos.map((p) => ({
-            value: String(p.id),
-            label: p.name,
-          }))}
+          options={[
+            // -1 = todos los puestos (solo visualización; crear pide uno concreto)
+            { value: "-1", label: "Todos los puestos" },
+            ...puestos.map((p) => ({ value: String(p.id), label: p.name })),
+          ]}
         />
 
         <FilterSelect

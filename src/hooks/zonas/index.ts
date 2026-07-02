@@ -17,15 +17,16 @@ export function usePuestos() {
   });
 }
 
-export function useZones(puestoId: number | null) {
+/** puestoId "all" = zonas de todos los puestos. */
+export function useZones(puestoId: number | "all" | null) {
   return useQuery({
     queryKey: ["zonas", puestoId] as const,
-    queryFn: () => getZones(puestoId as number),
-    enabled: puestoId !== null && puestoId > 0,
+    queryFn: () => getZones(puestoId === "all" ? undefined : (puestoId as number)),
+    enabled: puestoId === "all" || (typeof puestoId === "number" && puestoId > 0),
   });
 }
 
-export function useZoneMutations(puestoId: number | null) {
+export function useZoneMutations(puestoId: number | "all" | null) {
   const queryClient = useQueryClient();
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["zonas", puestoId] });

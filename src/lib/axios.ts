@@ -2,6 +2,13 @@ import axios from "axios";
 import { getAuthToken } from "./authToken";
 import { setGlobalLoading } from "./LoadingContext";
 
+// Flag por-request para no prender el overlay global (pantallas con skeleton propio).
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    disableGlobalLoading?: boolean;
+  }
+}
+
 // Helper: pending requests counter to avoid flicker
 let pendingRequests = 0;
 function shouldUseGlobalLoading(config: any) {

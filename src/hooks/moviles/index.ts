@@ -47,6 +47,8 @@ export function useMovilKpis() {
   return useQuery({
     queryKey: ["moviles", "kpis"] as const,
     queryFn: () => getMovilKpis(),
+    // KPIs casi estáticos: evita refetch en cada visita a la pantalla.
+    staleTime: 60 * 1000,
   });
 }
 
@@ -54,6 +56,8 @@ export function useMovilFiltros() {
   return useQuery({
     queryKey: ["moviles", "filtros"] as const,
     queryFn: () => getMovilFiltros(),
+    // Catálogo de filtros: cambia muy poco.
+    staleTime: 5 * 60 * 1000,
   });
 }
 

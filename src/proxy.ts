@@ -89,11 +89,72 @@ function decodeJwtPayload(token: string): any | null {
 // =========================
 // API de permisos
 // =========================
+
+// Caché en memoria del chequeo de permisos: secapi se consultaba en CADA
+// navegación de forma bloqueante y sin timeout — si secapi andaba lento, toda
+// la app quedaba "cargando". El permiso por (token, ruta) cambia poco: se
+// cachea con TTL y se refresca recién al vencer.
+const PERMISO_TTL_MS = 5 * 60 * 1000; // resultado positivo
+const PERMISO_NEG_TTL_MS = 30 * 1000; // negativo: reintenta pronto (alta de permisos)
+const PERMISO_FETCH_TIMEOUT_MS = 3500;
+const permisoCache = new Map<string, { permitido: boolean; expiresAt: number }>();
+
+// hash corto del token para no retener JWTs completos como keys
+async function permisoCacheKey(token: string, pathname: string): Promise<string> {
+  const enc = new TextEncoder().encode(token);
+  const digest = await crypto.subtle.digest('SHA-256', enc);
+  const hex = Array.from(new Uint8Array(digest).slice(0, 12))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `${hex}|${pathname}`;
+}
+
+async function checkPermisoCached(
+  pathname: string,
+  code: string,
+  token: string
+): Promise<boolean> {
+  const key = await permisoCacheKey(token, pathname);
+  const cached = permisoCache.get(key);
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) {
+    log('permiso desde caché:', cached.permitido);
+    return cached.permitido;
+  }
+
+  const permitido = await apiCheckPermisoEdge(pathname, code, token);
+
+  if (permitido === null) {
+    // secapi caído o timeout: usar último valor conocido aunque esté vencido
+    // (mejor stale que bloquear la operativa); sin historia → denegar.
+    if (cached) {
+      log('secapi no respondió → usando caché vencido:', cached.permitido);
+      return cached.permitido;
+    }
+    return false;
+  }
+
+  // Poda simple para que el Map no crezca sin límite
+  if (permisoCache.size > 2000) {
+    for (const [k, v] of permisoCache) {
+      if (v.expiresAt <= now) permisoCache.delete(k);
+    }
+  }
+
+  permisoCache.set(key, {
+    permitido,
+    expiresAt: now + (permitido ? PERMISO_TTL_MS : PERMISO_NEG_TTL_MS),
+  });
+  return permitido;
+}
+
+// Devuelve true/false según secapi, o null si secapi no respondió (error/timeout).
 async function apiCheckPermisoEdge(
   pathname: string,
   _code: string,
   token: string
-): Promise<boolean> {
+): Promise<boolean | null> {
   try {
     const objetoKey = getObjetoKey(pathname); // p.ej. "clientes"
     const accionKey = 'view';
@@ -123,6 +184,7 @@ async function apiCheckPermisoEdge(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(PERMISO_FETCH_TIMEOUT_MS),
     });
 
     console.log('[MW] Status:', resp.status, resp.statusText);
@@ -158,8 +220,8 @@ async function apiCheckPermisoEdge(
     console.log('[MW] → permitido?', permitido);
     return permitido;
   } catch (err) {
-    console.error('[MW] Error checando permiso:', err);
-    return false;
+    console.error('[MW] Error checando permiso (timeout/red):', err);
+    return null;
   }
 }
 
@@ -224,7 +286,7 @@ export async function proxy(request: NextRequest) {
     log('🧪 Token mock detectado en desarrollo - permiso automático');
     permitido = true;
   } else {
-    permitido = await apiCheckPermisoEdge(pathname, code, token);
+    permitido = await checkPermisoCached(pathname, code, token);
   }
   
   log('permiso?', permitido);

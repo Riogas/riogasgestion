@@ -17,30 +17,43 @@ import type {
   UpdateMovilPayload,
 } from "@/lib/types/movil";
 
+// Los GET de móviles no prenden el overlay global de "Cargando..." (la
+// pantalla ya muestra skeletons propios; el overlay solo tapa la app).
+const sinOverlay = { disableGlobalLoading: true } as const;
+
 export async function getMoviles(
   params?: QueryMovilesParams,
 ): Promise<PaginatedMoviles> {
-  const { data } = await api.get<PaginatedMoviles>("/moviles", { params });
+  const { data } = await api.get<PaginatedMoviles>("/moviles", {
+    params,
+    ...sinOverlay,
+  });
   return data;
 }
 
 export async function getMovilKpis(): Promise<MovilKpis> {
-  const { data } = await api.get<MovilKpis>("/moviles/kpis");
+  const { data } = await api.get<MovilKpis>("/moviles/kpis", { ...sinOverlay });
   return data;
 }
 
 export async function getMovilFiltros(): Promise<MovilFiltros> {
-  const { data } = await api.get<MovilFiltros>("/moviles/filtros");
+  const { data } = await api.get<MovilFiltros>("/moviles/filtros", {
+    ...sinOverlay,
+  });
   return data;
 }
 
 export async function getMovilCatalogos(): Promise<MovilCatalogos> {
-  const { data } = await api.get<MovilCatalogos>("/moviles/catalogos");
+  const { data } = await api.get<MovilCatalogos>("/moviles/catalogos", {
+    ...sinOverlay,
+  });
   return data;
 }
 
 export async function getMovil(id: number | string): Promise<MovilDetalle> {
-  const { data } = await api.get<MovilDetalle>(`/moviles/${id}`);
+  const { data } = await api.get<MovilDetalle>(`/moviles/${id}`, {
+    ...sinOverlay,
+  });
   return data;
 }
 

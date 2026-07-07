@@ -33,6 +33,8 @@ export class FakePrismaService {
 
   matchSugerencias: Row[] = [];
 
+  coberturas: Row[] = [];
+
   private allTelefonos(): Row[] {
     return this.clienteUnis.flatMap((c) => c.telefonos ?? []);
   }
@@ -91,6 +93,10 @@ export class FakePrismaService {
       if (!p) return null;
       return this.hydratePersona(p, include);
     },
+    findFirst: async ({ where }: { where?: Row } = {}) => {
+      const p = this.personas.find((x) => matchWhere(x, where));
+      return p ? { ...p } : null;
+    },
     findMany: async ({ where }: { where?: Row } = {}) => this.personas
       .filter((p) => matchWhere(p, where))
       .map((p) => ({ ...p })),
@@ -142,6 +148,45 @@ export class FakePrismaService {
       return { ...c };
     },
     count: async ({ where }: { where?: Row } = {}) => this.clienteUnis.filter((c) => matchWhere(c, where)).length,
+  };
+
+  clienteTelefono = {
+    findFirst: async ({ where }: { where?: Row } = {}) => {
+      const t = this.allTelefonos().find((x) => matchWhere(x, where));
+      return t ? { ...t } : null;
+    },
+  };
+
+  cobertura = {
+    findUnique: async (
+      { where }: { where: { personaId_empresaFleteraId: { personaId: number; empresaFleteraId: number } } },
+    ) => {
+      const { personaId, empresaFleteraId } = where.personaId_empresaFleteraId;
+      const c = this.coberturas.find((x) => x.personaId === personaId && x.empresaFleteraId === empresaFleteraId);
+      return c ? { ...c } : null;
+    },
+    create: async ({ data }: { data: Row }) => {
+      const c: Row = {
+        id: nextId(this.coberturas),
+        primeraFecha: null,
+        cantPedidos: 0,
+        ...data,
+      };
+      this.coberturas.push(c);
+      return { ...c };
+    },
+    update: async (
+      { where, data }: {
+        where: { personaId_empresaFleteraId: { personaId: number; empresaFleteraId: number } };
+        data: Row;
+      },
+    ) => {
+      const { personaId, empresaFleteraId } = where.personaId_empresaFleteraId;
+      const c = this.coberturas.find((x) => x.personaId === personaId && x.empresaFleteraId === empresaFleteraId);
+      if (!c) throw new Error(`Cobertura ${personaId}/${empresaFleteraId} no existe (fake)`);
+      Object.assign(c, data);
+      return { ...c };
+    },
   };
 
   hogar = {

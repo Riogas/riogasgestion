@@ -70,6 +70,24 @@ describe('PersonasService', () => {
     });
   });
 
+  describe('split', () => {
+    it('después de unify, split del registro B le crea una persona propia nueva', async () => {
+      await service.unify([10, 20]);
+
+      const { nuevas } = await service.split([20]);
+
+      expect(nuevas).toHaveLength(1);
+      const nuevaPersonaId = nuevas[0];
+      expect(nuevaPersonaId).not.toBe(1);
+
+      const registroB = await fake.clienteUni.findUnique({ where: { id: 20 } });
+      expect(registroB?.personaId).toBe(nuevaPersonaId);
+
+      const registroA = await fake.clienteUni.findUnique({ where: { id: 10 } });
+      expect(registroA?.personaId).toBe(1);
+    });
+  });
+
   describe('setCanonical', () => {
     it('actualiza los campos curados de la persona', async () => {
       const actualizada = await service.setCanonical(1, { nombreOficial: 'Juan Pérez García', cedula: '12345678' });

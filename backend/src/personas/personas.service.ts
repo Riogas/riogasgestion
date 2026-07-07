@@ -113,4 +113,34 @@ export class PersonasService {
       },
     });
   }
+
+  async split(registroIds: number[]): Promise<{ nuevas: number[] }> {
+    if (!registroIds || registroIds.length === 0) {
+      throw new BadRequestException('Debe indicar al menos un registro para dividir');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const nuevas: number[] = [];
+
+      for (const registroId of registroIds) {
+        const registro = await tx.clienteUni.findUnique({ where: { id: registroId } });
+        if (!registro) {
+          throw new NotFoundException(`Registro ${registroId} no encontrado`);
+        }
+
+        const nuevaPersona = await tx.persona.create({
+          data: { nombreOficial: registro.nombre },
+        });
+
+        await tx.clienteUni.update({
+          where: { id: registroId },
+          data: { personaId: nuevaPersona.id },
+        });
+
+        nuevas.push(nuevaPersona.id);
+      }
+
+      return { nuevas };
+    });
+  }
 }

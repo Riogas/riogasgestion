@@ -41,18 +41,23 @@ def main():
         if not rows:
             break
 
-        cu_ids = [r[0] for r in rows]
-        persona_rows = [(r[1], r[2], r[3]) for r in rows]  # nombre, ruc, estado
+        # INSERT fila por fila (no execute_values con RETURNING masivo): un
+        # INSERT multi-fila con RETURNING no garantiza que Postgres devuelva
+        # las filas en el mismo orden en que se listaron en VALUES, así que
+        # correlacionar por posición (zip de cu_ids con los ids devueltos)
+        # podía pegarle el personaId equivocado a un cliente_uni. Acá cada
+        # INSERT trae su propio id, correlacionado 1:1 con el cliente_uni
+        # que lo originó.
+        updates = []
+        for cu_id, nombre, ruc, estado in rows:
+            cur.execute(
+                'INSERT INTO persona ("nombreOficial", cedula, "rucPrincipal", estado) '
+                'VALUES (%s, NULL, %s, %s) RETURNING id',
+                (nombre, ruc, estado),
+            )
+            persona_id = cur.fetchone()[0]
+            updates.append((cu_id, persona_id))
 
-        ids = execute_values(
-            cur,
-            'INSERT INTO persona ("nombreOficial", cedula, "rucPrincipal", estado) '
-            'VALUES %s RETURNING id',
-            persona_rows, template='(%s,NULL,%s,%s)', page_size=2000, fetch=True,
-        )
-        persona_ids = [row[0] for row in ids]
-
-        updates = list(zip(cu_ids, persona_ids))
         execute_values(
             cur,
             'UPDATE cliente_uni AS cu SET "personaId"=v.personaid '
@@ -80,6 +85,14 @@ def main():
     """)
     conn.commit()
     print(f"principales seteados: {cur.rowcount:,}")
+
+    # Aserción post-run: si esto imprime > 0, la correlación quedó rota (o
+    # quedaron filas nuevas insertadas por otro proceso mientras corría este
+    # script) y hay que investigar antes de seguir con el resto del backfill.
+    cur.execute('SELECT count(*) FROM cliente_uni WHERE "personaId" IS NULL')
+    faltantes = cur.fetchone()[0]
+    print(f"cliente_uni sin personaId tras el run: {faltantes:,}")
+    assert faltantes == 0, f"ETL persona-de-uno incompleto: {faltantes} cliente_uni sin personaId"
 
     cur.close()
     conn.close()

@@ -182,11 +182,18 @@ def hogar(cur, conn):
     # grados (barato, antes del cálculo trigonométrico) como segunda cota
     # práctica; sin esto, una localidad grande (ej. Montevideo) generaría un
     # producto cruzado enorme.
+    #
+    # NOTA operador: este self-join necesita el índice de
+    # backend/prisma/sql/2026-07-07_cliente_direccion_geo_idx.sql sobre
+    # cliente_direccion("localidadId", lat, lng). Aplicarlo ANTES de correr
+    # esta sección (sin índice de soporte, es un scan completo por cada fila
+    # de cliente_direccion con lat/lng).
     metros = float(os.environ.get('HOGAR_PROXIMIDAD_METROS', '25'))
     margen_grados = (metros / 111000) * 1.5  # ~111km por grado de latitud, con margen
     cur.execute("""
-        SELECT DISTINCT LEAST(cu1."personaId", cu2."personaId") AS pa,
-                        GREATEST(cu1."personaId", cu2."personaId") AS pb
+        SELECT cd1.id AS ancla,
+               LEAST(cu1."personaId", cu2."personaId") AS pa,
+               GREATEST(cu1."personaId", cu2."personaId") AS pb
         FROM cliente_direccion cd1
         JOIN cliente_uni cu1 ON cu1.id = cd1."clienteId"
         JOIN cliente_direccion cd2
@@ -205,7 +212,24 @@ def hogar(cur, conn):
                   * power(sin(radians(cd2.lng - cd1.lng) / 2), 2)
               )) <= %s
     """, (margen_grados, margen_grados, margen_grados, margen_grados, metros))
-    filas = [(a, b, 'PROXIMIDAD_GEO', 0.7) for a, b in cur.fetchall()]
+
+    # Cota MAX_GRUPO por ancla (misma idea que pares_por_grupo): si una sola
+    # dirección matchea con más de MAX_GRUPO direcciones distintas dentro del
+    # radio (edificio/torre denso, coordenadas mal geolocalizadas apuntando
+    # todas al mismo portón, etc.), se descarta ese grupo entero en vez de
+    # inundar match_sugerencia con cientos de pares de una sola dirección
+    # basura.
+    pares_por_ancla = {}
+    for ancla, pa, pb in cur.fetchall():
+        pares_por_ancla.setdefault(ancla, set()).add((pa, pb))
+
+    pares = set()
+    for _ancla, par_set in pares_por_ancla.items():
+        if len(par_set) > MAX_GRUPO:
+            continue
+        pares.update(par_set)
+
+    filas = [(a, b, 'PROXIMIDAD_GEO', 0.7) for a, b in pares]
     n = insertar_pares(cur, 'HOGAR', filas, cols=('personaA', 'personaB'))
     conn.commit()
     print(f"  PROXIMIDAD_GEO (<= {metros:.0f}m): candidatos={len(filas):,} insertados={n:,}")

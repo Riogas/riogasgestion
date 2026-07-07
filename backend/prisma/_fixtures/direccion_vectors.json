@@ -1,0 +1,8 @@
+[
+  {"in":{"departamentoId":"MO","localidadId":"MONTEVIDEO","calle":"Av. Italia","nro":"2020","apto":"301"}, "out":"MO|MONTEVIDEO|AV ITALIA 2020|301"},
+  {"in":{"departamentoId":"MO","localidadId":"MONTEVIDEO","calle":"AVENIDA ITALIA","nro":"02020","apto":null}, "out":"MO|MONTEVIDEO|AV ITALIA 2020|"},
+  {"in":{"departamentoId":"CA","localidadId":"LAS PIEDRAS","calle":"Gral. Artigas","nro":"145 bis","apto":"AP 2"}, "out":"CA|LAS PIEDRAS|GRAL ARTIGAS 145BIS|2"},
+  {"in":{"departamentoId":"MO","localidadId":"MONTEVIDEO","calle":"Calle 3","nro":"10","apto":null}, "out":"MO|MONTEVIDEO|3 10|"},
+  {"in":{"departamentoId":"MO","localidadId":"MONTEVIDEO","calle":null,"nro":"10","apto":null}, "out":""},
+  {"in":{"departamentoId":"MO","localidadId":"MONTEVIDEO","calle":"Bvar. España","nro":"","apto":null}, "out":""}
+]

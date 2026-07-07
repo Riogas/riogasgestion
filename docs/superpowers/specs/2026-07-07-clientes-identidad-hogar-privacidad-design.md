@@ -231,8 +231,34 @@ persona y retirar las personas que quedaron vacías (reversible, el crudo intact
 3. `teléfono activo` compartido **+ nombre similar** (rapidfuzz ≥ 0.85) — media.
 
 *Hogar (personas distintas, misma casa):*
-1. Misma dirección física (`direccionTextoNorm` normalizado, o geo < X m) + persona distinta.
+1. Misma dirección física — dos vías, en orden:
+   - **(a) Clave textual exacta**: igual `direccionTextoNorm` (ver §5.1).
+   - **(b) Proximidad geo**: ambas con lat/lng y distancia **< `HOGAR_PROXIMIDAD_METROS`**
+     (configurable, default **25 m**). Si comparten coordenada de edificio pero difiere el apto →
+     se sugiere igual pero **flagueado** (`senal=MISMA_DIRECCION_APTO_DISTINTO`); decide el operador.
 2. Refuerzo futuro: pedidos a esa dirección en el mismo año.
+
+### 5.1 Normalización de dirección (`direccionTextoNorm`)
+
+Clave estable para agrupar hogares. Se arma **desde los campos estructurados** de
+`cliente_direccion` (no del texto libre), en este orden:
+
+1. **Componer** `{departamentoId}|{localidadId}|{calle}|{nro}|{apto}`. El apto/unidad **entra en la
+   clave**: dos familias en aptos distintos del mismo edificio **no** son el mismo hogar.
+2. **Mayúsculas** + **quitar acentos** (NFD → remover diacríticos): `Á`→`A`.
+3. **Quitar puntuación** (`. , ° º # -`) y **colapsar espacios**.
+4. **Canonizar el tipo de vía** con una tabla de abreviaturas (dict configurable):
+   `AVENIDA|AVDA|AV.` → `AV`; `BULEVAR|BVAR|BR` → `BV`; `GENERAL|GRAL` → `GRAL`;
+   `DOCTOR|DR` → `DR`; `CORONEL|CNEL` → `CNEL`; `INGENIERO|ING` → `ING`;
+   `CAMINO|CNO` → `CNO`; `RUTA|RTA` → `RUTA`; `CALLE` → `` (se omite).
+5. **Número**: extraer dígitos, **quitar ceros a la izquierda**; conservar sufijo `BIS`/letra si hay.
+6. **Apto/unidad**: quitar prefijos (`APTO|AP|APARTAMENTO|UNIDAD`) y dejar el identificador.
+7. **Resultado**: `DEP|LOC|VIA_CANON NRO|APTO` (ej. `MO|MONTEVIDEO|AV ITALIA 2020|301`).
+8. **Direcciones pobres** (sin calle o sin nº) → **no** se genera clave textual; se cae **solo** a
+   proximidad geo (5.1.b). Nunca se agrupa por clave vacía.
+
+La distancia y la tabla de abreviaturas viven en **configuración** (env o tabla `config`), no
+hardcodeadas, para calibrar sin redeploy.
 
 **Workbench (pantalla del operador):**
 - Ve los **registros crudos** tal cual + la cola de `match_sugerencia` ordenada por confianza.
@@ -324,10 +350,10 @@ identificación redactado y el routing dirección→distribuidor.
 - **Cobertura depende de pedidos**: hasta tener pedidos migrados, la afiliación se llena solo con
   altas nuevas; los clientes históricos quedan sin afiliación (verían tarjeta mínima). Mitigar con
   backfill de pedidos históricos apenas estén.
-- **Normalización de dirección** para hogar (`direccionTextoNorm`): definir el algoritmo (trim,
-  mayúsculas, abreviaturas de calle, nº) para que "Av. Italia 2020" y "AVENIDA ITALIA 2020" agrupen.
-- **Roles/afiliación en secapi**: confirmar que el distribuidor logueado trae su `empresaFleteraId`
-  para el scoping. (AplicacionId goya = 3.)
+- **Normalización de dirección** para hogar (`direccionTextoNorm`): algoritmo definido en §5.1;
+  la tabla de abreviaturas y `HOGAR_PROXIMIDAD_METROS` (default 25 m) son **configurables**.
+- **Roles/afiliación en secapi**: CONFIRMADO — el distribuidor logueado trae su `empresaFleteraId`
+  desde secapi; el backend lo usa para el scoping row/field-level. (AplicacionId goya = 3.)
 - **Solapes de cobertura**: una persona puede tener afiliación con >1 distribuidor (llamó a dos PDV);
   cada uno ve su propia relación — está contemplado por `@@unique([personaId, empresaFleteraId])`.
 - **Deprecación** de `dedupGrupo`/`dedupRevisar` y del `cliente` plano viejo: al final de la

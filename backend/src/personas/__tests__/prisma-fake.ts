@@ -10,6 +10,7 @@ function matchWhere(row: Row, where?: Row): boolean {
     if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
       if ('in' in condition) return condition.in.includes(row[key]);
       if ('not' in condition) return row[key] !== condition.not;
+      if ('gte' in condition) return row[key] >= condition.gte;
     }
     return row[key] === condition;
   });
@@ -29,6 +30,8 @@ export class FakePrismaService {
   hogares: Row[] = [];
 
   hogarMiembros: Row[] = [];
+
+  matchSugerencias: Row[] = [];
 
   private allTelefonos(): Row[] {
     return this.clienteUnis.flatMap((c) => c.telefonos ?? []);
@@ -166,6 +169,10 @@ export class FakePrismaService {
       const m = this.hogarMiembros.find((x) => x.hogarId === hogarId && x.personaId === personaId);
       return m ? { ...m } : null;
     },
+    findFirst: async ({ where }: { where?: Row } = {}) => {
+      const m = this.hogarMiembros.find((x) => matchWhere(x, where));
+      return m ? { ...m } : null;
+    },
     create: async ({ data }: { data: Row }) => {
       const m: Row = { id: nextId(this.hogarMiembros), rol: null, ...data };
       this.hogarMiembros.push(m);
@@ -192,6 +199,39 @@ export class FakePrismaService {
       const before = this.hogarMiembros.length;
       this.hogarMiembros = this.hogarMiembros.filter((m) => !matchWhere(m, where));
       return { count: before - this.hogarMiembros.length };
+    },
+  };
+
+  matchSugerencia = {
+    findUnique: async ({ where }: { where: { id: number } }) => {
+      const s = this.matchSugerencias.find((x) => x.id === where.id);
+      return s ? { ...s } : null;
+    },
+    findMany: async (
+      { where, orderBy, skip = 0, take }: {
+        where?: Row; orderBy?: { confianza?: 'asc' | 'desc' }; skip?: number; take?: number;
+      } = {},
+    ) => {
+      let result = this.matchSugerencias.filter((s) => matchWhere(s, where)).map((s) => ({ ...s }));
+      if (orderBy?.confianza === 'desc') {
+        result = result.sort((a, b) => b.confianza - a.confianza);
+      } else if (orderBy?.confianza === 'asc') {
+        result = result.sort((a, b) => a.confianza - b.confianza);
+      }
+      if (take != null) {
+        result = result.slice(skip, skip + take);
+      } else if (skip) {
+        result = result.slice(skip);
+      }
+      return result;
+    },
+    count: async ({ where }: { where?: Row } = {}) => this.matchSugerencias
+      .filter((s) => matchWhere(s, where)).length,
+    update: async ({ where, data }: { where: { id: number }; data: Row }) => {
+      const s = this.matchSugerencias.find((x) => x.id === where.id);
+      if (!s) throw new Error(`MatchSugerencia ${where.id} no existe (fake)`);
+      Object.assign(s, data);
+      return { ...s };
     },
   };
 

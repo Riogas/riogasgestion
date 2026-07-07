@@ -54,21 +54,37 @@ export class WorkbenchService {
   async aceptar(id: number, operador: string): Promise<void> {
     const sugerencia = await this.buscarPendiente(id);
 
-    if (sugerencia.tipo === 'DUPLICADO') {
-      await this.personas.unify(
-        [sugerencia.registroA as number, sugerencia.registroB as number],
-        operador,
-      );
-    } else if (sugerencia.tipo === 'HOGAR') {
-      await this.hogar.crearConMiembros([
-        sugerencia.personaA as number,
-        sugerencia.personaB as number,
-      ]);
-    }
+    // La acción de dominio (unify / crearConMiembros) y el cambio de estado
+    // de la sugerencia van en la MISMA transacción: si el update de estado
+    // falla, la fusión/hogar recién creado también se revierte, en vez de
+    // quedar un merge ya commiteado con la sugerencia todavía en PENDIENTE.
+    await this.prisma.$transaction(async (tx) => {
+      let hogarIdResuelto: number | undefined;
 
-    await this.prisma.matchSugerencia.update({
-      where: { id },
-      data: { estado: 'ACEPTADO', resueltoAt: new Date(), operador },
+      if (sugerencia.tipo === 'DUPLICADO') {
+        await this.personas.unify(
+          [sugerencia.registroA as number, sugerencia.registroB as number],
+          operador,
+          tx,
+        );
+      } else if (sugerencia.tipo === 'HOGAR') {
+        const hogarResuelto = await this.hogar.crearConMiembros(
+          [sugerencia.personaA as number, sugerencia.personaB as number],
+          undefined,
+          tx,
+        );
+        hogarIdResuelto = hogarResuelto.id;
+      }
+
+      await tx.matchSugerencia.update({
+        where: { id },
+        data: {
+          estado: 'ACEPTADO',
+          resueltoAt: new Date(),
+          operador,
+          ...(hogarIdResuelto != null ? { hogarIdResuelto } : {}),
+        },
+      });
     });
   }
 
@@ -94,14 +110,19 @@ export class WorkbenchService {
       throw new NotFoundException(`Sugerencia ${id} no encontrada`);
     }
 
-    if (sugerencia.tipo === 'HOGAR' && sugerencia.personaA != null && sugerencia.personaB != null) {
-      const miembro = await this.prisma.hogarMiembro.findFirst({
-        where: { personaId: sugerencia.personaA },
-      });
-      if (miembro) {
-        await this.hogar.quitarMiembro(miembro.hogarId, sugerencia.personaA);
-        await this.hogar.quitarMiembro(miembro.hogarId, sugerencia.personaB);
-      }
+    // Usamos el hogarIdResuelto guardado al aceptar (preciso), no un
+    // findFirst({personaId}) que podría pescar un hogar arbitrario si la
+    // persona ya pertenece a más de uno. Sugerencias viejas, aceptadas antes
+    // de que existiera esta columna, no tienen hogarIdResuelto: para esas no
+    // podemos deshacer con precisión, así que solo se revierte el estado.
+    if (
+      sugerencia.tipo === 'HOGAR'
+      && sugerencia.hogarIdResuelto != null
+      && sugerencia.personaA != null
+      && sugerencia.personaB != null
+    ) {
+      await this.hogar.quitarMiembro(sugerencia.hogarIdResuelto, sugerencia.personaA);
+      await this.hogar.quitarMiembro(sugerencia.hogarIdResuelto, sugerencia.personaB);
     }
 
     await this.prisma.matchSugerencia.update({

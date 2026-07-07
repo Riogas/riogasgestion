@@ -39,6 +39,7 @@ describe('WorkbenchService', () => {
         estado: 'PENDIENTE',
         operador: null,
         resueltoAt: null,
+        hogarIdResuelto: null,
       },
       {
         id: 3,
@@ -61,7 +62,7 @@ describe('WorkbenchService', () => {
 
     personas = { unify: jest.fn() } as unknown as jest.Mocked<PersonasService>;
     hogar = {
-      crearConMiembros: jest.fn(),
+      crearConMiembros: jest.fn().mockResolvedValue({ id: 100 }),
       quitarMiembro: jest.fn(),
     } as unknown as jest.Mocked<HogarService>;
 
@@ -97,22 +98,23 @@ describe('WorkbenchService', () => {
   });
 
   describe('aceptar', () => {
-    it('en DUPLICADO llama a unify con los registros y marca ACEPTADO', async () => {
+    it('en DUPLICADO llama a unify con los registros (dentro de la transacción) y marca ACEPTADO', async () => {
       await service.aceptar(1, 'operador1');
 
-      expect(personas.unify).toHaveBeenCalledWith([10, 20], 'operador1');
+      expect(personas.unify).toHaveBeenCalledWith([10, 20], 'operador1', expect.anything());
       const actualizada = await fake.matchSugerencia.findUnique({ where: { id: 1 } });
       expect(actualizada?.estado).toBe('ACEPTADO');
       expect(actualizada?.operador).toBe('operador1');
       expect(actualizada?.resueltoAt).toBeInstanceOf(Date);
     });
 
-    it('en HOGAR llama a crearConMiembros con las personas y marca ACEPTADO', async () => {
+    it('en HOGAR llama a crearConMiembros con las personas, marca ACEPTADO y persiste hogarIdResuelto (I3)', async () => {
       await service.aceptar(2, 'operador1');
 
-      expect(hogar.crearConMiembros).toHaveBeenCalledWith([1, 2]);
+      expect(hogar.crearConMiembros).toHaveBeenCalledWith([1, 2], undefined, expect.anything());
       const actualizada = await fake.matchSugerencia.findUnique({ where: { id: 2 } });
       expect(actualizada?.estado).toBe('ACEPTADO');
+      expect(actualizada?.hogarIdResuelto).toBe(100);
     });
 
     it('lanza NotFoundException si la sugerencia no existe', async () => {
@@ -141,7 +143,7 @@ describe('WorkbenchService', () => {
   });
 
   describe('deshacer', () => {
-    it('en HOGAR quita los miembros del hogar y vuelve a PENDIENTE', async () => {
+    it('en HOGAR usa el hogarIdResuelto guardado al aceptar para quitar los miembros y vuelve a PENDIENTE (I3)', async () => {
       await service.aceptar(2, 'operador1');
 
       await service.deshacer(2);
@@ -151,6 +153,20 @@ describe('WorkbenchService', () => {
       const actualizada = await fake.matchSugerencia.findUnique({ where: { id: 2 } });
       expect(actualizada?.estado).toBe('PENDIENTE');
       expect(actualizada?.resueltoAt).toBeNull();
+    });
+
+    it('en HOGAR sin hogarIdResuelto (sugerencia vieja) no llama a quitarMiembro pero igual vuelve a PENDIENTE', async () => {
+      // No pasa por aceptar(): simula una sugerencia HOGAR ya aceptada antes
+      // de que existiera la columna hogarIdResuelto.
+      const vieja = fake.matchSugerencias.find((s) => s.id === 2);
+      vieja!.estado = 'ACEPTADO';
+      vieja!.hogarIdResuelto = null;
+
+      await service.deshacer(2);
+
+      expect(hogar.quitarMiembro).not.toHaveBeenCalled();
+      const actualizada = await fake.matchSugerencia.findUnique({ where: { id: 2 } });
+      expect(actualizada?.estado).toBe('PENDIENTE');
     });
 
     it('en DUPLICADO no llama a ningún split y vuelve a PENDIENTE', async () => {

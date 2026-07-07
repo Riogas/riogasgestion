@@ -1,18 +1,22 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Hogar } from '@prisma/client';
+import { Hogar, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class HogarService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async crearConMiembros(personaIds: number[], etiqueta?: string): Promise<Hogar> {
+  async crearConMiembros(
+    personaIds: number[],
+    etiqueta?: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Hogar> {
     if (!personaIds || personaIds.length === 0) {
       throw new BadRequestException('Debe indicar al menos una persona para el hogar');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const primeraPersona = await tx.persona.findUnique({
+    const ejecutar = async (client: Prisma.TransactionClient): Promise<Hogar> => {
+      const primeraPersona = await client.persona.findUnique({
         where: { id: personaIds[0] },
         include: { direccionPrincipal: true },
       });
@@ -25,11 +29,11 @@ export class HogarService {
 
       let hogar: Hogar | null = null;
       if (direccionTextoNorm) {
-        hogar = await tx.hogar.findFirst({ where: { direccionTextoNorm } });
+        hogar = await client.hogar.findFirst({ where: { direccionTextoNorm } });
       }
 
       if (!hogar) {
-        hogar = await tx.hogar.create({
+        hogar = await client.hogar.create({
           data: {
             etiqueta,
             direccionTextoNorm,
@@ -41,16 +45,19 @@ export class HogarService {
 
       const hogarId = hogar.id;
       for (const personaId of personaIds) {
-        const existente = await tx.hogarMiembro.findUnique({
+        const existente = await client.hogarMiembro.findUnique({
           where: { hogarId_personaId: { hogarId, personaId } },
         });
         if (!existente) {
-          await tx.hogarMiembro.create({ data: { hogarId, personaId } });
+          await client.hogarMiembro.create({ data: { hogarId, personaId } });
         }
       }
 
       return hogar;
-    });
+    };
+
+    if (tx) return ejecutar(tx);
+    return this.prisma.$transaction((t) => ejecutar(t));
   }
 
   async agregarMiembro(hogarId: number, personaId: number, rol?: string): Promise<void> {

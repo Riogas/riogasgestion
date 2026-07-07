@@ -295,6 +295,7 @@ model MatchSugerencia {
   operador   String?   @db.VarChar(30)
   resueltoAt DateTime?
   createdAt  DateTime  @default(now())
+  hogarIdResuelto Int? // hogar.id creado/reusado al aceptar (tipo HOGAR); permite deshacer preciso
 
   @@index([tipo, estado, confianza(sort: Desc)])
   @@map("match_sugerencia")

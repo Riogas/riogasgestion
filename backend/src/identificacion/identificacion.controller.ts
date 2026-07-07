@@ -24,11 +24,18 @@ export class IdentificacionController {
 
   @Post()
   identificar(@Body() dto: IdentificarBodyDto, @Req() req: AuthedRequest) {
+    // req.user es el payload crudo del JWT: un rol ausente/desconocido NUNCA
+    // debe caer en el rol privilegiado (CALL_CENTER). Fail-closed a DISTRIBUIDOR.
+    const rol = req.user?.rol === 'CALL_CENTER' ? 'CALL_CENTER' : 'DISTRIBUIDOR';
+    const empresaFleteraId = req.user?.empresaFleteraId != null
+      ? Number(req.user.empresaFleteraId)
+      : undefined;
+
     return this.identificacion.identificar({
       identificador: dto.identificador,
       tipo: dto.tipo,
-      rol: req.user?.rol ?? 'CALL_CENTER',
-      empresaFleteraId: req.user?.empresaFleteraId,
+      rol,
+      empresaFleteraId,
     });
   }
 }

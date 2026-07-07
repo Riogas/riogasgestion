@@ -65,10 +65,20 @@ export class IdentificacionService {
       return persona?.id ?? null;
     }
 
-    const telefono = await this.prisma.clienteTelefono.findFirst({ where: { numero: identificador } });
-    if (!telefono) return null;
+    // Un número puede pertenecer a 2..50 clientes (línea familiar/comercial
+    // compartida). Solo consideramos teléfonos activos y, si detrás del
+    // número hay más de una persona distinta, no adivinamos: SIN_MATCH.
+    const telefonos = await this.prisma.clienteTelefono.findMany({
+      where: { numero: identificador, estado: 'A' },
+    });
+    if (telefonos.length === 0) return null;
 
-    const registro = await this.prisma.clienteUni.findUnique({ where: { id: telefono.clienteId } });
-    return registro?.personaId ?? null;
+    const clienteIds = Array.from(new Set(telefonos.map((t) => t.clienteId)));
+    const clientes = await this.prisma.clienteUni.findMany({ where: { id: { in: clienteIds } } });
+    const personaIds = Array.from(
+      new Set(clientes.map((c) => c.personaId).filter((id): id is number => id != null)),
+    );
+
+    return personaIds.length === 1 ? personaIds[0] : null;
   }
 }

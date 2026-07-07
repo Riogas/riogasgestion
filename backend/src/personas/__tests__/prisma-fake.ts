@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Fake en memoria de PrismaService para tests unitarios de personas/hogar.
 // No golpea ninguna base de datos real.
+import { Prisma } from '@prisma/client';
 
 type Row = Record<string, any>;
 
@@ -117,6 +118,13 @@ export class FakePrismaService {
     update: async ({ where, data }: { where: { id: number }; data: Row }) => {
       const p = this.personas.find((x) => x.id === where.id);
       if (!p) throw new Error(`Persona ${where.id} no existe (fake)`);
+      // Simula el índice único parcial uq_persona_cedula (cedula) WHERE cedula IS NOT NULL.
+      if (data.cedula != null && this.personas.some((x) => x.id !== where.id && x.cedula === data.cedula)) {
+        throw new Prisma.PrismaClientKnownRequestError(
+          'Unique constraint failed on the fields: (`cedula`)',
+          { code: 'P2002', clientVersion: 'fake' },
+        );
+      }
       Object.assign(p, data);
       return { ...p };
     },
@@ -155,6 +163,9 @@ export class FakePrismaService {
       const t = this.allTelefonos().find((x) => matchWhere(x, where));
       return t ? { ...t } : null;
     },
+    findMany: async ({ where }: { where?: Row } = {}) => this.allTelefonos()
+      .filter((t) => matchWhere(t, where))
+      .map((t) => ({ ...t })),
   };
 
   cobertura = {
@@ -165,6 +176,9 @@ export class FakePrismaService {
       const c = this.coberturas.find((x) => x.personaId === personaId && x.empresaFleteraId === empresaFleteraId);
       return c ? { ...c } : null;
     },
+    findMany: async ({ where }: { where?: Row } = {}) => this.coberturas
+      .filter((c) => matchWhere(c, where))
+      .map((c) => ({ ...c })),
     create: async ({ data }: { data: Row }) => {
       const c: Row = {
         id: nextId(this.coberturas),
@@ -177,15 +191,29 @@ export class FakePrismaService {
     },
     update: async (
       { where, data }: {
-        where: { personaId_empresaFleteraId: { personaId: number; empresaFleteraId: number } };
+        where: {
+          id?: number;
+          personaId_empresaFleteraId?: { personaId: number; empresaFleteraId: number };
+        };
         data: Row;
       },
     ) => {
-      const { personaId, empresaFleteraId } = where.personaId_empresaFleteraId;
-      const c = this.coberturas.find((x) => x.personaId === personaId && x.empresaFleteraId === empresaFleteraId);
-      if (!c) throw new Error(`Cobertura ${personaId}/${empresaFleteraId} no existe (fake)`);
+      let c: Row | undefined;
+      if (where.id != null) {
+        c = this.coberturas.find((x) => x.id === where.id);
+      } else if (where.personaId_empresaFleteraId) {
+        const { personaId, empresaFleteraId } = where.personaId_empresaFleteraId;
+        c = this.coberturas.find((x) => x.personaId === personaId && x.empresaFleteraId === empresaFleteraId);
+      }
+      if (!c) throw new Error('Cobertura no existe (fake)');
       Object.assign(c, data);
       return { ...c };
+    },
+    delete: async ({ where }: { where: { id: number } }) => {
+      const idx = this.coberturas.findIndex((x) => x.id === where.id);
+      if (idx === -1) throw new Error(`Cobertura ${where.id} no existe (fake)`);
+      const [removed] = this.coberturas.splice(idx, 1);
+      return removed;
     },
   };
 
@@ -218,10 +246,25 @@ export class FakePrismaService {
       const m = this.hogarMiembros.find((x) => matchWhere(x, where));
       return m ? { ...m } : null;
     },
+    findMany: async ({ where }: { where?: Row } = {}) => this.hogarMiembros
+      .filter((m) => matchWhere(m, where))
+      .map((m) => ({ ...m })),
     create: async ({ data }: { data: Row }) => {
       const m: Row = { id: nextId(this.hogarMiembros), rol: null, ...data };
       this.hogarMiembros.push(m);
       return { ...m };
+    },
+    update: async ({ where, data }: { where: { id: number }; data: Row }) => {
+      const m = this.hogarMiembros.find((x) => x.id === where.id);
+      if (!m) throw new Error(`HogarMiembro ${where.id} no existe (fake)`);
+      Object.assign(m, data);
+      return { ...m };
+    },
+    delete: async ({ where }: { where: { id: number } }) => {
+      const idx = this.hogarMiembros.findIndex((x) => x.id === where.id);
+      if (idx === -1) throw new Error(`HogarMiembro ${where.id} no existe (fake)`);
+      const [removed] = this.hogarMiembros.splice(idx, 1);
+      return removed;
     },
     upsert: async (
       { where, update, create }: {

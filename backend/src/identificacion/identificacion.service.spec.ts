@@ -28,7 +28,9 @@ describe('IdentificacionService', () => {
         id: 10,
         personaId: 1,
         nombre: 'Juan Pérez',
-        telefonos: [{ id: 100, clienteId: 10, numero: '091111111', ultFecha: new Date('2026-01-01') }],
+        telefonos: [{
+          id: 100, clienteId: 10, numero: '091111111', estado: 'A', ultFecha: new Date('2026-01-01'),
+        }],
         direcciones: [],
       },
     ];
@@ -112,5 +114,52 @@ describe('IdentificacionService', () => {
     });
 
     expect(resultado.resultado).toBe('SIN_MATCH');
+  });
+
+  describe('teléfono compartido (I2)', () => {
+    it('un número con 2 personas distintas detrás devuelve SIN_MATCH (ambiguo, no adivina)', async () => {
+      fake.clienteUnis = [
+        {
+          id: 10,
+          personaId: 1,
+          nombre: 'Juan Pérez',
+          telefonos: [{ id: 100, clienteId: 10, numero: '098765432', estado: 'A' }],
+          direcciones: [],
+        },
+        {
+          id: 11,
+          personaId: 2,
+          nombre: 'Otra Persona',
+          telefonos: [{ id: 101, clienteId: 11, numero: '098765432', estado: 'A' }],
+          direcciones: [],
+        },
+      ];
+
+      const resultado = await service.identificar({
+        identificador: '098765432', tipo: 'TELEFONO', rol: 'CALL_CENTER',
+      });
+
+      expect(resultado.resultado).toBe('SIN_MATCH');
+      expect(personas.find360).not.toHaveBeenCalled();
+    });
+
+    it('un número activo único resuelve MATCH', async () => {
+      personas.find360.mockResolvedValue(ficha360Base);
+      fake.clienteUnis = [
+        {
+          id: 10,
+          personaId: 1,
+          nombre: 'Juan Pérez',
+          telefonos: [{ id: 100, clienteId: 10, numero: '098765432', estado: 'A' }],
+          direcciones: [],
+        },
+      ];
+
+      const resultado = await service.identificar({
+        identificador: '098765432', tipo: 'TELEFONO', rol: 'CALL_CENTER',
+      });
+
+      expect(resultado.resultado).toBe('MATCH');
+    });
   });
 });

@@ -139,15 +139,19 @@ model ClienteUni {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
+  personaId            Int? // NUEVO → persona (capa de identidad única)
+
   telefonos         ClienteTelefono[]
   direcciones       ClienteDireccion[]
   movilesPreferidos ClienteMovil[]
+  persona           Persona?           @relation(fields: [personaId], references: [id])
 
   @@unique([origen, idOriginal, idOriginalPuesto])
   @@index([nombre])
   @@index([ruc])
   @@index([cedula])
   @@index([estado])
+  @@index([personaId])
   // Lista de clientes: filtro por estado + orden por última llamada desc.
   // Nombres explícitos = coinciden con los índices ya creados en la base, así
   // `prisma db push` los reconoce y NO los borra/recrea.
@@ -165,7 +169,10 @@ model ClienteTelefono {
   alias     String?    @db.VarChar(60)
   obs       String?    @db.VarChar(60)
   principal Boolean    @default(false)
+  ultFecha  DateTime? // NUEVO: último pedido por este teléfono
   cliente   ClienteUni @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  personaPrincipalDe Persona[] @relation("PersonaTelPrincipal")
 
   @@index([clienteId])
   @@index([numero])
@@ -202,13 +209,112 @@ model ClienteDireccion {
   tipoProducto    String?    @db.VarChar(1)
   principal       Boolean    @default(false)
   estado          String?    @db.VarChar(1)
-  cliente         ClienteUni @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  ultFecha           DateTime? // NUEVO: último pedido a esta dirección
+  territorioPuestoId Int? // NUEVO opcional: puesto resuelto por geo (señal secundaria)
+  direccionTextoNorm String?    @db.VarChar(300) // clave normalizada calle+nº (hogar)
+  cliente            ClienteUni @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  personaPrincipalDe Persona[] @relation("PersonaDirPrincipal")
 
   @@index([clienteId])
   @@index([puestoId])
   @@index([departamentoId, localidadId])
   @@index([calleMatch])
+  @@index([direccionTextoNorm])
   @@map("cliente_direccion")
+}
+
+// =====================================================================
+// IDENTIDAD ÚNICA + HOGAR + COBERTURA + WORKBENCH — spec 2026-07-07
+// =====================================================================
+
+// Identidad real, curada. Agrupa 1..N registros crudos (cliente_uni).
+model Persona {
+  id                   Int       @id @default(autoincrement())
+  nombreOficial        String?   @db.VarChar(80)
+  cedula               String?   @db.VarChar(12) // única cuando existe (índice único parcial vía SQL crudo)
+  rucPrincipal         String?   @db.VarChar(12)
+  telefonoPrincipalId  Int? // FK → cliente_telefono (elegido del crudo)
+  direccionPrincipalId Int? // FK → cliente_direccion (elegido del crudo)
+  estado               String?   @db.VarChar(1)
+  notasInternas        String?   @db.VarChar(300) // solo call center
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  registros          ClienteUni[] // los crudos vinculados
+  miembroDe          HogarMiembro[]
+  coberturas         Cobertura[]
+  telefonoPrincipal  ClienteTelefono?  @relation("PersonaTelPrincipal", fields: [telefonoPrincipalId], references: [id])
+  direccionPrincipal ClienteDireccion? @relation("PersonaDirPrincipal", fields: [direccionPrincipalId], references: [id])
+
+  @@index([cedula])
+  @@index([nombreOficial])
+  @@index([rucPrincipal])
+  @@map("persona")
+}
+
+// Grupo familiar anclado a una dirección física.
+model Hogar {
+  id                 Int      @id @default(autoincrement())
+  etiqueta           String?  @db.VarChar(120) // "Familia Pérez – Av. Italia 2020"
+  direccionTextoNorm String?  @db.VarChar(300) // clave normalizada calle+nº
+  lat                Decimal? @db.Decimal(10, 7)
+  lng                Decimal? @db.Decimal(10, 7)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  miembros           HogarMiembro[]
+
+  @@index([direccionTextoNorm])
+  @@map("hogar")
+}
+
+model HogarMiembro {
+  id        Int     @id @default(autoincrement())
+  hogarId   Int
+  personaId Int
+  rol       String? @db.VarChar(20) // TITULAR | FAMILIAR (opcional)
+  hogar     Hogar   @relation(fields: [hogarId], references: [id], onDelete: Cascade)
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  @@unique([hogarId, personaId])
+  @@index([personaId])
+  @@map("hogar_miembro")
+}
+
+// Cola del workbench: candidatos a duplicado o a hogar. Nada se fusiona solo.
+model MatchSugerencia {
+  id         Int       @id @default(autoincrement())
+  tipo       String    @db.VarChar(20) // DUPLICADO | HOGAR
+  registroA  Int? // cliente_uni.id (para DUPLICADO)
+  registroB  Int?
+  personaA   Int? // persona.id (para HOGAR)
+  personaB   Int?
+  senal      String    @db.VarChar(30) // CEDULA | RUC | TEL+NOMBRE | MISMA_DIRECCION | ...
+  confianza  Float // 0-1
+  estado     String    @default("PENDIENTE") @db.VarChar(12) // PENDIENTE | ACEPTADO | RECHAZADO
+  operador   String?   @db.VarChar(30)
+  resueltoAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tipo, estado, confianza(sort: Desc)])
+  @@map("match_sugerencia")
+}
+
+// Afiliación cliente↔distribuidor por interacción. Poblada por pedidos (backfill histórico).
+model Cobertura {
+  id               Int       @id @default(autoincrement())
+  personaId        Int
+  puestoId         Int // escenario / punto de venta
+  empresaFleteraId Int // el distribuidor
+  tipoInteraccion  String    @db.VarChar(20) // LLAMADA_DIRECTA | ENTREGA_MOVIL
+  primeraFecha     DateTime?
+  ultFecha         DateTime
+  cantPedidos      Int?      @default(0)
+  persona          Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  @@unique([personaId, empresaFleteraId]) // 1 relación por distribuidor; se actualiza ultFecha
+  @@index([empresaFleteraId])
+  @@map("cobertura")
 }
 
 model Puesto {

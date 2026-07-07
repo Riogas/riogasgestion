@@ -8,6 +8,10 @@ import { CatalogosModule } from './catalogos/catalogos.module';
 import { MovilesModule } from './moviles/moviles.module';
 import { FleterasModule } from './fleteras/fleteras.module';
 import { ZonasModule } from './zonas/zonas.module';
+import { PersonasModule } from './personas/personas.module';
+import { WorkbenchModule } from './workbench/workbench.module';
+import { CoberturaModule } from './cobertura/cobertura.module';
+import { IdentificacionModule } from './identificacion/identificacion.module';
 
 @Module({
   imports: [
@@ -27,6 +31,10 @@ import { ZonasModule } from './zonas/zonas.module';
     MovilesModule,
     FleterasModule,
     ZonasModule,
+    PersonasModule,
+    WorkbenchModule,
+    CoberturaModule,
+    IdentificacionModule,
     // TODO: Agregar módulos a medida que se migran las APIs
     // UsuariosModule,
     // AsignacionesModule,

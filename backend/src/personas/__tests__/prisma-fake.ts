@@ -1,0 +1,199 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Fake en memoria de PrismaService para tests unitarios de personas/hogar.
+// No golpea ninguna base de datos real.
+
+type Row = Record<string, any>;
+
+function matchWhere(row: Row, where?: Row): boolean {
+  if (!where) return true;
+  return Object.entries(where).every(([key, condition]) => {
+    if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+      if ('in' in condition) return condition.in.includes(row[key]);
+      if ('not' in condition) return row[key] !== condition.not;
+    }
+    return row[key] === condition;
+  });
+}
+
+// Calcula el próximo id como max(id)+1 en vez de un contador aparte, para que
+// los fixtures de los specs puedan seedear ids manualmente sin colisionar.
+function nextId(rows: Row[]): number {
+  return rows.reduce((max, r) => Math.max(max, r.id), 0) + 1;
+}
+
+export class FakePrismaService {
+  personas: Row[] = [];
+
+  clienteUnis: Row[] = [];
+
+  hogares: Row[] = [];
+
+  hogarMiembros: Row[] = [];
+
+  private allTelefonos(): Row[] {
+    return this.clienteUnis.flatMap((c) => c.telefonos ?? []);
+  }
+
+  private allDirecciones(): Row[] {
+    return this.clienteUnis.flatMap((c) => c.direcciones ?? []);
+  }
+
+  private hydratePersona(p: Row, include?: Row): Row {
+    const result: Row = { ...p };
+    if (!include) return result;
+
+    if (include.registros) {
+      const registrosInclude = include.registros === true ? undefined : include.registros.include;
+      result.registros = this.clienteUnis
+        .filter((c) => c.personaId === p.id)
+        .map((c) => {
+          const registro: Row = { ...c };
+          if (registrosInclude?.telefonos) registro.telefonos = c.telefonos ?? [];
+          if (registrosInclude?.direcciones) registro.direcciones = c.direcciones ?? [];
+          return registro;
+        });
+    }
+
+    if (include.miembroDe) {
+      const miembroDeInclude = include.miembroDe === true ? undefined : include.miembroDe.include;
+      result.miembroDe = this.hogarMiembros
+        .filter((m) => m.personaId === p.id)
+        .map((m) => {
+          const miembro: Row = { ...m };
+          if (miembroDeInclude?.hogar) {
+            miembro.hogar = this.hogares.find((h) => h.id === m.hogarId) ?? null;
+          }
+          return miembro;
+        });
+    }
+
+    if (include.direccionPrincipal) {
+      result.direccionPrincipal = p.direccionPrincipalId
+        ? this.allDirecciones().find((d) => d.id === p.direccionPrincipalId) ?? null
+        : null;
+    }
+
+    if (include.telefonoPrincipal) {
+      result.telefonoPrincipal = p.telefonoPrincipalId
+        ? this.allTelefonos().find((t) => t.id === p.telefonoPrincipalId) ?? null
+        : null;
+    }
+
+    return result;
+  }
+
+  persona = {
+    findUnique: async ({ where, include }: { where: { id: number }; include?: Row }) => {
+      const p = this.personas.find((x) => x.id === where.id);
+      if (!p) return null;
+      return this.hydratePersona(p, include);
+    },
+    findMany: async ({ where }: { where?: Row } = {}) => this.personas
+      .filter((p) => matchWhere(p, where))
+      .map((p) => ({ ...p })),
+    create: async ({ data }: { data: Row }) => {
+      const p: Row = {
+        id: nextId(this.personas),
+        nombreOficial: null,
+        cedula: null,
+        rucPrincipal: null,
+        telefonoPrincipalId: null,
+        direccionPrincipalId: null,
+        estado: null,
+        ...data,
+      };
+      this.personas.push(p);
+      return { ...p };
+    },
+    update: async ({ where, data }: { where: { id: number }; data: Row }) => {
+      const p = this.personas.find((x) => x.id === where.id);
+      if (!p) throw new Error(`Persona ${where.id} no existe (fake)`);
+      Object.assign(p, data);
+      return { ...p };
+    },
+    delete: async ({ where }: { where: { id: number } }) => {
+      const idx = this.personas.findIndex((x) => x.id === where.id);
+      if (idx === -1) throw new Error(`Persona ${where.id} no existe (fake)`);
+      const [removed] = this.personas.splice(idx, 1);
+      return removed;
+    },
+  };
+
+  clienteUni = {
+    findUnique: async ({ where }: { where: { id: number } }) => {
+      const c = this.clienteUnis.find((x) => x.id === where.id);
+      return c ? { ...c } : null;
+    },
+    findMany: async ({ where }: { where?: Row } = {}) => this.clienteUnis
+      .filter((c) => matchWhere(c, where))
+      .map((c) => ({ ...c })),
+    updateMany: async ({ where, data }: { where?: Row; data: Row }) => {
+      const affected = this.clienteUnis.filter((c) => matchWhere(c, where));
+      affected.forEach((c) => Object.assign(c, data));
+      return { count: affected.length };
+    },
+    update: async ({ where, data }: { where: { id: number }; data: Row }) => {
+      const c = this.clienteUnis.find((x) => x.id === where.id);
+      if (!c) throw new Error(`ClienteUni ${where.id} no existe (fake)`);
+      Object.assign(c, data);
+      return { ...c };
+    },
+    count: async ({ where }: { where?: Row } = {}) => this.clienteUnis.filter((c) => matchWhere(c, where)).length,
+  };
+
+  hogar = {
+    findFirst: async ({ where }: { where?: Row }) => {
+      const h = this.hogares.find((x) => matchWhere(x, where));
+      return h ? { ...h } : null;
+    },
+    create: async ({ data }: { data: Row }) => {
+      const h: Row = {
+        id: nextId(this.hogares),
+        etiqueta: null,
+        direccionTextoNorm: null,
+        lat: null,
+        lng: null,
+        ...data,
+      };
+      this.hogares.push(h);
+      return { ...h };
+    },
+  };
+
+  hogarMiembro = {
+    findUnique: async ({ where }: { where: { hogarId_personaId: { hogarId: number; personaId: number } } }) => {
+      const { hogarId, personaId } = where.hogarId_personaId;
+      const m = this.hogarMiembros.find((x) => x.hogarId === hogarId && x.personaId === personaId);
+      return m ? { ...m } : null;
+    },
+    create: async ({ data }: { data: Row }) => {
+      const m: Row = { id: nextId(this.hogarMiembros), rol: null, ...data };
+      this.hogarMiembros.push(m);
+      return { ...m };
+    },
+    upsert: async (
+      { where, update, create }: {
+        where: { hogarId_personaId: { hogarId: number; personaId: number } };
+        update: Row;
+        create: Row;
+      },
+    ) => {
+      const { hogarId, personaId } = where.hogarId_personaId;
+      const existente = this.hogarMiembros.find((x) => x.hogarId === hogarId && x.personaId === personaId);
+      if (existente) {
+        Object.assign(existente, update);
+        return { ...existente };
+      }
+      const m: Row = { id: nextId(this.hogarMiembros), rol: null, ...create };
+      this.hogarMiembros.push(m);
+      return { ...m };
+    },
+    deleteMany: async ({ where }: { where: Row }) => {
+      const before = this.hogarMiembros.length;
+      this.hogarMiembros = this.hogarMiembros.filter((m) => !matchWhere(m, where));
+      return { count: before - this.hogarMiembros.length };
+    },
+  };
+
+  $transaction = async <T>(fn: (tx: this) => Promise<T>): Promise<T> => fn(this);
+}

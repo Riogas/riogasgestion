@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PersonasService } from './personas.service';
 import { FakePrismaService } from './__tests__/prisma-fake';
@@ -68,6 +68,73 @@ describe('PersonasService', () => {
       const personaOrigen = await fake.persona.findUnique({ where: { id: 2 } });
       expect(personaOrigen).toBeNull();
     });
+
+    it('I4: transfiere la cobertura de la persona absorbida al destino en vez de perderla', async () => {
+      fake.coberturas = [
+        {
+          id: 1,
+          personaId: 2,
+          puestoId: 5,
+          empresaFleteraId: 100,
+          tipoInteraccion: 'LLAMADA_DIRECTA',
+          primeraFecha: new Date('2026-01-01'),
+          ultFecha: new Date('2026-01-15'),
+          cantPedidos: 3,
+        },
+      ];
+
+      await service.unify([10, 20]);
+
+      expect(fake.coberturas).toHaveLength(1);
+      const coberturaDestino = fake.coberturas[0];
+      expect(coberturaDestino.personaId).toBe(1);
+      expect(coberturaDestino.empresaFleteraId).toBe(100);
+      expect(coberturaDestino.cantPedidos).toBe(3);
+    });
+
+    it('I4: si el destino ya tenía cobertura del mismo distribuidor, hace merge (ultFecha max + suma cantPedidos)', async () => {
+      fake.coberturas = [
+        {
+          id: 1,
+          personaId: 1,
+          puestoId: 5,
+          empresaFleteraId: 100,
+          tipoInteraccion: 'LLAMADA_DIRECTA',
+          primeraFecha: new Date('2026-01-01'),
+          ultFecha: new Date('2026-01-10'),
+          cantPedidos: 2,
+        },
+        {
+          id: 2,
+          personaId: 2,
+          puestoId: 5,
+          empresaFleteraId: 100,
+          tipoInteraccion: 'LLAMADA_DIRECTA',
+          primeraFecha: new Date('2026-01-05'),
+          ultFecha: new Date('2026-01-20'),
+          cantPedidos: 3,
+        },
+      ];
+
+      await service.unify([10, 20]);
+
+      expect(fake.coberturas).toHaveLength(1);
+      const coberturaDestino = fake.coberturas[0];
+      expect(coberturaDestino.personaId).toBe(1);
+      expect(coberturaDestino.cantPedidos).toBe(5);
+      expect(coberturaDestino.ultFecha).toEqual(new Date('2026-01-20'));
+    });
+
+    it('I4: transfiere la membresía de hogar de la persona absorbida al destino', async () => {
+      fake.hogares = [{ id: 100, etiqueta: null, direccionTextoNorm: null }];
+      fake.hogarMiembros = [{ id: 1, hogarId: 100, personaId: 2, rol: null }];
+
+      await service.unify([10, 20]);
+
+      expect(fake.hogarMiembros).toHaveLength(1);
+      expect(fake.hogarMiembros[0].personaId).toBe(1);
+      expect(fake.hogarMiembros[0].hogarId).toBe(100);
+    });
   });
 
   describe('split', () => {
@@ -98,6 +165,12 @@ describe('PersonasService', () => {
 
     it('lanza NotFoundException si la persona no existe', async () => {
       await expect(service.setCanonical(999, { nombreOficial: 'X' })).rejects.toThrow(NotFoundException);
+    });
+
+    it('M5: lanza ConflictException (no un error crudo de Prisma) si la cédula ya está asignada a otra persona', async () => {
+      await service.setCanonical(1, { cedula: '11111111' });
+
+      await expect(service.setCanonical(2, { cedula: '11111111' })).rejects.toThrow(ConflictException);
     });
   });
 });

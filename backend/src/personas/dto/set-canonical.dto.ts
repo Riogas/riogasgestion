@@ -4,7 +4,7 @@ import {
 } from 'class-validator';
 
 export class SetCanonicalDto {
-  @IsOptional() @IsString() @MaxLength(200)
+  @IsOptional() @IsString() @MaxLength(80)
   nombreOficial?: string;
 
   @IsOptional() @IsString() @MaxLength(12)

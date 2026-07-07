@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  ClienteDireccion, ClienteTelefono, ClienteUni, Hogar, Persona,
+  BadRequestException, ConflictException, Injectable, NotFoundException,
+} from '@nestjs/common';
+import {
+  ClienteDireccion, ClienteTelefono, ClienteUni, Hogar, Persona, Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -53,13 +55,17 @@ export class PersonasService {
     };
   }
 
-  async unify(registroIds: number[], operador?: string): Promise<{ personaId: number }> {
+  async unify(
+    registroIds: number[],
+    operador?: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ personaId: number }> {
     if (!registroIds || registroIds.length === 0) {
       throw new BadRequestException('Debe indicar al menos un registro para unificar');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const primerRegistro = await tx.clienteUni.findUnique({
+    const ejecutar = async (client: Prisma.TransactionClient): Promise<{ personaId: number }> => {
+      const primerRegistro = await client.clienteUni.findUnique({
         where: { id: registroIds[0] },
       });
       if (!primerRegistro) {
@@ -70,7 +76,7 @@ export class PersonasService {
         throw new BadRequestException(`Registro ${registroIds[0]} no tiene persona asociada`);
       }
 
-      const registrosAMover = await tx.clienteUni.findMany({
+      const registrosAMover = await client.clienteUni.findMany({
         where: { id: { in: registroIds } },
       });
       const personaIdsOrigen = Array.from(
@@ -81,20 +87,73 @@ export class PersonasService {
         ),
       );
 
-      await tx.clienteUni.updateMany({
+      await client.clienteUni.updateMany({
         where: { id: { in: registroIds } },
         data: { personaId: destinoPersonaId },
       });
 
       for (const personaId of personaIdsOrigen) {
-        const restantes = await tx.clienteUni.count({ where: { personaId } });
+        const restantes = await client.clienteUni.count({ where: { personaId } });
         if (restantes === 0) {
-          await tx.persona.delete({ where: { id: personaId } });
+          // Cobertura y HogarMiembro son onDelete:Cascade: si no transferimos
+          // esas filas antes de borrar la persona huérfana, se pierden para
+          // siempre y split() ya no puede reconstruirlas (rompe reversibilidad).
+          await this.transferirAfiliaciones(client, personaId, destinoPersonaId);
+          await client.persona.delete({ where: { id: personaId } });
         }
       }
 
       return { personaId: destinoPersonaId };
-    });
+    };
+
+    if (tx) return ejecutar(tx);
+    return this.prisma.$transaction((t) => ejecutar(t));
+  }
+
+  // Repunta cobertura/hogarMiembro de una persona origen (a punto de ser
+  // borrada por quedar huérfana) hacia la persona destino de la unificación.
+  // En caso de conflicto con una fila ya existente del destino: para
+  // cobertura nos quedamos con la ultFecha más reciente y sumamos
+  // cantPedidos; para hogarMiembro descartamos el duplicado.
+  private async transferirAfiliaciones(
+    client: Prisma.TransactionClient,
+    personaIdOrigen: number,
+    personaIdDestino: number,
+  ): Promise<void> {
+    const coberturasOrigen = await client.cobertura.findMany({ where: { personaId: personaIdOrigen } });
+    for (const c of coberturasOrigen) {
+      const existente = await client.cobertura.findUnique({
+        where: {
+          personaId_empresaFleteraId: { personaId: personaIdDestino, empresaFleteraId: c.empresaFleteraId },
+        },
+      });
+      if (existente) {
+        const ultFecha = existente.ultFecha && c.ultFecha && existente.ultFecha > c.ultFecha
+          ? existente.ultFecha
+          : c.ultFecha;
+        await client.cobertura.update({
+          where: {
+            personaId_empresaFleteraId: { personaId: personaIdDestino, empresaFleteraId: c.empresaFleteraId },
+          },
+          data: { ultFecha, cantPedidos: (existente.cantPedidos ?? 0) + (c.cantPedidos ?? 0) },
+        });
+        await client.cobertura.delete({ where: { id: c.id } });
+      } else {
+        await client.cobertura.update({ where: { id: c.id }, data: { personaId: personaIdDestino } });
+      }
+    }
+
+    const miembrosOrigen = await client.hogarMiembro.findMany({ where: { personaId: personaIdOrigen } });
+    for (const m of miembrosOrigen) {
+      const existente = await client.hogarMiembro.findUnique({
+        where: { hogarId_personaId: { hogarId: m.hogarId, personaId: personaIdDestino } },
+      });
+      if (existente) {
+        await client.hogarMiembro.delete({ where: { id: m.id } });
+      } else {
+        await client.hogarMiembro.update({ where: { id: m.id }, data: { personaId: personaIdDestino } });
+      }
+    }
   }
 
   async setCanonical(personaId: number, dto: SetCanonicalDto): Promise<Persona> {
@@ -103,15 +162,22 @@ export class PersonasService {
       throw new NotFoundException(`Persona ${personaId} no encontrada`);
     }
 
-    return this.prisma.persona.update({
-      where: { id: personaId },
-      data: {
-        nombreOficial: dto.nombreOficial,
-        cedula: dto.cedula,
-        telefonoPrincipalId: dto.telefonoPrincipalId,
-        direccionPrincipalId: dto.direccionPrincipalId,
-      },
-    });
+    try {
+      return await this.prisma.persona.update({
+        where: { id: personaId },
+        data: {
+          nombreOficial: dto.nombreOficial,
+          cedula: dto.cedula,
+          telefonoPrincipalId: dto.telefonoPrincipalId,
+          direccionPrincipalId: dto.direccionPrincipalId,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('cedula ya asignada a otra persona');
+      }
+      throw err;
+    }
   }
 
   async split(registroIds: number[]): Promise<{ nuevas: number[] }> {

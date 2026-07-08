@@ -17,6 +17,8 @@ import {
   LogOut,
   Search,
   ArrowRight,
+  Merge,
+  UserSearch,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -35,6 +37,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Pedidos", href: "/dashboard/pedidos", icon: Package, keywords: ["orders"] },
   { label: "Móviles", href: "/dashboard/moviles", icon: Truck, keywords: ["vehiculos"] },
   { label: "Clientes", href: "/dashboard/clientes", icon: Users, keywords: ["customers"] },
+  { label: "Identificación", href: "/dashboard/identificacion", icon: UserSearch, keywords: ["identificar", "cedula", "telefono"] },
+  { label: "Workbench de deduplicación", href: "/dashboard/clientes/workbench", icon: Merge, keywords: ["duplicados", "dedup", "workbench"] },
   { label: "Mapa", href: "/dashboard/mapa", icon: Map, keywords: ["map"] },
   { label: "Services", href: "/dashboard/services", icon: Wrench, keywords: ["servicios"] },
   { label: "Normalizar calles", href: "/dashboard/normalizar-calles", icon: MapPin, keywords: ["streets", "normalize"] },

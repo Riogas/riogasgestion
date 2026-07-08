@@ -1,0 +1,1 @@
+export { useIdentificar } from "./useIdentificar";

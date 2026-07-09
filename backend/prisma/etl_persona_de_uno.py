@@ -50,9 +50,13 @@ def main():
         # que lo originó.
         updates = []
         for cu_id, nombre, ruc, estado in rows:
+            # "updatedAt" es @updatedAt en Prisma: el cliente lo setea, pero
+            # `db push` crea la columna NOT NULL SIN default en la base, así
+            # que un INSERT crudo debe completarla explícitamente (createdAt sí
+            # tiene default now() en la base).
             cur.execute(
-                'INSERT INTO persona ("nombreOficial", cedula, "rucPrincipal", estado) '
-                'VALUES (%s, NULL, %s, %s) RETURNING id',
+                'INSERT INTO persona ("nombreOficial", cedula, "rucPrincipal", estado, "updatedAt") '
+                'VALUES (%s, NULL, %s, %s, now()) RETURNING id',
                 (nombre, ruc, estado),
             )
             persona_id = cur.fetchone()[0]

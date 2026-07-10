@@ -17,7 +17,8 @@ confianza primero y gana esa señal).
 
 --tipo hogar:
   MISMA_DIRECCION: cliente_direccion agrupadas por direccionTextoNorm no
-                    vacío, con >=2 personas distintas             -> confianza 0.9
+                    vacío, entre 2 y HOGAR_MAX_GRUPO personas
+                    distintas (grupos mayores = edificio, se descartan) -> conf 0.9
   PROXIMIDAD_GEO:  direcciones con lat/lng, distinta persona, a
                     <= HOGAR_PROXIMIDAD_METROS (env, default 25)  -> confianza 0.7
   personaA/personaB = persona.id (LEAST/GREATEST).
@@ -44,6 +45,14 @@ from _creds import pg_conn_args
 # claves "basura" que agrupan de más (cédula/ruc/dirección placeholder,
 # número de teléfono genérico, etc.). Mismo criterio que dedup_clientes.py.
 MAX_GRUPO = 50
+
+# Cota ESPECÍFICA de hogar: una familia son pocas personas (~2-5). En capital
+# el apartamento (`apto`) suele venir vacío, así que un edificio entero colapsa
+# en una sola direccionTextoNorm y sus N vecinos se marcarían como una misma
+# familia (con MAX_GRUPO=50 eso son C(50,2)=1225 pares por edificio → millones).
+# Los grupos de misma dirección con MÁS de HOGAR_MAX_GRUPO personas se tratan
+# como "edificio" y se DESCARTAN (no son un hogar). Configurable por env.
+HOGAR_MAX_GRUPO = int(os.environ.get('HOGAR_MAX_GRUPO', '5'))
 
 
 def norm(s):
@@ -160,8 +169,9 @@ def hogar(cur, conn):
     print("=== HOGAR ===")
     total = 0
 
-    # MISMA_DIRECCION: mismo direccionTextoNorm, >=2 personas distintas.
-    pares = pares_por_grupo(cur, """
+    # MISMA_DIRECCION: mismo direccionTextoNorm, entre 2 y HOGAR_MAX_GRUPO
+    # personas distintas (los grupos más grandes = edificio, se descartan).
+    misma_dir_sql = """
         SELECT cd."direccionTextoNorm", array_agg(DISTINCT cu."personaId")
         FROM cliente_direccion cd
         JOIN cliente_uni cu ON cu.id = cd."clienteId"
@@ -169,11 +179,26 @@ def hogar(cur, conn):
           AND cu."personaId" IS NOT NULL
         GROUP BY cd."direccionTextoNorm"
         HAVING count(DISTINCT cu."personaId") > 1
-    """)
+    """
+    pares = pares_por_grupo(cur, misma_dir_sql, max_grupo=HOGAR_MAX_GRUPO)
+    # Cuántas direcciones se descartaron por ser "edificio" (> HOGAR_MAX_GRUPO).
+    cur.execute("""
+        SELECT count(*) FROM (
+          SELECT cd."direccionTextoNorm"
+          FROM cliente_direccion cd
+          JOIN cliente_uni cu ON cu.id = cd."clienteId"
+          WHERE cd."direccionTextoNorm" IS NOT NULL AND cd."direccionTextoNorm" <> ''
+            AND cu."personaId" IS NOT NULL
+          GROUP BY cd."direccionTextoNorm"
+          HAVING count(DISTINCT cu."personaId") > %s
+        ) edificios
+    """, (HOGAR_MAX_GRUPO,))
+    edificios = cur.fetchone()[0]
     filas = [(a, b, 'MISMA_DIRECCION', 0.9) for a, b in pares]
     n = insertar_pares(cur, 'HOGAR', filas, cols=('personaA', 'personaB'))
     conn.commit()
-    print(f"  MISMA_DIRECCION: candidatos={len(pares):,} insertados={n:,}")
+    print(f"  MISMA_DIRECCION (grupo<={HOGAR_MAX_GRUPO}): candidatos={len(pares):,} "
+          f"insertados={n:,} | direcciones-edificio descartadas={edificios:,}")
     total += n
 
     # PROXIMIDAD_GEO: direcciones con lat/lng a <= HOGAR_PROXIMIDAD_METROS,
@@ -225,7 +250,7 @@ def hogar(cur, conn):
 
     pares = set()
     for _ancla, par_set in pares_por_ancla.items():
-        if len(par_set) > MAX_GRUPO:
+        if len(par_set) > HOGAR_MAX_GRUPO:
             continue
         pares.update(par_set)
 

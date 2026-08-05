@@ -36,6 +36,32 @@ a `/no-autorizado`, aunque el resto del deploy esté OK.
 
 ## 2. Variables de entorno
 
+### 2.0 `JWT_SECRET` — BLOQUEANTE DE DEPLOY 🚫
+
+**Sin `JWT_SECRET` seteada en el backend de producción, el módulo Sorteos no funciona: el
+`AuthGuard` falla cerrado y devuelve 401 en TODOS los endpoints admin** (`/api/sorteos/*` y el
+resto de la API autenticada del backend NestJS).
+
+Es deliberado. El guard solo puede verificar la firma HMAC de los JWT si tiene el secreto; sin él
+no verifica nada y cualquiera que llegue al backend arma un payload base64 y entra — y detrás de
+esos endpoints hay PII de consumidores finales (nombre, teléfono, email, IP, GPS — Ley 18.331), el
+control de entrega de premios y la lista completa de códigos de un lote. Antes de este fix el
+comportamiento era permisivo (se decodificaba el token sin verificar), así que **este es un cambio
+de comportamiento en producción**: si el backend se deploya sin la variable, el admin de sorteos
+responde 401 y en el log de arranque aparece, una sola vez:
+
+```
+[AuthGuard] JWT_SECRET no está configurada: en producción la API queda cerrada (401 en todos los
+endpoints autenticados). Seteá JWT_SECRET con el mismo secreto con el que secapi firma los JWT.
+```
+
+| Variable | Valor | Nota |
+|---|---|---|
+| `JWT_SECRET` | **el mismo secreto con el que secapi firma los JWT** (HS256) | **Obligatoria en producción.** Si no coincide con el de secapi, los tokens legítimos se rechazan con "Firma inválida". En dev/staging (`NODE_ENV !== 'production'`) se puede omitir y se mantiene el comportamiento permisivo de siempre. |
+
+Verificación después del deploy: con sesión válida, `GET /api/sorteos` debe responder 200; con un
+token inventado (`Authorization: Bearer x.eyJzdWIiOiJhIn0.x`) debe responder 401.
+
 ### Backend (`backend/.env` en el server de prod, o el mecanismo de envs que use el deploy)
 
 | Variable | Valor | Nota |
@@ -105,6 +131,11 @@ instalen y arranquen sin warnings de engine.
    un lote de 2 códigos, descargar el ZIP, escanear uno de los dos QR con un celular real y completar el
    formulario. Confirmar que la participación quede en `sorteo_participacion` y que, si activás el sorteo
    con `fechaHasta` muy cercana (ver §6), alguna de las dos participaciones gane.
+4. **Auth:** ver §2.0 (200 con sesión real, 401 con token inventado).
+5. **Descarga de códigos:** el backend genera **un solo ZIP a la vez por proceso**; una segunda descarga
+   simultánea responde 429 ("Ya hay una descarga de códigos generándose"). Es a propósito: cada código es
+   un PNG de 1024px encodeado en el hilo principal y un lote de 10.000 son minutos de CPU. Si hay que
+   preparar varios lotes, descargarlos de a uno.
 
 ---
 

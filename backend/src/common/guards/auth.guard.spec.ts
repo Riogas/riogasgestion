@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, Logger, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard, decodeJwtPayload } from './auth.guard';
 
 function makeToken(payload: Record<string, unknown>): string {
@@ -72,6 +72,87 @@ describe('AuthGuard', () => {
       expect(() =>
         guard.canActivate(ctx({ authorization: `Bearer ${token}` })),
       ).toThrow(UnauthorizedException);
+    });
+
+    it('rechaza un token de dos partes en vez de saltear la verificación de firma', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256' })).toString('base64url');
+      const body = Buffer.from(JSON.stringify({ sub: 'u1', exp: 32503680000 })).toString(
+        'base64url',
+      );
+      expect(() => guard.canActivate(ctx({ authorization: `Bearer ${header}.${body}` }))).toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('sin JWT_SECRET en producción (fail-closed)', () => {
+    const nodeEnvOriginal = process.env.NODE_ENV;
+    let errores: jest.SpyInstance;
+
+    beforeEach(() => {
+      // El aviso se emite una sola vez por proceso: se resetea para cada caso.
+      (AuthGuard as unknown as { avisoSecretoEmitido: boolean }).avisoSecretoEmitido = false;
+      errores = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      delete process.env.JWT_SECRET;
+    });
+
+    afterEach(() => {
+      process.env.NODE_ENV = nodeEnvOriginal;
+      jest.restoreAllMocks();
+    });
+
+    it('rechaza aunque el token esté bien formado y vigente', () => {
+      process.env.NODE_ENV = 'production';
+      const token = makeToken({ sub: 'u1', exp: 32503680000 });
+
+      expect(() => guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rechaza incluso sin header (no hay forma de autenticar)', () => {
+      process.env.NODE_ENV = 'production';
+
+      expect(() => guard.canActivate(ctx({}))).toThrow(UnauthorizedException);
+    });
+
+    it('loguea el error una sola vez, no en cada request', () => {
+      process.env.NODE_ENV = 'production';
+      const token = makeToken({ sub: 'u1', exp: 32503680000 });
+
+      for (let i = 0; i < 3; i++) {
+        expect(() => guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toThrow();
+      }
+
+      expect(errores).toHaveBeenCalledTimes(1);
+      expect(String(errores.mock.calls[0][0])).toContain('JWT_SECRET');
+    });
+
+    it('fuera de producción sigue aceptando el token mock de desarrollo', () => {
+      process.env.NODE_ENV = 'development';
+      const token = makeToken({ sub: 'u1', exp: 32503680000 });
+      const req: any = { headers: { authorization: `Bearer ${token}` } };
+      const context = {
+        switchToHttp: () => ({ getRequest: () => req }),
+      } as unknown as ExecutionContext;
+
+      expect(guard.canActivate(context)).toBe(true);
+      expect(req.user.sub).toBe('u1');
+      expect(errores).not.toHaveBeenCalled();
+    });
+
+    it('con JWT_SECRET seteada, producción funciona normal', () => {
+      process.env.NODE_ENV = 'production';
+      process.env.JWT_SECRET = 'secreto-de-prod';
+      const token = makeSignedToken({ sub: 'u1', exp: 32503680000 }, 'secreto-de-prod');
+      const req: any = { headers: { authorization: `Bearer ${token}` } };
+      const context = {
+        switchToHttp: () => ({ getRequest: () => req }),
+      } as unknown as ExecutionContext;
+
+      expect(guard.canActivate(context)).toBe(true);
+      expect(errores).not.toHaveBeenCalled();
+      delete process.env.JWT_SECRET;
     });
   });
 });

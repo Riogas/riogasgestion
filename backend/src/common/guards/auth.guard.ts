@@ -1,5 +1,11 @@
 import * as crypto from 'crypto';
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 export interface JwtPayload {
   sub?: string;
@@ -22,13 +28,32 @@ export function decodeJwtPayload(token: string): JwtPayload | null {
 /**
  * AuthGuard — verifica el JWT del header Authorization.
  *
- * Si JWT_SECRET está configurado se verifica la firma HMAC-SHA256;
- * si no, se delega la verificación al proxy/legacy (igual que src/proxy.ts del frontend).
+ * En producción JWT_SECRET es obligatoria: sin ella el guard NO puede verificar
+ * ninguna firma (cualquiera arma un payload base64 y entra), así que falla cerrado
+ * y devuelve 401 a todo. En desarrollo se mantiene el comportamiento permisivo de
+ * siempre (tokens mock sin firmar) para no romper el flujo local.
  * El hardening completo de auth es parte del esfuerzo de seguridad separado.
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private static readonly logger = new Logger(AuthGuard.name);
+
+  /** El aviso de JWT_SECRET faltante se loguea una sola vez, no en cada request. */
+  private static avisoSecretoEmitido = false;
+
   canActivate(context: ExecutionContext): boolean {
+    const secret = process.env.JWT_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      if (!AuthGuard.avisoSecretoEmitido) {
+        AuthGuard.avisoSecretoEmitido = true;
+        AuthGuard.logger.error(
+          'JWT_SECRET no está configurada: en producción la API queda cerrada (401 en todos los endpoints autenticados). ' +
+            'Seteá JWT_SECRET con el mismo secreto con el que secapi firma los JWT.',
+        );
+      }
+      throw new UnauthorizedException('Autenticación no disponible: JWT_SECRET no configurada');
+    }
+
     const req = context.switchToHttp().getRequest();
     const header: string | undefined = req.headers?.['authorization'];
     if (!header || !header.startsWith('Bearer ')) {
@@ -37,8 +62,13 @@ export class AuthGuard implements CanActivate {
     const token = header.slice('Bearer '.length).trim();
 
     const parts = token.split('.');
-    const secret = process.env.JWT_SECRET;
-    if (secret && parts.length === 3) {
+    if (secret) {
+      // Nunca saltear la verificación por la forma del token: un token de dos
+      // partes no es "sin firma", es un token inválido.
+      if (parts.length !== 3) {
+        throw new UnauthorizedException('Firma inválida');
+      }
+
       const expectedSig = crypto
         .createHmac('sha256', secret)
         .update(`${parts[0]}.${parts[1]}`)

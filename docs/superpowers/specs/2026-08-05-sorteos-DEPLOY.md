@@ -57,7 +57,15 @@ endpoints autenticados). Seteá JWT_SECRET con el mismo secreto con el que secap
 
 | Variable | Valor | Nota |
 |---|---|---|
-| `JWT_SECRET` | **el mismo secreto con el que secapi firma los JWT** (HS256) | **Obligatoria en producción.** Si no coincide con el de secapi, los tokens legítimos se rechazan con "Firma inválida". En dev/staging (`NODE_ENV !== 'production'`) se puede omitir y se mantiene el comportamiento permisivo de siempre. |
+| `JWT_SECRET` | **el mismo secreto con el que secapi firma los JWT** (HS256) | **Obligatoria salvo en `NODE_ENV=development` o `NODE_ENV=test`.** Si no coincide con el de secapi, los tokens legítimos se rechazan con "Firma inválida". |
+
+⚠ **La excepción es por lista blanca, no por `!== 'production'`.** Solo `development` y `test` corren
+sin secreto; con `NODE_ENV` sin setear, vacío, `staging`, `prod` o cualquier otro valor, `JWT_SECRET`
+es obligatoria. Es a propósito: si el fail-closed dependiera de que alguien se acuerde de poner
+`NODE_ENV=production`, un deploy que se olvide de la variable dejaría la API abierta en silencio —
+justo el escenario que este fix cierra. Consecuencia práctica: **en una máquina de desarrollo hay que
+tener `NODE_ENV=development` en el `.env` del backend** (o setear `JWT_SECRET`), si no el backend
+local responde 401 a todo.
 
 Verificación después del deploy: con sesión válida, `GET /api/sorteos` debe responder 200; con un
 token inventado (`Authorization: Bearer x.eyJzdWIiOiJhIn0.x`) debe responder 401.

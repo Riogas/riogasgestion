@@ -1161,6 +1161,23 @@ describe('SorteosService', () => {
       expect(prisma.sorteoLote.create).not.toHaveBeenCalled();
     });
 
+    it.each(['finalizado', 'cancelado'])(
+      'sorteo %s → BadRequestException sin generar códigos',
+      async (estado) => {
+        prisma.sorteo.findUnique.mockResolvedValue(sorteoBase({ estado }));
+
+        await expect(service.crearLote(7, 10, null)).rejects.toBeInstanceOf(BadRequestException);
+        expect(prisma.sorteoLote.create).not.toHaveBeenCalled();
+        expect(prisma.sorteoCodigo.createMany).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['borrador', 'activo'])('sorteo %s → sí genera el lote', async (estado) => {
+      prisma.sorteo.findUnique.mockResolvedValue(sorteoBase({ estado }));
+
+      await expect(service.crearLote(7, 10, null)).resolves.toEqual({ id: 3, cantidad: 10 });
+    });
+
     it('colisión de código (P2002) → reintenta el lote completo una vez', async () => {
       prisma.sorteoCodigo.createMany
         .mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }))

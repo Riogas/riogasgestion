@@ -26,12 +26,20 @@ export function decodeJwtPayload(token: string): JwtPayload | null {
 }
 
 /**
+ * Únicos ambientes donde se tolera correr sin JWT_SECRET (tokens mock sin firmar).
+ * La lista es explícita a propósito: si NODE_ENV no está seteada, el guard exige el
+ * secreto. Confiar en `NODE_ENV === 'production'` dejaba el agujero abierto en
+ * silencio en cualquier deploy que se olvidara de setear la variable.
+ */
+const AMBIENTES_SIN_SECRETO = ['development', 'test'];
+
+/**
  * AuthGuard — verifica el JWT del header Authorization.
  *
- * En producción JWT_SECRET es obligatoria: sin ella el guard NO puede verificar
- * ninguna firma (cualquiera arma un payload base64 y entra), así que falla cerrado
- * y devuelve 401 a todo. En desarrollo se mantiene el comportamiento permisivo de
- * siempre (tokens mock sin firmar) para no romper el flujo local.
+ * JWT_SECRET es obligatoria salvo en development/test: sin ella el guard NO puede
+ * verificar ninguna firma (cualquiera arma un payload base64 y entra), así que falla
+ * cerrado y devuelve 401 a todo. En local se mantiene el comportamiento permisivo de
+ * siempre (tokens mock sin firmar) para no romper el flujo de desarrollo.
  * El hardening completo de auth es parte del esfuerzo de seguridad separado.
  */
 @Injectable()
@@ -43,12 +51,14 @@ export class AuthGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const secret = process.env.JWT_SECRET;
-    if (!secret && process.env.NODE_ENV === 'production') {
+    const ambiente = process.env.NODE_ENV ?? '';
+    if (!secret && !AMBIENTES_SIN_SECRETO.includes(ambiente)) {
       if (!AuthGuard.avisoSecretoEmitido) {
         AuthGuard.avisoSecretoEmitido = true;
         AuthGuard.logger.error(
-          'JWT_SECRET no está configurada: en producción la API queda cerrada (401 en todos los endpoints autenticados). ' +
-            'Seteá JWT_SECRET con el mismo secreto con el que secapi firma los JWT.',
+          `JWT_SECRET no está configurada (NODE_ENV=${ambiente || 'sin definir'}): la API queda cerrada ` +
+            '(401 en todos los endpoints autenticados). Seteá JWT_SECRET con el mismo secreto con el que ' +
+            'secapi firma los JWT; en una máquina de desarrollo, NODE_ENV=development.',
         );
       }
       throw new UnauthorizedException('Autenticación no disponible: JWT_SECRET no configurada');

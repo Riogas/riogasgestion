@@ -660,7 +660,15 @@ export class SorteosService {
   // ─── Admin: lotes y códigos ─────────────────────────────────────────────────
 
   async crearLote(sorteoId: number, cantidad: number, generadoPor: string | null) {
-    await this.buscarSorteo(sorteoId);
+    const sorteo = await this.buscarSorteo(sorteoId);
+
+    // Códigos de un sorteo que ya terminó no sirven para nada: son stickers para
+    // imprimir que nadie va a poder usar. La UI ya lo bloquea; el backend también.
+    if (sorteo.estado === 'finalizado' || sorteo.estado === 'cancelado') {
+      throw new BadRequestException(
+        `No se pueden generar códigos de un sorteo ${sorteo.estado}`,
+      );
+    }
 
     try {
       return await this.intentarLote(sorteoId, cantidad, generadoPor);

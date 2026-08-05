@@ -225,6 +225,44 @@ describe('SorteosAdminController', () => {
       service.codigosDelLote.mockResolvedValue([]);
       await expect(controller.zipDelLote(7, 3, crearResStream().res)).resolves.toBeUndefined();
     });
+
+    // Regresión: el release estaba SOLO en el `finally`, así que dependía de que el
+    // cuerpo del handler terminara alguna vez. Si el cliente corta la descarga
+    // mientras el handler está esperando algo que no vuelve (la base, o el
+    // `finalize()` de archiver contra un destino ya destruido), el finally no corre
+    // nunca y TODO el backend queda en 429 permanente hasta reiniciarlo.
+    it('si el cliente aborta mientras el handler espera, el semáforo se libera igual', async () => {
+      process.env.SORTEOS_PUBLIC_BASE_URL = 'https://goya.riogas.com.uy';
+      const { res } = crearResStream();
+      // La consulta del primer batch nunca vuelve: el handler queda esperando.
+      const colgado = controller.zipDelLote(7, 3, res);
+      service.codigosDelLote.mockReturnValueOnce(new Promise(() => {}));
+      await new Promise((r) => setImmediate(r));
+
+      res.destroy(); // el cliente corta la conexión
+      await new Promise((r) => setImmediate(r));
+
+      service.codigosDelLote.mockResolvedValue([]);
+      const { res: res2 } = crearResStream();
+      await expect(controller.zipDelLote(7, 3, res2)).resolves.toBeUndefined();
+      void colgado;
+    });
+
+    it('un error de socket (ECONNRESET) también libera el semáforo', async () => {
+      process.env.SORTEOS_PUBLIC_BASE_URL = 'https://goya.riogas.com.uy';
+      const { res } = crearResStream();
+      service.codigosDelLote.mockReturnValueOnce(new Promise(() => {}));
+
+      const colgado = controller.zipDelLote(7, 3, res);
+      await new Promise((r) => setImmediate(r)); // el handler ya escucha 'error'
+      res.emit('error', new Error('ECONNRESET'));
+      await new Promise((r) => setImmediate(r));
+
+      service.codigosDelLote.mockResolvedValue([]);
+      const { res: res2 } = crearResStream();
+      await expect(controller.zipDelLote(7, 3, res2)).resolves.toBeUndefined();
+      void colgado;
+    });
   });
 
   describe('export CSV', () => {
@@ -267,6 +305,44 @@ describe('SorteosAdminController', () => {
       await expect(controller.exportarParticipaciones(7, res)).rejects.toThrow('no encontrado');
       expect(res.setHeader).not.toHaveBeenCalled();
       expect(res.end).not.toHaveBeenCalled();
+    });
+
+    // Regresión: si el error aparece DESPUÉS del primer chunk, dejarlo subir hace
+    // que el AllExceptionsFilter intente status().json() con headers ya enviados
+    // → ERR_HTTP_HEADERS_SENT → unhandled rejection → en Node 22 se cae el proceso.
+    it('error después del primer chunk: no propaga, corta la conexión', async () => {
+      service.exportarParticipacionesCsv.mockImplementation(
+        async (_id: number, escribir: (c: string) => void) => {
+          await escribir('header\r\n');
+          throw new Error('la base se cayó a mitad del export');
+        },
+      );
+      const res = crearResMock();
+      (res as unknown as { destroyed: boolean }).destroyed = false;
+      const destroy = jest.fn();
+      (res as unknown as { destroy: jest.Mock }).destroy = destroy;
+
+      await expect(controller.exportarParticipaciones(7, res)).resolves.toBeUndefined();
+
+      expect(res.setHeader).toHaveBeenCalledTimes(2);
+      expect(destroy).toHaveBeenCalledTimes(1);
+      expect(res.end).not.toHaveBeenCalled();
+    });
+
+    it('un cliente que corta la descarga a mitad no tumba el handler', async () => {
+      service.exportarParticipacionesCsv.mockImplementation(
+        async (_id: number, escribir: (c: string) => void) => {
+          await escribir('header\r\n');
+          await escribir('fila1\r\n');
+        },
+      );
+      const { res } = crearResStream();
+      (res as unknown as { write: jest.Mock }).write = jest.fn(() => {
+        res.destroy();
+        return false;
+      });
+
+      await expect(controller.exportarParticipaciones(7, res)).resolves.toBeUndefined();
     });
   });
 });

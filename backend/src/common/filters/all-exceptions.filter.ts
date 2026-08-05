@@ -51,6 +51,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     }
 
+    // Respuestas en streaming (CSV/ZIP): si los headers ya salieron, escribir el
+    // JSON de error tira ERR_HTTP_HEADERS_SENT y esa excepción, adentro del filtro,
+    // termina en unhandled rejection — que en Node 22 mata el proceso. Se corta la
+    // conexión: el cliente ve la descarga incompleta y el error ya quedó logueado.
+    if (response.headersSent) {
+      if (!response.destroyed) response.destroy();
+      return;
+    }
+
     response.status(status).json(errorResponse);
   }
 }

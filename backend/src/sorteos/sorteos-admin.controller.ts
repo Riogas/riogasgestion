@@ -51,6 +51,20 @@ function cederEventLoop(): Promise<void> {
 }
 
 /**
+ * Resuelve cuando la response se cierra (el cliente cortó, o terminó la descarga).
+ * Se usa para no quedar colgado esperando algo que ya no puede pasar: con archiver@7
+ * `finalize()` NO resuelve si el destino ya fue destruido.
+ */
+function alCerrarse(res: Response): Promise<void> {
+  if (res.destroyed) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    res.once('close', resolve);
+    res.once('error', () => resolve());
+  });
+}
+
+/**
  * Espera a que la response drene. Si el cliente corta la descarga no llega
  * ningún `drain` más, así que se escuchan también `close`/`error`: sin eso la
  * promesa queda colgada y el handler nunca libera la conexión.
@@ -194,6 +208,18 @@ export class SorteosAdminController {
     }
     zipsEnCurso += 1;
 
+    // El semáforo se libera una sola vez y por varios caminos: si el cliente aborta
+    // la descarga, `finalize()` de archiver@7 nunca resuelve y el `finally` de abajo
+    // no llegaría nunca → el backend quedaría en 429 permanente hasta reiniciarlo.
+    let liberado = false;
+    const liberar = () => {
+      if (liberado) return;
+      liberado = true;
+      zipsEnCurso -= 1;
+    };
+    res.once('close', liberar);
+    res.once('error', liberar);
+
     // Los PNG ya vienen comprimidos: deflatearlos otra vez es CPU regalada.
     const zip = archiver('zip', { store: true });
 
@@ -222,13 +248,14 @@ export class SorteosAdminController {
         await esperarDrain(res);
         await cederEventLoop();
       }
-      await zip.finalize();
+      // Si la response ya se murió, `finalize()` no resuelve nunca: gana el cierre.
+      await Promise.race([zip.finalize(), alCerrarse(res)]);
     } catch (err) {
       this.logger.error(`ZIP del lote ${loteId} abortado: ${(err as Error).message}`);
       zip.abort();
-      res.destroy(err as Error);
+      if (!res.destroyed) res.destroy(err as Error);
     } finally {
-      zipsEnCurso -= 1;
+      liberar();
     }
   }
 
@@ -252,16 +279,32 @@ export class SorteosAdminController {
     // service tira 404 antes de escribir nada y Nest todavía puede responder JSON.
     let iniciado = false;
 
-    await this.sorteos.exportarParticipacionesCsv(id, async (chunk) => {
-      if (!iniciado) {
-        iniciado = true;
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="sorteo-${id}-participaciones.csv"`);
-      }
-      if (!res.write(chunk)) await esperarDrain(res);
-    });
+    try {
+      await this.sorteos.exportarParticipacionesCsv(id, async (chunk) => {
+        if (!iniciado) {
+          iniciado = true;
+          res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+          res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="sorteo-${id}-participaciones.csv"`,
+          );
+        }
+        if (!res.write(chunk)) await esperarDrain(res);
+      });
 
-    res.end();
+      res.end();
+    } catch (err) {
+      // Con los headers ya en el aire no se puede responder un JSON de error: el
+      // filtro global haría status().json() sobre una response ya empezada
+      // (ERR_HTTP_HEADERS_SENT → unhandled rejection → proceso muerto en Node 22).
+      // Se corta la conexión para que el cliente vea la descarga incompleta.
+      if (!iniciado && !res.headersSent) throw err;
+
+      this.logger.error(
+        `Export CSV del sorteo ${id} abortado: ${(err as Error).message}`,
+      );
+      if (!res.destroyed) res.destroy(err as Error);
+    }
   }
 
   @Post('participaciones/:id/entregar')

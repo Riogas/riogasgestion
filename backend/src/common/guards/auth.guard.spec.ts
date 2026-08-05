@@ -85,7 +85,7 @@ describe('AuthGuard', () => {
     });
   });
 
-  describe('sin JWT_SECRET en producción (fail-closed)', () => {
+  describe('sin JWT_SECRET fuera de development/test (fail-closed)', () => {
     const nodeEnvOriginal = process.env.NODE_ENV;
     let errores: jest.SpyInstance;
 
@@ -114,6 +114,32 @@ describe('AuthGuard', () => {
       process.env.NODE_ENV = 'production';
 
       expect(() => guard.canActivate(ctx({}))).toThrow(UnauthorizedException);
+    });
+
+    // El fail-closed no puede depender de que alguien se acuerde de setear NODE_ENV:
+    // sin la variable (o con un valor cualquiera) el secreto sigue siendo obligatorio.
+    it.each([undefined, '', 'staging', 'prod', 'produccion', 'PRODUCTION'])(
+      'NODE_ENV=%s sin JWT_SECRET → 401',
+      (ambiente) => {
+        if (ambiente === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = ambiente;
+        const token = makeToken({ sub: 'u1', exp: 32503680000 });
+
+        expect(() => guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toThrow(
+          UnauthorizedException,
+        );
+      },
+    );
+
+    it('NODE_ENV=test sigue permitiendo el token mock (así corre la suite)', () => {
+      process.env.NODE_ENV = 'test';
+      const token = makeToken({ sub: 'u1', exp: 32503680000 });
+      const req: any = { headers: { authorization: `Bearer ${token}` } };
+      const context = {
+        switchToHttp: () => ({ getRequest: () => req }),
+      } as unknown as ExecutionContext;
+
+      expect(guard.canActivate(context)).toBe(true);
     });
 
     it('loguea el error una sola vez, no en cada request', () => {

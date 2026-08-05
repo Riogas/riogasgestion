@@ -149,7 +149,13 @@ export interface SorteoParticipacion {
   gpsLocalidad: string | null;
   geoFuente: string | null;
   createdAt: string;
-  codigo: { codigo: string };
+  /**
+   * Solo viene en `GET /sorteos/:id/participaciones` (el service hace
+   * `include: { codigo: { select: { codigo: true } } }`). `marcarPremioEntregado`
+   * responde el `update()` crudo de Prisma, sin ese include, así que el objeto que
+   * devuelve `POST /sorteos/participaciones/:id/entregar` NO trae este campo.
+   */
+  codigo?: { codigo: string };
 }
 
 /** Participación ganadora — mismo shape, filtradas con `soloGanadores=true`. */

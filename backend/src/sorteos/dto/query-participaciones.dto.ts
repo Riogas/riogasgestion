@@ -12,8 +12,10 @@ export class QueryParticipacionesDto {
   @IsOptional() @IsString()
   search?: string;
 
+  // Se lee de `obj` y no de `value`: el enableImplicitConversion global ya
+  // convirtió el string a boolean (y 'false' → true) antes de llegar acá.
   @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @Transform(({ obj, key }) => obj[key] === true || obj[key] === 'true' || obj[key] === '1')
   @IsBoolean()
   soloGanadores?: boolean;
 }

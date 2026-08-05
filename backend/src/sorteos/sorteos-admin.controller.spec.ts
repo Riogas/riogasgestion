@@ -1,11 +1,13 @@
+import { InternalServerErrorException } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { Writable } from 'stream';
 import { SorteosAdminController } from './sorteos-admin.controller';
 import { SorteosService } from './sorteos.service';
 
-// El endpoint del ZIP no se testea acá: archiver 8 es ESM puro y no se puede
-// cargar desde el runtime CommonJS de jest (se cubre con smoke sobre dist/).
 function crearServiceMock() {
   return {
+    buscarLote: jest.fn().mockResolvedValue({ id: 3, sorteoId: 7, cantidad: 10 }),
+    codigosDelLote: jest.fn().mockResolvedValue([]),
     listar: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     crear: jest.fn().mockResolvedValue({ id: 7 }),
     detalle: jest.fn().mockResolvedValue({ id: 7 }),
@@ -30,6 +32,20 @@ function crearResMock() {
 
 function requestCon(user?: Record<string, unknown>) {
   return { user } as unknown as Request;
+}
+
+/** Response de verdad (Writable) para poder leer el ZIP que sale del archiver. */
+function crearResStream() {
+  const chunks: Buffer[] = [];
+  const stream = new Writable({
+    write(chunk, _enc, cb) {
+      chunks.push(Buffer.from(chunk));
+      cb();
+    },
+  });
+  const res = stream as unknown as Response & { setHeader: jest.Mock };
+  res.setHeader = jest.fn();
+  return { res, contenido: () => Buffer.concat(chunks) };
 }
 
 describe('SorteosAdminController', () => {
@@ -99,6 +115,63 @@ describe('SorteosAdminController', () => {
 
       expect(service.crearLote.mock.calls[0][2]).toHaveLength(80);
     });
+  });
+
+  describe('ZIP del lote', () => {
+    const envOriginal = process.env.SORTEOS_PUBLIC_BASE_URL;
+
+    afterEach(() => {
+      if (envOriginal === undefined) delete process.env.SORTEOS_PUBLIC_BASE_URL;
+      else process.env.SORTEOS_PUBLIC_BASE_URL = envOriginal;
+    });
+
+    it('sin SORTEOS_PUBLIC_BASE_URL falla explícito y no escribe headers', async () => {
+      delete process.env.SORTEOS_PUBLIC_BASE_URL;
+      const res = crearResMock();
+
+      await expect(controller.zipDelLote(7, 3, res)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+      expect(res.setHeader).not.toHaveBeenCalled();
+      expect(service.codigosDelLote).not.toHaveBeenCalled();
+    });
+
+    it('valida que el lote sea del sorteo antes de tocar la response', async () => {
+      delete process.env.SORTEOS_PUBLIC_BASE_URL;
+      service.buscarLote.mockRejectedValue(new Error('lote ajeno'));
+      const res = crearResMock();
+
+      await expect(controller.zipDelLote(7, 3, res)).rejects.toThrow('lote ajeno');
+      expect(res.setHeader).not.toHaveBeenCalled();
+    });
+
+    // Timeout explícito: un QR de 1024px tarda ~6 s adentro del sandbox de jest
+    // (en runtime real son ~80 ms), así que va con un solo código.
+    it(
+      'streamea un ZIP con un PNG por código y los headers de descarga',
+      async () => {
+        process.env.SORTEOS_PUBLIC_BASE_URL = 'https://goya.riogas.com.uy';
+        service.codigosDelLote
+          .mockResolvedValueOnce([{ id: 42, codigo: 'ABCD2345EFGH' }])
+          .mockResolvedValueOnce([]);
+
+        const { res, contenido } = crearResStream();
+        await controller.zipDelLote(7, 3, res);
+        const zip = contenido();
+
+        expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/zip');
+        expect(res.setHeader).toHaveBeenCalledWith(
+          'Content-Disposition',
+          'attachment; filename="sorteo-7-lote-3.zip"',
+        );
+        expect(zip.subarray(0, 2).toString()).toBe('PK');
+        expect(zip.toString('latin1')).toContain('ABCD2345EFGH.png');
+        // el keyset arranca en 0 y avanza con el último id del batch
+        expect(service.codigosDelLote).toHaveBeenNthCalledWith(1, 3, 0, 200);
+        expect(service.codigosDelLote).toHaveBeenNthCalledWith(2, 3, 42, 200);
+      },
+      30_000,
+    );
   });
 
   describe('export CSV', () => {

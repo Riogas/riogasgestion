@@ -519,6 +519,15 @@ describe('SorteosService', () => {
       await expect(service.activar(7)).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.sorteoMomentoGanador.createMany).not.toHaveBeenCalled();
     });
+
+    it('la transacción va con timeout ampliado (hasta 100.000 momentos)', async () => {
+      prisma.sorteo.findUnique.mockResolvedValue(sorteoBase({ estado: 'borrador' }));
+      prisma.sorteo.update.mockResolvedValue(sorteoBase({ estado: 'activo' }));
+
+      await service.activar(7);
+
+      expect(prisma.$transaction.mock.calls[0][1]).toEqual({ timeout: 60_000, maxWait: 15_000 });
+    });
   });
 
   // ─── regenerarMomentosPendientes ──────────────────────────────────────────
@@ -583,6 +592,14 @@ describe('SorteosService', () => {
       expect(r).toEqual({ generados: 0, ganadores: 0, omitido: true });
       expect(prisma.sorteoMomentoGanador.deleteMany).not.toHaveBeenCalled();
       expect(prisma.sorteoMomentoGanador.createMany).not.toHaveBeenCalled();
+    });
+
+    it('la transacción va con timeout ampliado (hasta 100.000 momentos)', async () => {
+      prisma.sorteo.findUnique.mockResolvedValue(sorteoBase());
+
+      await service.regenerarMomentosPendientes(7);
+
+      expect(prisma.$transaction.mock.calls[0][1]).toEqual({ timeout: 60_000, maxWait: 15_000 });
     });
   });
 
@@ -1055,6 +1072,36 @@ describe('SorteosService', () => {
       const csv = await service.exportarParticipacionesCsv(7);
 
       expect(csv).toContain('"Pérez; Juan ""el 9""\nsegunda línea"');
+    });
+
+    it.each(['=1+1', '+1', '-1', '@SUM(A1)'])(
+      'neutraliza la fórmula %s que llega del formulario público',
+      async (nombre) => {
+        prisma.sorteoParticipacion.findMany.mockResolvedValue([participacionCsv({ nombre })]);
+
+        const csv = await service.exportarParticipacionesCsv(7);
+        const fila = csv.split('\r\n')[1].split(';');
+
+        expect(fila[2]).toBe(`'${nombre}`);
+      },
+    );
+
+    it('una fórmula con separador queda neutralizada y entrecomillada', async () => {
+      prisma.sorteoParticipacion.findMany.mockResolvedValue([
+        participacionCsv({ email: '=HYPERLINK("http://x";"click")' }),
+      ]);
+
+      const csv = await service.exportarParticipacionesCsv(7);
+
+      expect(csv).toContain('"\'=HYPERLINK(""http://x"";""click"")"');
+    });
+
+    it('un valor normal no se toca', async () => {
+      const csv = await service.exportarParticipacionesCsv(7);
+      const fila = csv.split('\r\n')[1].split(';');
+
+      expect(fila[2]).toBe('Juan Pérez');
+      expect(fila[5]).toBe('juan@ejemplo.com');
     });
 
     it('sorteo inexistente → NotFoundException', async () => {

@@ -90,15 +90,23 @@ export type ActualizarSorteoInput = Partial<CrearSorteoInput>;
 const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_MAX = 200;
 
+/** Los createMany masivos (hasta 100.000 momentos / 10.000 códigos) no entran en los 5s default. */
+const TX_MOMENTOS = { timeout: 60_000, maxWait: 15_000 };
+
 /** Violación de unique de Postgres vía Prisma (el `instanceof` no sobrevive al mock). */
 function esColisionDeCodigo(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === 'P2002';
 }
 
-/** Campo CSV con separador `;` (RFC4180 adaptado). */
+/**
+ * Campo CSV con separador `;` (RFC4180 adaptado). `nombre`/`email` los escribe
+ * cualquiera desde el formulario público: un valor que arranca con `=`, `+`,
+ * `-` o `@` lo ejecuta Excel como fórmula al abrir el archivo, así que se
+ * neutraliza con una comilla simple adelante.
+ */
 function csvCampo(valor: unknown): string {
   if (valor === null || valor === undefined) return '';
-  const texto = String(valor);
+  const texto = /^[=+\-@\t\r]/.test(String(valor)) ? `'${String(valor)}` : String(valor);
   return /[";\r\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
 }
 
@@ -304,7 +312,7 @@ export class SorteosService {
       this.logger.log(`Sorteo ${id} activado con ${momentos.length} momentos ganadores`);
 
       return tx.sorteo.update({ where: { id }, data: { estado: 'activo' } });
-    });
+    }, TX_MOMENTOS);
   }
 
   async regenerarMomentosPendientes(id: number): Promise<RegeneracionMomentos> {
@@ -340,7 +348,7 @@ export class SorteosService {
       this.logger.log(`Sorteo ${id}: ${restantes} momentos pendientes regenerados`);
 
       return { generados: restantes, ganadores };
-    });
+    }, TX_MOMENTOS);
   }
 
   // ─── Admin: sorteos ─────────────────────────────────────────────────────────
@@ -555,7 +563,7 @@ export class SorteosService {
         this.logger.log(`Sorteo ${sorteoId}: lote ${lote.id} con ${cantidad} códigos`);
         return { id: lote.id, cantidad };
       },
-      { timeout: 60_000, maxWait: 15_000 },
+      TX_MOMENTOS,
     );
   }
 

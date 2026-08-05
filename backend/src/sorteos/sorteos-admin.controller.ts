@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  InternalServerErrorException,
   Logger,
   Param,
   ParseIntPipe,
@@ -13,7 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { once } from 'events';
+import archiver from 'archiver';
 import type { Request, Response } from 'express';
 import * as QRCode from 'qrcode';
 import { AuthGuard } from '../common/guards/auth.guard';
@@ -32,6 +33,38 @@ const QR_OPTIONS: QRCode.QRCodeToBufferOptions = {
   margin: 4,
   errorCorrectionLevel: 'M',
 };
+
+/**
+ * Espera a que la response drene. Si el cliente corta la descarga no llega
+ * ningún `drain` más, así que se escuchan también `close`/`error`: sin eso la
+ * promesa queda colgada y el handler nunca libera la conexión.
+ */
+function esperarDrain(res: Response): Promise<void> {
+  if (!res.writableNeedDrain || res.destroyed || res.writableEnded) return Promise.resolve();
+
+  return new Promise<void>((resolve, reject) => {
+    const limpiar = () => {
+      res.off('drain', alDrenar);
+      res.off('close', alCerrar);
+      res.off('error', alFallar);
+    };
+    const alDrenar = () => {
+      limpiar();
+      resolve();
+    };
+    const alCerrar = () => {
+      limpiar();
+      reject(new Error('el cliente cortó la descarga'));
+    };
+    const alFallar = (err: Error) => {
+      limpiar();
+      reject(err);
+    };
+    res.once('drain', alDrenar);
+    res.once('close', alCerrar);
+    res.once('error', alFallar);
+  });
+}
 
 @ApiTags('sorteos')
 @Controller('sorteos')
@@ -128,12 +161,17 @@ export class SorteosAdminController {
   ) {
     await this.sorteos.buscarLote(id, loteId);
 
-    const base = process.env.SORTEOS_PUBLIC_BASE_URL || 'http://localhost:3000';
-    // archiver 8 es ESM puro: import diferido para que el resto del controller
-    // siga siendo importable desde CommonJS (tests). Los PNG ya vienen
-    // comprimidos, así que se guardan sin deflatear de nuevo.
-    const { ZipArchive } = await import('archiver');
-    const zip = new ZipArchive({ store: true });
+    // Sin base explícita no se genera nada: un default silencioso son miles de
+    // stickers impresos apuntando a localhost.
+    const base = process.env.SORTEOS_PUBLIC_BASE_URL;
+    if (!base) {
+      throw new InternalServerErrorException(
+        'SORTEOS_PUBLIC_BASE_URL no configurada: los QR apuntarían a una URL inválida',
+      );
+    }
+
+    // Los PNG ya vienen comprimidos: deflatearlos otra vez es CPU regalada.
+    const zip = archiver('zip', { store: true });
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="sorteo-${id}-lote-${loteId}.zip"`);
@@ -157,7 +195,7 @@ export class SorteosAdminController {
 
         // Si el cliente no da abasto, esperar antes de encolar el batch siguiente:
         // los buffers encolados en el archiver son los que consumen la memoria.
-        if (res.writableNeedDrain) await once(res, 'drain');
+        await esperarDrain(res);
       }
       await zip.finalize();
     } catch (err) {

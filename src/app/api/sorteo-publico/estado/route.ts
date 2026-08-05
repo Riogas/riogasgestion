@@ -13,6 +13,7 @@ import {
   MAX_AGE_T0,
   apiKey,
   cookieOpts,
+  ipDelCliente,
   nestUrl,
 } from "@/lib/sorteo/publicApi";
 
@@ -30,8 +31,9 @@ async function consultarEstado(
         method: "GET",
         headers: {
           "x-api-key": apiKey(),
-          // Si ya viene de un proxy upstream se mantiene la cadena original.
-          "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
+          // Solo la IP que agregó el reverse proxy: la cadena que manda el
+          // cliente es falsificable (ver `ipDelCliente`).
+          "x-forwarded-for": ipDelCliente(request.headers),
         },
         cache: "no-store",
         signal: AbortSignal.timeout(ESTADO_TIMEOUT_MS),

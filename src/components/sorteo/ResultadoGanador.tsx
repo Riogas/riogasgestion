@@ -6,7 +6,7 @@
 // + selección manual para WebViews viejos de lectores QR).
 import confetti from "canvas-confetti";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, Copy, PhoneCall, Trophy } from "lucide-react";
+import { Check, Copy, History, PhoneCall, Trophy } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { SorteoPublico } from "@/lib/sorteo/publicApi";
@@ -29,9 +29,16 @@ type Props = {
   /** Teléfono ya normalizado que ingresó el participante. */
   telefono: string;
   sorteo: SorteoPublico;
+  /** Se repuso tras recargar: se avisa que no es un premio nuevo y no va confetti. */
+  recuperado?: boolean;
 };
 
-export default function ResultadoGanador({ codigoCanje, telefono, sorteo }: Props) {
+export default function ResultadoGanador({
+  codigoCanje,
+  telefono,
+  sorteo,
+  recuperado = false,
+}: Props) {
   const reducirMovimiento = useReducedMotion();
   const [copiado, setCopiado] = useState(false);
   const [copiaManual, setCopiaManual] = useState(false);
@@ -41,7 +48,7 @@ export default function ResultadoGanador({ codigoCanje, telefono, sorteo }: Prop
   // Confetti: ráfaga inicial + segunda a los 400ms. Nada si el usuario pidió
   // menos movimiento (chequeo propio + disableForReducedMotion de la lib).
   useEffect(() => {
-    if (reducirMovimiento) return;
+    if (reducirMovimiento || recuperado) return;
     const rafaga = (opts: confetti.Options) =>
       confetti({
         origin: { y: 0.35 },
@@ -56,7 +63,7 @@ export default function ResultadoGanador({ codigoCanje, telefono, sorteo }: Prop
       400,
     );
     return () => clearTimeout(segunda);
-  }, [reducirMovimiento]);
+  }, [reducirMovimiento, recuperado]);
 
   useEffect(() => {
     return () => {
@@ -148,6 +155,14 @@ export default function ResultadoGanador({ codigoCanje, telefono, sorteo }: Prop
 
       {/* Ticket con el código de canje */}
       <div className="px-6 py-7 sm:px-8">
+        {recuperado && (
+          <p className="mb-4 flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/[0.06] p-3 text-xs leading-relaxed text-muted-foreground">
+            <History className="mt-px h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <span>
+              Ya registraste este código: es el mismo premio de antes, no uno nuevo.
+            </span>
+          </p>
+        )}
         <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary/[0.04] px-4 py-5 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
             Tu código de canje

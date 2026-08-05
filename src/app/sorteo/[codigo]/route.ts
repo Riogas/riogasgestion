@@ -24,9 +24,12 @@ export async function GET(
   const res = NextResponse.redirect(new URL("/sorteo", request.url), 302);
 
   // Código malformado → redirige igual, sin cookie: la página muestra
-  // "volvé a escanear" en lugar de un 404.
+  // "volvé a escanear" en lugar de un 404. Se borra además la cookie anterior:
+  // si no, el QR mal leído mostraría el formulario del código de antes.
   if (CODIGO_REGEX.test(normalizado)) {
     res.cookies.set(COOKIE_CODIGO, normalizado, cookieOpts(MAX_AGE_CODIGO));
+  } else {
+    res.cookies.delete(COOKIE_CODIGO);
   }
 
   return res;

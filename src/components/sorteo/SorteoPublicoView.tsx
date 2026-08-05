@@ -7,7 +7,7 @@
 // en paralelo mientras el usuario completa el form y nunca bloquean el envío.
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import {
-  CalendarClock,
+  CalendarOff,
   CloudOff,
   Flag,
   Hourglass,
@@ -43,6 +43,11 @@ import type {
   ParticiparResponse,
   SorteoPublico,
 } from "@/lib/sorteo/publicApi";
+import {
+  guardarResultadoGanador,
+  leerResultadoGanador,
+  olvidarResultadoGanador,
+} from "@/lib/sorteo/resultadoGuardado";
 
 const MENSAJE_ERROR_ENVIO =
   "No pudimos enviar tu participación. Esperá unos segundos y tocá el botón de nuevo: tu código sigue vigente.";
@@ -68,28 +73,30 @@ const PANTALLAS: Record<
     tono: "info",
     titulo: "Este código ya participó",
     mensaje:
-      "Cada código juega una sola vez. ¡Gracias por participar del sorteo de RioGas!",
+      "Cada código juega una sola vez. Si ganaste, RioGas te contacta al teléfono que dejaste. ¡Gracias por participar!",
   },
+  // El backend manda 'no_iniciado' tanto para un sorteo que todavía no arrancó
+  // como para uno cancelado: el texto no puede prometer que va a empezar.
   no_iniciado: {
-    icono: CalendarClock,
+    icono: CalendarOff,
     tono: "info",
-    titulo: "Todavía no arrancó",
+    titulo: "Este sorteo no está disponible",
     mensaje:
-      "El sorteo aún no está abierto. Guardá el QR a mano y volvé a escanearlo cuando empiece.",
+      "Por ahora no se puede participar con este código. Probá más adelante escaneando otra vez el QR de tu garrafa.",
   },
   finalizado: {
     icono: Flag,
     tono: "info",
     titulo: "El sorteo ya terminó",
     mensaje:
-      "Gracias por querer participar. Estate atento: pronto se viene el próximo sorteo de RioGas.",
+      "Gracias por querer participar. Estate atento a las novedades de RioGas para no perderte el próximo.",
   },
   invalido: {
     icono: TicketX,
     tono: "alerta",
     titulo: "Código no válido",
     mensaje:
-      "El código escaneado no es válido o se venció. Probá escanear de nuevo el QR de tu garrafa.",
+      "No pudimos leer este código o no corresponde a un sorteo de RioGas. Probá escanear de nuevo el QR de tu garrafa.",
   },
   error_temporal: {
     icono: CloudOff,
@@ -101,9 +108,11 @@ const PANTALLAS: Record<
   limite_dispositivo: {
     icono: Hourglass,
     tono: "info",
+    // La cookie del código dura 2 h: mañana este navegador ya no la tiene, así
+    // que hay que decirle que vuelva a escanear, no que "vuelva".
     titulo: "Por hoy ya está",
     mensaje:
-      "Ya participaste el máximo de hoy desde este dispositivo. Volvé mañana.",
+      "Ya participaste el máximo de veces por hoy desde este dispositivo. Mañana escaneá otro QR de RioGas y seguís participando.",
   },
 };
 
@@ -111,7 +120,14 @@ type Fase =
   | { tipo: "cargando" }
   | { tipo: "formulario"; sorteo: SorteoPublico }
   | { tipo: "mensaje"; estado: Exclude<EstadoPublico, "ok"> }
-  | { tipo: "ganador"; codigoCanje: string; telefono: string; sorteo: SorteoPublico }
+  | {
+      tipo: "ganador";
+      codigoCanje: string;
+      telefono: string;
+      sorteo: SorteoPublico;
+      /** true cuando se repone desde sessionStorage tras recargar la página. */
+      recuperado?: boolean;
+    }
   | { tipo: "sigue"; nombre: string }
   | {
       tipo: "post";
@@ -158,14 +174,33 @@ export default function SorteoPublicoView() {
 
     if (cuerpo.estado === "ok") {
       if (cuerpo.sorteo) {
+        // Hay un código nuevo en juego: el premio guardado ya no aplica.
+        olvidarResultadoGanador();
         setFase({ tipo: "formulario", sorteo: cuerpo.sorteo });
       } else {
         // "ok" sin sorteo = respuesta corrupta: se trata como error transitorio
         setFase({ tipo: "mensaje", estado: "error_temporal" });
       }
-    } else {
-      setFase({ tipo: "mensaje", estado: cuerpo.estado });
+      return;
     }
+
+    // El código ya se usó, pero si ganó en esta misma pestaña se le devuelve el
+    // código de canje en lugar del genérico "ya participaste".
+    if (cuerpo.estado === "usado") {
+      const guardado = leerResultadoGanador();
+      if (guardado) {
+        setFase({
+          tipo: "ganador",
+          codigoCanje: guardado.codigoCanje,
+          telefono: guardado.telefono,
+          sorteo: guardado.sorteo,
+          recuperado: true,
+        });
+        return;
+      }
+    }
+
+    setFase({ tipo: "mensaje", estado: cuerpo.estado });
   }, []);
 
   useEffect(() => {
@@ -224,12 +259,14 @@ export default function SorteoPublicoView() {
       switch (respuesta.resultado) {
         case "ganador":
           if (respuesta.codigoCanje) {
-            setFase({
-              tipo: "ganador",
+            const premio = {
               codigoCanje: respuesta.codigoCanje,
               telefono: datos.telefono,
               sorteo: fase.sorteo,
-            });
+            };
+            // Respaldo para que un refresh no se lleve el código de canje.
+            guardarResultadoGanador(premio);
+            setFase({ tipo: "ganador", ...premio });
           } else {
             // ganador sin código = respuesta corrupta: reintentable
             setErrorEnvio(MENSAJE_ERROR_ENVIO);
@@ -280,6 +317,7 @@ export default function SorteoPublicoView() {
           codigoCanje={fase.codigoCanje}
           telefono={fase.telefono}
           sorteo={fase.sorteo}
+          recuperado={fase.recuperado}
         />
       );
       break;

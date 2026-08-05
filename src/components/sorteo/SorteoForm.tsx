@@ -39,11 +39,11 @@ function crearSchema(edadMinima: number) {
     telefono: z
       .string()
       .trim()
-      .min(1, "Ingresá un teléfono para poder avisarte si ganás")
+      .min(1, "Ingresá un celular o teléfono para poder avisarte si ganás")
       .transform(normalizarTelefonoUy)
       .refine(
         (tel) => TELEFONO_UY_REGEX.test(tel),
-        "Revisá el número: celular (099 123 456) o fijo de 8 cifras",
+        "Revisá el número: celular (099 123 456) o fijo (2400 1234)",
       ),
     edad: z
       .string()
@@ -173,7 +173,7 @@ export default function SorteoForm({ sorteo, errorEnvio, onEnviar }: Props) {
 
         <div className="space-y-1.5">
           <Label htmlFor="sorteo-telefono">
-            Celular <span className="text-destructive">*</span>
+            Celular o teléfono <span className="text-destructive">*</span>
           </Label>
           <Input
             id="sorteo-telefono"
@@ -198,7 +198,8 @@ export default function SorteoForm({ sorteo, errorEnvio, onEnviar }: Props) {
             </p>
           ) : (
             <p id="sorteo-telefono-ayuda" className="text-xs text-muted-foreground">
-              Si ganás, te llamamos a este número.
+              Celular (099 123 456) o fijo (2400 1234). Si ganás, te llamamos a este
+              número.
             </p>
           )}
         </div>

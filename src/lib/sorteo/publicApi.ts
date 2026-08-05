@@ -76,6 +76,30 @@ export function apiKey(): string {
   return process.env.SORTEOS_PUBLIC_API_KEY || "";
 }
 
+/** Largo de `sorteo_participacion.ip` (VarChar(45)): más que eso rompe el insert. */
+const IP_MAX = 45;
+
+function ipPlausible(valor: string): boolean {
+  return valor.length > 0 && valor.length <= IP_MAX && /^[0-9a-fA-F.:]+$/.test(valor);
+}
+
+/**
+ * IP del cliente para mandarle al backend.
+ *
+ * El `x-forwarded-for` que llega del navegador es texto libre elegido por quien
+ * hace la request, y el backend lee la entrada de MÁS a la izquierda: reenviarlo
+ * tal cual es dejar que cualquiera escriba la IP que queda auditada y
+ * geolocalizada. Se usa entonces la ÚLTIMA entrada de la cadena, que es la que
+ * agrega el reverse proxy (`$proxy_add_x_forwarded_for` appendea a la derecha) y
+ * el cliente no controla. Sin cadena confiable se manda vacío: preferimos no
+ * registrar IP antes que registrar una inventada.
+ */
+export function ipDelCliente(headers: Headers): string {
+  const cadena = (headers.get("x-forwarded-for") ?? "").split(",");
+  const ultima = (cadena[cadena.length - 1] ?? "").trim();
+  return ipPlausible(ultima) ? ultima : "";
+}
+
 type CookieOpts = {
   httpOnly: true;
   secure: boolean;

@@ -13,11 +13,16 @@ import {
   ParticiparResponse,
   apiKey,
   cookieOpts,
+  ipDelCliente,
   nestUrl,
 } from "@/lib/sorteo/publicApi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Un envío legítimo son <1 KB. Los Route Handlers no traen límite propio, así
+ *  que sin este corte cualquiera puede hacer que Next parsee un JSON de 1 GB. */
+const MAX_BODY_BYTES = 8 * 1024;
 
 type ParticiparBody = {
   nombre?: unknown;
@@ -45,6 +50,36 @@ function numeroOpcional(valor: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * Lee el body cortando en `max` bytes. `request.json()` no tiene tope y el
+ * `content-length` puede faltar o mentir, así que el corte va sobre el stream:
+ * un POST de 1 GB no llega a reservar memoria.
+ * Devuelve `null` si se pasó del límite.
+ */
+async function leerBodyLimitado(
+  request: NextRequest,
+  max: number,
+): Promise<string | null> {
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+
+  const partes: Uint8Array[] = [];
+  let total = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      return null;
+    }
+    partes.push(value);
+  }
+
+  return new TextDecoder().decode(Buffer.concat(partes));
+}
+
 export async function POST(request: NextRequest) {
   const codigo = request.cookies.get(COOKIE_CODIGO)?.value;
   const deviceCookie = request.cookies.get(COOKIE_DEVICE)?.value;
@@ -63,9 +98,19 @@ export async function POST(request: NextRequest) {
     return res;
   };
 
+  const largoDeclarado = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(largoDeclarado) && largoDeclarado > MAX_BODY_BYTES) {
+    return NextResponse.json({ resultado: "invalido" }, { status: 413 });
+  }
+
+  const crudo = await leerBodyLimitado(request, MAX_BODY_BYTES);
+  if (crudo === null) {
+    return NextResponse.json({ resultado: "invalido" }, { status: 413 });
+  }
+
   let body: ParticiparBody;
   try {
-    body = (await request.json()) as ParticiparBody;
+    body = JSON.parse(crudo) as ParticiparBody;
   } catch {
     return responder({ resultado: "invalido" });
   }
@@ -73,12 +118,17 @@ export async function POST(request: NextRequest) {
   if (!codigo) return responder({ resultado: "invalido" });
 
   const honeypotLleno = typeof body.hp === "string" && body.hp.length > 0;
+  // Sin `sorteo_t0` no se puede medir el tiempo de llenado. Se toma como
+  // sospechoso solo si tampoco hay cookie de dispositivo: quien tiene las dos
+  // borradas nunca pasó por /estado, mientras que a un navegador con cookies
+  // parcialmente bloqueadas no se lo castiga.
+  const sinRastroDeFormulario = t0 === undefined && deviceCookie === undefined;
   const demasiadoRapido =
     t0 !== undefined && Date.now() - Number(t0) < MIN_SUBMIT_MS;
 
   // Respuesta indistinguible de una participación real que no ganó: el bot no
   // aprende que fue detectado y el backend ni se entera.
-  if (honeypotLleno || demasiadoRapido) {
+  if (honeypotLleno || demasiadoRapido || sinRastroDeFormulario) {
     return responder({ resultado: "sigue" });
   }
 
@@ -103,7 +153,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "content-type": "application/json",
         "x-api-key": apiKey(),
-        "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
+        "x-forwarded-for": ipDelCliente(request.headers),
         "user-agent": request.headers.get("user-agent") ?? "",
       },
       body: JSON.stringify(payload),

@@ -7,10 +7,17 @@ import { ChevronRight, Gift, Plus, RefreshCw, SearchX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TableCard } from "@/components/abm/TableCard";
-import { ListHeader } from "@/components/abm/ListHeader";
 import { Pager } from "@/components/abm/Pager";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SorteosToolbar } from "./SorteosToolbar";
 import { useSorteos } from "@/hooks/sorteos";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
@@ -70,35 +77,44 @@ export default function SorteosList() {
     <>
       <TableCard
         header={
-          <ListHeader
+          <SorteosToolbar
             search={searchInput}
             onSearch={handleSearch}
-            rightExtra={
-              <div className="flex items-center gap-2">
-                {isFetching && !isLoading && (
-                  <RefreshCw
-                    className="h-4 w-4 animate-spin text-muted-foreground"
-                    aria-label="Actualizando"
-                  />
-                )}
-                <select
-                  value={estado}
-                  onChange={(e) => handleEstado(e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                  aria-label="Filtrar por estado"
-                >
-                  <option value="">Estado: todos</option>
+            searchPlaceholder="Buscar por nombre o premio…"
+            searchLabel="Buscar sorteos"
+            filters={
+              <Select
+                value={estado || "todos"}
+                onValueChange={(v) => handleEstado(v === "todos" ? "" : v)}
+              >
+                <SelectTrigger className="w-44" aria-label="Filtrar por estado">
+                  <SelectValue />
+                </SelectTrigger>
+                {/* Sólido (mismo criterio que el popover de participantes):
+                    el glass del primitivo deja leer la tabla de atrás. */}
+                <SelectContent className="!bg-popover !border-border shadow-lg">
+                  <SelectItem value="todos">Todos los estados</SelectItem>
                   {ESTADOS_SORTEO.map((e) => (
-                    <option key={e} value={e}>
+                    <SelectItem key={e} value={e}>
                       {estadoSorteoBadge(e).label}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-                <Button size="sm" className="shrink-0" onClick={() => setNuevoOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Nuevo sorteo
-                </Button>
-              </div>
+                </SelectContent>
+              </Select>
+            }
+            meta={
+              isFetching && !isLoading ? (
+                <RefreshCw
+                  className="h-4 w-4 animate-spin text-muted-foreground"
+                  aria-label="Actualizando"
+                />
+              ) : undefined
+            }
+            actions={
+              <Button className="shrink-0" onClick={() => setNuevoOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Nuevo sorteo
+              </Button>
             }
           />
         }

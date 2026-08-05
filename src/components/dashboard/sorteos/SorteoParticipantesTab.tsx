@@ -17,9 +17,9 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ListHeader } from "@/components/abm/ListHeader";
 import { Pager } from "@/components/abm/Pager";
 import { TableCard } from "@/components/abm/TableCard";
+import { SorteosToolbar } from "./SorteosToolbar";
 import { useDescargarCsvParticipaciones, useSorteoParticipaciones } from "@/hooks/sorteos";
 import { useDebounce } from "@/hooks/useDebounce";
 import { normalizarDepartamento, normalizarPais } from "@/lib/geo-uy";
@@ -48,7 +48,13 @@ function DetallePopover({ p }: { p: SorteoParticipacion }) {
           Detalle
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
+      {/* Variante SÓLIDA local: el `surface-glass` (78% opaco) del primitivo
+          deja leer la tabla de atrás justo donde van Device ID y fingerprint.
+          Fondo opaco del token de superficie + borde y sombra plenos. */}
+      <PopoverContent
+        align="end"
+        className="w-80 !bg-popover !border-border shadow-lg"
+      >
         <div className="space-y-3">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -143,11 +149,13 @@ export function SorteoParticipantesTab({ sorteo }: { sorteo: SorteoDetalle }) {
   return (
     <TableCard
       header={
-        <ListHeader
+        <SorteosToolbar
           search={searchInput}
           onSearch={handleSearch}
-          rightExtra={
-            <div className="flex items-center gap-2">
+          searchPlaceholder="Buscar por nombre, teléfono o email…"
+          searchLabel="Buscar participantes"
+          meta={
+            <>
               {isFetching && !isLoading && (
                 <RefreshCw
                   className="size-4 animate-spin text-muted-foreground"
@@ -159,28 +167,29 @@ export function SorteoParticipantesTab({ sorteo }: { sorteo: SorteoDetalle }) {
                   ? `${fmtNumero(total)} de ${fmtNumero(totalSorteo)} participaciones`
                   : `${fmtNumero(total)} participaciones`}
               </span>
-              <Tooltip delayDuration={400}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={exportarCsv}
-                    disabled={exportar.isPending || totalSorteo === 0}
-                  >
-                    {exportar.isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <FileSpreadsheet className="size-4" />
-                    )}
-                    {exportar.isPending ? "Generando CSV…" : "Exportar todo (CSV)"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Baja las {fmtNumero(totalSorteo)} participaciones del sorteo, sin el
-                  filtro de búsqueda.
-                </TooltipContent>
-              </Tooltip>
-            </div>
+            </>
+          }
+          actions={
+            <Tooltip delayDuration={400}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  onClick={exportarCsv}
+                  disabled={exportar.isPending || totalSorteo === 0}
+                >
+                  {exportar.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="size-4" />
+                  )}
+                  {exportar.isPending ? "Generando CSV…" : "Exportar todo (CSV)"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Baja las {fmtNumero(totalSorteo)} participaciones del sorteo, sin el
+                filtro de búsqueda.
+              </TooltipContent>
+            </Tooltip>
           }
         />
       }
@@ -238,7 +247,9 @@ export function SorteoParticipantesTab({ sorteo }: { sorteo: SorteoDetalle }) {
                   <th className="w-20 px-4 py-3 text-right font-medium">Edad</th>
                   <th className="px-4 py-3 font-medium">Email</th>
                   <th className="w-28 px-4 py-3 font-medium">Resultado</th>
-                  <th className="w-32 px-2 py-3 text-right font-medium">Origen</th>
+                  {/* Mismo criterio que la tab Ganadores: la celda es un botón
+                      ("Detalle"), así que el header dice Acciones, no Origen. */}
+                  <th className="w-32 px-2 py-3 text-right font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody>

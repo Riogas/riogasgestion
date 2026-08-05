@@ -36,8 +36,10 @@ export function SorteoFormFields({
   const describe = (name: string, hay: boolean) => (hay ? idError(name) : undefined);
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div className="space-y-1.5 sm:col-span-2">
+    // Grid de 6 columnas: los campos anchos ocupan la fila completa, las
+    // fechas van 3+3 y los tres numéricos 2+2+2 (sin columnas huérfanas).
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+      <div className="space-y-1.5 sm:col-span-6">
         <Label htmlFor={id("nombre")}>
           Nombre <span className="text-destructive">*</span>
         </Label>
@@ -52,7 +54,7 @@ export function SorteoFormFields({
         <FieldError id={idError("nombre")} message={errors.nombre?.message} />
       </div>
 
-      <div className="space-y-1.5 sm:col-span-2">
+      <div className="space-y-1.5 sm:col-span-6">
         <Label htmlFor={id("descripcion")}>Descripción</Label>
         <Input
           id={id("descripcion")}
@@ -65,7 +67,7 @@ export function SorteoFormFields({
         <FieldError id={idError("descripcion")} message={errors.descripcion?.message} />
       </div>
 
-      <div className="space-y-1.5 sm:col-span-2">
+      <div className="space-y-1.5 sm:col-span-6">
         <Label htmlFor={id("premioDescripcion")}>
           Premio <span className="text-destructive">*</span>
         </Label>
@@ -90,7 +92,7 @@ export function SorteoFormFields({
         />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 sm:col-span-3">
         <Label htmlFor={id("fechaDesde")}>
           Desde <span className="text-destructive">*</span>
         </Label>
@@ -105,7 +107,7 @@ export function SorteoFormFields({
         <FieldError id={idError("fechaDesde")} message={errors.fechaDesde?.message} />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 sm:col-span-3">
         <Label htmlFor={id("fechaHasta")}>
           Hasta <span className="text-destructive">*</span>
         </Label>
@@ -120,7 +122,7 @@ export function SorteoFormFields({
         <FieldError id={idError("fechaHasta")} message={errors.fechaHasta?.message} />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 sm:col-span-2">
         <Label htmlFor={id("cantidadPremios")}>
           Cantidad de premios <span className="text-destructive">*</span>
         </Label>
@@ -142,9 +144,9 @@ export function SorteoFormFields({
         />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 sm:col-span-2">
         <Label htmlFor={id("maxRegistrosDispositivoDia")}>
-          Máx. registros por dispositivo/día <span className="text-destructive">*</span>
+          Máx. por dispositivo/día <span className="text-destructive">*</span>
         </Label>
         <Input
           id={id("maxRegistrosDispositivoDia")}
@@ -167,7 +169,7 @@ export function SorteoFormFields({
         />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 sm:col-span-2">
         <Label htmlFor={id("edadMinima")}>
           Edad mínima <span className="text-destructive">*</span>
         </Label>

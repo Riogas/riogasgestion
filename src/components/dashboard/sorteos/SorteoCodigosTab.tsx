@@ -249,7 +249,8 @@ export function SorteoCodigosTab({ sorteo }: { sorteo: SorteoDetalle }) {
         open={dialogOpen}
         onOpenChange={(v) => !crearLote.isPending && setDialogOpen(v)}
       >
-        <DialogContent className="sm:max-w-md lg:max-w-md xl:max-w-md">
+        {/* `!bg-card`: fondo sólido, mismo criterio que los otros diálogos del módulo. */}
+        <DialogContent className="sm:max-w-md lg:max-w-md xl:max-w-md !bg-card !border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="size-5 text-primary" />

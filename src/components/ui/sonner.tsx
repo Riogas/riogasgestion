@@ -13,6 +13,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
       position="bottom-right"
       richColors
       closeButton
+      // El FAB del chat del dashboard vive fijo en bottom-6 right-6 (56px de
+      // alto): sin este offset los toasts bottom-right quedan tapados por él.
+      offset={{ bottom: "5.5rem" }}
+      mobileOffset={{ bottom: "5.5rem" }}
       style={
         {
           "--normal-bg": "color-mix(in oklch, var(--card) 88%, transparent)",

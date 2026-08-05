@@ -47,7 +47,12 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => !pending && onOpenChange(v)}>
-      <DialogContent role="alertdialog" className="sm:max-w-md lg:max-w-md xl:max-w-md">
+      {/* `!bg-card`: fondo sólido para que el panel no cambie de color según
+          lo que quede detrás (mismo criterio que SorteoFormDialog). */}
+      <DialogContent
+        role="alertdialog"
+        className="sm:max-w-md lg:max-w-md xl:max-w-md !bg-card !border-border"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

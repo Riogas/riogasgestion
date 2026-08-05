@@ -6,9 +6,9 @@ import { CheckCircle2, Clock, PackageCheck, RefreshCw, SearchX, Trophy } from "l
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ListHeader } from "@/components/abm/ListHeader";
 import { Pager } from "@/components/abm/Pager";
 import { TableCard } from "@/components/abm/TableCard";
+import { SorteosToolbar } from "./SorteosToolbar";
 import { useMarcarEntregado, useSorteoParticipaciones } from "@/hooks/sorteos";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { SorteoDetalle, SorteoParticipacion } from "@/lib/types/sorteo";
@@ -60,11 +60,13 @@ export function SorteoGanadoresTab({ sorteo }: { sorteo: SorteoDetalle }) {
     <>
       <TableCard
         header={
-          <ListHeader
+          <SorteosToolbar
             search={searchInput}
             onSearch={handleSearch}
-            rightExtra={
-              <div className="flex items-center gap-2">
+            searchPlaceholder="Buscar por nombre o teléfono…"
+            searchLabel="Buscar ganadores"
+            meta={
+              <>
                 {isFetching && !isLoading && (
                   <RefreshCw
                     className="size-4 animate-spin text-muted-foreground"
@@ -77,7 +79,7 @@ export function SorteoGanadoresTab({ sorteo }: { sorteo: SorteoDetalle }) {
                   {fmtNumero(sorteo.stats.premiosEntregados)} de{" "}
                   {fmtNumero(sorteo.stats.ganadores)} premios entregados
                 </span>
-              </div>
+              </>
             }
           />
         }

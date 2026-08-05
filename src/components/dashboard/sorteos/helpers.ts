@@ -9,6 +9,19 @@ import type {
   SorteoStatsPorDepartamento,
 } from "@/lib/types/sorteo";
 
+// ─── Tabs del detalle ───────────────────────────────────────────────────────
+// Viven acá (y no en SorteoDetalle) para que las tabs hijas puedan navegar
+// entre sí vía nuqs sin importar al padre (evita el import circular).
+
+export const SORTEO_TABS = [
+  "resumen",
+  "codigos",
+  "participantes",
+  "ganadores",
+  "config",
+] as const;
+export type SorteoTabValue = (typeof SORTEO_TABS)[number];
+
 // ─── Formato ────────────────────────────────────────────────────────────────
 
 export function fmtFechaHora(value: string | null | undefined): string {

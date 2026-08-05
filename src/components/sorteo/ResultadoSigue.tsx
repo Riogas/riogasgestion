@@ -44,11 +44,11 @@ export default function ResultadoSigue({ nombre }: Props) {
         </motion.div>
       </div>
 
-      <h1 className="mt-6 text-2xl font-bold tracking-tight text-card-foreground">
+      <h1 className="mt-6 text-balance text-2xl font-bold tracking-tight text-card-foreground">
         {pila ? `Esta vez no fue, ${pila}…` : "Esta vez no fue…"}
       </h1>
 
-      <p className="mt-3 max-w-[36ch] text-base leading-relaxed text-muted-foreground">
+      <p className="mt-3 max-w-[36ch] text-pretty text-base leading-relaxed text-muted-foreground">
         Tu participación quedó registrada. Gracias por ser parte de la familia
         RioGas: que no se apague la llama, pronto vienen más chances de ganar.
       </p>

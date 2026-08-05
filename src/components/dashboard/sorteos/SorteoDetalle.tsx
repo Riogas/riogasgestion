@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBreadcrumbLabel } from "@/components/dashboard/Breadcrumbs";
 import { useSorteo } from "@/hooks/sorteos";
 import { estadoSorteoBadge, type SorteoDetalle as SorteoDetalleData } from "@/lib/types/sorteo";
 import { SorteoResumenTab } from "./SorteoResumenTab";
@@ -26,10 +27,10 @@ import { SorteoCodigosTab } from "./SorteoCodigosTab";
 import { SorteoParticipantesTab } from "./SorteoParticipantesTab";
 import { SorteoGanadoresTab } from "./SorteoGanadoresTab";
 import { SorteoConfigTab } from "./SorteoConfigTab";
-import { fmtFechaHora, fmtNumero } from "./helpers";
+import { fmtFechaHora, fmtNumero, SORTEO_TABS, type SorteoTabValue } from "./helpers";
 
-const TABS = ["resumen", "codigos", "participantes", "ganadores", "config"] as const;
-type TabValue = (typeof TABS)[number];
+const TABS = SORTEO_TABS;
+type TabValue = SorteoTabValue;
 
 function TabContent({ tab, sorteo }: { tab: TabValue; sorteo: SorteoDetalleData }) {
   switch (tab) {
@@ -63,6 +64,10 @@ export default function SorteoDetalle() {
   });
 
   const { data: sorteo, isLoading, isError, refetch } = useSorteo(idValido ? sorteoId : null);
+
+  // La migaja del layout muestra el ID crudo de la URL: acá se registra el
+  // nombre real del sorteo para que se lea "Inicio › Sorteos › <nombre>".
+  useBreadcrumbLabel(`/dashboard/sorteos/${rawId}`, sorteo?.nombre);
 
   const variants = shouldReduceMotion
     ? {}
@@ -139,18 +144,7 @@ export default function SorteoDetalle() {
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between animate-fade-in-up">
         <div className="min-w-0">
-          <nav className="text-xs text-muted-foreground">
-            Inicio <span className="px-1">/</span>{" "}
-            <button
-              onClick={() => router.push("/dashboard/sorteos")}
-              className="transition-colors hover:text-foreground"
-            >
-              Sorteos
-            </button>{" "}
-            <span className="px-1">/</span>{" "}
-            <span className="text-foreground">{sorteo.nombre}</span>
-          </nav>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
               {sorteo.nombre}
             </h1>

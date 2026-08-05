@@ -44,11 +44,11 @@ export default function EstadoMensaje({
         />
       </div>
 
-      <h1 className="mt-6 text-2xl font-bold tracking-tight text-card-foreground">
+      <h1 className="mt-6 text-balance text-2xl font-bold tracking-tight text-card-foreground">
         {titulo}
       </h1>
 
-      <p className="mt-3 max-w-[34ch] text-base leading-relaxed text-muted-foreground">
+      <p className="mt-3 max-w-[34ch] text-pretty text-base leading-relaxed text-muted-foreground">
         {mensaje}
       </p>
 

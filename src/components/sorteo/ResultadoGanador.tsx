@@ -148,7 +148,7 @@ export default function ResultadoGanador({
         >
           ¡GANASTE!
         </motion.h1>
-        <p className="mx-auto mt-3 max-w-[30ch] text-base font-medium leading-relaxed text-white/95">
+        <p className="mx-auto mt-3 max-w-[30ch] text-balance text-base font-medium leading-relaxed text-white/95">
           {sorteo.premioDescripcion}
         </p>
       </div>

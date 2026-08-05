@@ -53,7 +53,10 @@ export default function SorteoLayout({
         </div>
       </header>
 
-      <main className="flex w-full flex-1 flex-col items-center px-4 pb-8 pt-3">
+      {/* justify-center: las pantallas cortas (límite diario, código usado…)
+          quedan centradas en vez de pegadas arriba con medio viewport vacío.
+          Con contenido alto (formulario) el main crece y no recorta nada. */}
+      <main className="flex w-full flex-1 flex-col items-center justify-center px-4 pb-8 pt-3">
         {children}
       </main>
 

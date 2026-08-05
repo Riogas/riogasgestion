@@ -12,7 +12,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useQueryState } from "nuqs";
 import { CalendarDays, Gift, MapPin, QrCode, Trophy, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ChartCard } from "@/components/dashboard/charts/ChartCard";
@@ -24,6 +26,8 @@ import {
   fmtDiaLargo,
   fmtNumero,
   porcentaje,
+  SORTEO_TABS,
+  type SorteoTabValue,
 } from "./helpers";
 
 const TOP_DEPARTAMENTOS = 8;
@@ -90,8 +94,60 @@ function KpiCard({
   );
 }
 
+/**
+ * Un line chart con UN solo punto queda como dos puntos flotando sin línea y
+ * parece roto — y un único día con actividad es el caso más común cuando la
+ * campaña arranca. Acá ese día se muestra como cifra grande con contexto.
+ */
+function ResumenDiaUnico({
+  dia,
+}: {
+  dia: { fecha: string; participaciones: number; ganadores: number };
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-xs font-medium tabular-nums text-muted-foreground">
+        <CalendarDays className="size-3.5" aria-hidden />
+        {fmtDiaLargo(dia.fecha)}
+      </span>
+      <div className="flex items-stretch gap-8 sm:gap-12">
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-5xl font-extrabold tabular-nums tracking-tight text-primary">
+            {fmtNumero(dia.participaciones)}
+          </p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {dia.participaciones === 1 ? "Participación" : "Participaciones"}
+          </p>
+        </div>
+        <div className="w-px bg-border/60" aria-hidden />
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-5xl font-extrabold tabular-nums tracking-tight text-accent">
+            {fmtNumero(dia.ganadores)}
+          </p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {dia.ganadores === 1 ? "Ganador" : "Ganadores"}
+          </p>
+        </div>
+      </div>
+      <p className="max-w-[38ch] text-xs leading-relaxed text-pretty text-muted-foreground">
+        Toda la actividad es de este día. La curva diaria aparece cuando el sorteo
+        acumule participaciones en al menos dos días.
+      </p>
+    </div>
+  );
+}
+
 export function SorteoResumenTab({ sorteo }: { sorteo: SorteoDetalle }) {
   const { stats } = sorteo;
+
+  // Misma clave nuqs que SorteoDetalle: setearla acá cambia la tab activa.
+  const [, setTab] = useQueryState<SorteoTabValue>("tab", {
+    defaultValue: "resumen",
+    parse: (v): SorteoTabValue =>
+      SORTEO_TABS.includes(v as SorteoTabValue) ? (v as SorteoTabValue) : "resumen",
+    serialize: (v) => v,
+    shallow: true,
+  });
 
   const serieDias = useMemo(
     () =>
@@ -178,14 +234,34 @@ export function SorteoResumenTab({ sorteo }: { sorteo: SorteoDetalle }) {
             title="Participaciones por día"
             description="Hora de Montevideo — incluye la curva de ganadores"
             height={300}
+            raw={serieDias.length === 1}
             emptyState={
-              <>
-                <CalendarDays className="size-8 opacity-40" />
-                <p className="text-xs">Todavía no hay participaciones registradas</p>
-              </>
+              <div className="flex max-w-sm flex-col items-center gap-4 px-4">
+                <div className="flex size-14 items-center justify-center rounded-full bg-primary/10">
+                  <CalendarDays className="size-6 text-primary" aria-hidden />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-sm font-semibold text-foreground">
+                    Todavía no hay participaciones
+                  </p>
+                  <p className="text-xs leading-relaxed text-pretty text-muted-foreground">
+                    {stats.codigosTotal === 0
+                      ? "El primer paso es generar un lote de códigos QR: repartilos en los puntos de venta y acá vas a ver la actividad día a día."
+                      : "Los códigos ya están generados. Apenas alguien escanee un QR y complete el formulario, acá se dibuja la actividad diaria."}
+                  </p>
+                </div>
+                {stats.codigosTotal === 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setTab("codigos")}>
+                    <QrCode className="size-4" />
+                    Generar el primer lote
+                  </Button>
+                )}
+              </div>
             }
           >
-            {serieDias.length > 0 ? (
+            {serieDias.length === 1 ? (
+              <ResumenDiaUnico dia={serieDias[0]} />
+            ) : serieDias.length > 1 ? (
               <LineChart data={serieDias} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.25} />
                 <XAxis
@@ -238,10 +314,20 @@ export function SorteoResumenTab({ sorteo }: { sorteo: SorteoDetalle }) {
             description={detalleDepartamentos}
             height={300}
             emptyState={
-              <>
-                <MapPin className="size-8 opacity-40" />
-                <p className="text-xs">Sin datos de ubicación todavía</p>
-              </>
+              <div className="flex max-w-xs flex-col items-center gap-4 px-4">
+                <div className="flex size-14 items-center justify-center rounded-full bg-accent/10">
+                  <MapPin className="size-6 text-accent" aria-hidden />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-sm font-semibold text-foreground">
+                    Sin datos de ubicación todavía
+                  </p>
+                  <p className="text-xs leading-relaxed text-pretty text-muted-foreground">
+                    Cuando los participantes compartan su GPS —o su IP permita
+                    ubicarlos— vas a ver acá de qué departamentos llegan.
+                  </p>
+                </div>
+              </div>
             }
           >
             {serieDepartamentos.length > 0 ? (

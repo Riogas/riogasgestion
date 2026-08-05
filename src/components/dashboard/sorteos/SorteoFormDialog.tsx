@@ -67,7 +67,10 @@ export function SorteoFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !pending && onOpenChange(v)}>
-      <DialogContent className="sm:max-w-2xl lg:max-w-2xl xl:max-w-2xl">
+      {/* `!bg-card`: el surface-glass del primitivo (78% opaco) hace que el
+          panel cambie de color según lo que quede detrás — sobre el fondo gris
+          de la página se veía "lavado" al lado de las cards blancas. */}
+      <DialogContent className="sm:max-w-2xl lg:max-w-2xl xl:max-w-2xl !bg-card !border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gift className="size-5 text-primary" />

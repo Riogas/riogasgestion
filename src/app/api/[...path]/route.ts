@@ -116,12 +116,34 @@ async function proxyRequest(req: NextRequest) {
           }
         }
 
-        resolve(
-          new NextResponse(responseBody, {
-            status: proxyRes.statusCode || 500,
-            headers: responseHeaders,
-          })
-        );
+        const status = proxyRes.statusCode || 500;
+
+        // 204/205/304 son "null body status": el constructor de Response tira
+        // TypeError si se le pasa un body (aunque sea un Buffer vacío). Como el
+        // throw ocurre adentro del executor de la Promise, nadie la resuelve y
+        // el request queda colgado hasta el timeout del cliente (además de un
+        // uncaughtException en el server). Pasa con cualquier GET revalidado:
+        // el browser manda If-None-Match y el backend responde 304.
+        const sinBody = status === 204 || status === 205 || status === 304;
+
+        try {
+          resolve(
+            new NextResponse(sinBody ? null : responseBody, {
+              status,
+              headers: responseHeaders,
+            })
+          );
+        } catch (err) {
+          // Cinturón y tiradores: cualquier otro error armando la respuesta
+          // devuelve 502 en vez de dejar la promesa sin resolver.
+          console.error(`[API Proxy] Error armando la respuesta (${status}):`, err);
+          resolve(
+            NextResponse.json(
+              { error: "Error building proxy response", details: String(err) },
+              { status: 502 }
+            )
+          );
+        }
       });
     });
 

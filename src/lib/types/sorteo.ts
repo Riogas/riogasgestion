@@ -7,6 +7,33 @@ export const ESTADOS_SORTEO = ["borrador", "activo", "finalizado", "cancelado"] 
 
 export type EstadoSorteo = (typeof ESTADOS_SORTEO)[number];
 
+export type BadgeVariant =
+  | "success"
+  | "secondary"
+  | "warn"
+  | "destructive"
+  | "info"
+  | "default"
+  | "outline";
+
+const ESTADO_BADGE: Record<EstadoSorteo, { label: string; variant: BadgeVariant }> = {
+  borrador: { label: "Borrador", variant: "secondary" },
+  activo: { label: "Activo", variant: "success" },
+  finalizado: { label: "Finalizado", variant: "default" },
+  cancelado: { label: "Cancelado", variant: "destructive" },
+};
+
+export function estadoSorteoBadge(estado: EstadoSorteo | string): {
+  label: string;
+  variant: BadgeVariant;
+} {
+  return ESTADO_BADGE[estado as EstadoSorteo] ?? { label: estado, variant: "secondary" };
+}
+
+export function esEstadoSorteo(value: string): value is EstadoSorteo {
+  return (ESTADOS_SORTEO as readonly string[]).includes(value);
+}
+
 // ─── Sorteo ───────────────────────────────────────────────────────────────
 
 /** Fila base de la tabla `sorteo` (respuesta de crear/actualizar/activar/finalizar/cancelar). */

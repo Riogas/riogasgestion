@@ -26,8 +26,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCrearLote, useDescargarZipLote, useSorteoLotes } from "@/hooks/sorteos";
-import type { SorteoDetalle } from "@/lib/types/sorteo";
+import { estadoSorteoBadge, type SorteoDetalle } from "@/lib/types/sorteo";
 import { fmtFechaHora, fmtNumero, porcentaje } from "./helpers";
 
 const MAX_POR_LOTE = 10000;
@@ -48,6 +49,11 @@ export function SorteoCodigosTab({ sorteo }: { sorteo: SorteoDetalle }) {
   const descargarZip = useDescargarZipLote();
 
   const lotes = data ?? [];
+
+  // Mismo criterio que la pestaña Configuración: un sorteo cerrado no acepta
+  // más escrituras. Códigos generados acá no se podrían usar nunca.
+  const soloLectura = sorteo.estado === "finalizado" || sorteo.estado === "cancelado";
+  const estadoLabel = estadoSorteoBadge(sorteo.estado).label.toLowerCase();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cantidad, setCantidad] = useState("100");
@@ -103,10 +109,26 @@ export function SorteoCodigosTab({ sorteo }: { sorteo: SorteoDetalle }) {
                 disponibles
               </p>
             </div>
-            <Button onClick={abrirDialog} className="shrink-0">
-              <Plus className="size-4" />
-              Generar lote
-            </Button>
+            {soloLectura ? (
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="shrink-0">
+                    <Button disabled className="pointer-events-none w-full">
+                      <Plus className="size-4" />
+                      Generar lote
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  El sorteo está {estadoLabel}: los códigos nuevos no se podrían usar.
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button onClick={abrirDialog} className="shrink-0">
+                <Plus className="size-4" />
+                Generar lote
+              </Button>
+            )}
           </div>
         </CardHeader>
 
@@ -137,13 +159,19 @@ export function SorteoCodigosTab({ sorteo }: { sorteo: SorteoDetalle }) {
           {!isLoading && !isError && lotes.length === 0 && (
             <EmptyState
               icon={QrCode}
-              title="Todavía no hay lotes"
-              description="Generá un lote para imprimir los QR y repartirlos en los puntos de venta."
+              title={soloLectura ? "Este sorteo no llegó a tener lotes" : "Todavía no hay lotes"}
+              description={
+                soloLectura
+                  ? `El sorteo está ${estadoLabel}: ya no se pueden generar códigos nuevos.`
+                  : "Generá un lote para imprimir los QR y repartirlos en los puntos de venta."
+              }
               action={
-                <Button onClick={abrirDialog}>
-                  <Plus className="size-4" />
-                  Generar lote
-                </Button>
+                soloLectura ? undefined : (
+                  <Button onClick={abrirDialog}>
+                    <Plus className="size-4" />
+                    Generar lote
+                  </Button>
+                )
               }
             />
           )}
@@ -205,7 +233,7 @@ export function SorteoCodigosTab({ sorteo }: { sorteo: SorteoDetalle }) {
                           ) : (
                             <Download className="size-4" />
                           )}
-                          {descargando ? "Generando…" : "Descargar ZIP"}
+                          {descargando ? "Generando ZIP…" : "Descargar ZIP"}
                         </Button>
                       </TableCell>
                     </TableRow>

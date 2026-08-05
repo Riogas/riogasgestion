@@ -32,6 +32,18 @@ const NESTJS_API_BASE =
   "http://localhost:3001";
 const NESTJS_PREFIX = "/api"; // NestJS global prefix
 
+/** Content-types cuyo body tiene sentido loguear como texto. */
+function esTexto(contentType: string): boolean {
+  const ct = contentType.toLowerCase();
+  return (
+    ct.startsWith("text/") ||
+    ct.includes("json") ||
+    ct.includes("xml") ||
+    ct.includes("javascript") ||
+    ct.includes("x-www-form-urlencoded")
+  );
+}
+
 async function proxyRequest(req: NextRequest) {
   // Extraer el path después de /api/
   const url = new URL(req.url);
@@ -86,9 +98,15 @@ async function proxyRequest(req: NextRequest) {
       proxyRes.on("end", () => {
         const responseBody = Buffer.concat(chunks);
         
-        console.log(`[API Proxy] Response: ${proxyRes.statusCode} | Content-Type: ${proxyRes.headers['content-type']} | Body length: ${responseBody.length}`);
-        console.log(`[API Proxy] Body preview: ${responseBody.toString('utf-8').substring(0, 500)}`);
-        
+        const contentType = String(proxyRes.headers["content-type"] ?? "");
+
+        console.log(`[API Proxy] Response: ${proxyRes.statusCode} | Content-Type: ${contentType} | Body length: ${responseBody.length}`);
+        // El preview se decodifica SOLO del primer tramo y SOLO si el body es
+        // texto: hacer toString() de un binario grande duplica el uso de RAM.
+        if (esTexto(contentType)) {
+          console.log(`[API Proxy] Body preview: ${responseBody.subarray(0, 500).toString("utf-8")}`);
+        }
+
         // Copiar headers de respuesta del backend
         const responseHeaders = new Headers();
         for (const [key, value] of Object.entries(proxyRes.headers)) {

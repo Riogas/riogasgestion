@@ -19,6 +19,10 @@ import type {
 // GETs sin overlay global: las pantallas de admin tienen skeletons propios.
 const sinOverlay = { disableGlobalLoading: true } as const;
 
+/** Minuto de gracia antes de liberar la object URL: Firefox aborta la descarga
+ *  si se revoca apenas se dispara el click y el archivo es grande. */
+const REVOCAR_URL_MS = 60000;
+
 /** Dispara la descarga de un blob en el navegador y libera la URL creada. */
 function descargarBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -26,7 +30,7 @@ function descargarBlob(blob: Blob, filename: string): void {
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), REVOCAR_URL_MS);
 }
 
 // ─── Sorteos ────────────────────────────────────────────────────────────────
@@ -77,7 +81,13 @@ export async function cancelarSorteo(id: number): Promise<Sorteo> {
 // ─── Lotes de códigos ───────────────────────────────────────────────────────
 
 export async function crearLote(id: number, cantidad: number): Promise<SorteoLoteCreado> {
-  const { data } = await api.post<SorteoLoteCreado>(`/sorteos/${id}/lotes`, { cantidad });
+  // Sin overlay: generar 10.000 códigos tarda, y el diálogo ya muestra su
+  // propio estado "Generando…" con los botones bloqueados.
+  const { data } = await api.post<SorteoLoteCreado>(
+    `/sorteos/${id}/lotes`,
+    { cantidad },
+    { ...sinOverlay },
+  );
   return data;
 }
 
@@ -86,11 +96,17 @@ export async function listarLotes(id: number): Promise<SorteoLote[]> {
   return data;
 }
 
-/** Descarga el ZIP de QRs del lote (requiere Authorization, por eso no es un link directo). */
+/**
+ * Descarga el ZIP de QRs del lote (requiere Authorization, por eso no es un
+ * link directo). Va por `/api/sorteos-descarga`, la ruta que pipea el body sin
+ * bufferearlo en el proceso Next, y sin overlay global: la pantalla muestra el
+ * progreso en el propio botón.
+ */
 export async function descargarZipLote(sorteoId: number, loteId: number): Promise<void> {
-  const { data } = await api.get<Blob>(`/sorteos/${sorteoId}/lotes/${loteId}/zip`, {
-    responseType: "blob",
-  });
+  const { data } = await api.get<Blob>(
+    `/sorteos-descarga/${sorteoId}/lotes/${loteId}/zip`,
+    { responseType: "blob", ...sinOverlay },
+  );
   descargarBlob(data, `sorteo-${sorteoId}-lote-${loteId}.zip`);
 }
 
@@ -107,11 +123,16 @@ export async function listarParticipaciones(
   return data;
 }
 
-/** Descarga el CSV de participaciones (requiere Authorization, por eso no es un link directo). */
+/**
+ * Descarga el CSV con TODAS las participaciones del sorteo (el endpoint no
+ * acepta filtros: la UI lo dice explícitamente). Misma ruta de streaming y
+ * mismo criterio de overlay que el ZIP.
+ */
 export async function exportarParticipacionesCsv(id: number): Promise<void> {
-  const { data } = await api.get<Blob>(`/sorteos/${id}/participaciones/export`, {
-    responseType: "blob",
-  });
+  const { data } = await api.get<Blob>(
+    `/sorteos-descarga/${id}/participaciones/export`,
+    { responseType: "blob", ...sinOverlay },
+  );
   descargarBlob(data, `sorteo-${id}-participaciones.csv`);
 }
 
@@ -120,6 +141,8 @@ export async function marcarPremioEntregado(
 ): Promise<SorteoParticipacion> {
   const { data } = await api.post<SorteoParticipacion>(
     `/sorteos/participaciones/${participacionId}/entregar`,
+    undefined,
+    { ...sinOverlay },
   );
   return data;
 }

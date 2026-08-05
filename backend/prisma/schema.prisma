@@ -727,3 +727,120 @@ model PuestoEscenario {
 
   @@map("puesto_escenario")
 }
+
+// ── Sorteos (QRs masivos + formulario público) ─────────────────────────────
+// Spec: docs/superpowers/specs/2026-08-05-sorteos-design.md
+
+model Sorteo {
+  id                         Int      @id @default(autoincrement())
+  nombre                     String   @db.VarChar(120)
+  descripcion                String?  @db.VarChar(500)
+  premioDescripcion          String   @db.VarChar(300)
+  fechaDesde                 DateTime
+  fechaHasta                 DateTime
+  cantidadPremios            Int
+  maxRegistrosDispositivoDia Int      @default(1)
+  edadMinima                 Int      @default(18)
+  estado                     String   @default("borrador") @db.VarChar(20) // borrador | activo | finalizado | cancelado
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  lotes           SorteoLote[]
+  codigos         SorteoCodigo[]
+  momentos        SorteoMomentoGanador[]
+  participaciones SorteoParticipacion[]
+
+  @@map("sorteo")
+}
+
+model SorteoLote {
+  id          Int      @id @default(autoincrement())
+  sorteoId    Int
+  cantidad    Int
+  generadoPor String?  @db.VarChar(80)
+  createdAt   DateTime @default(now())
+
+  sorteo  Sorteo         @relation(fields: [sorteoId], references: [id])
+  codigos SorteoCodigo[]
+
+  @@index([sorteoId])
+  @@map("sorteo_lote")
+}
+
+model SorteoCodigo {
+  id       Int       @id @default(autoincrement())
+  sorteoId Int
+  loteId   Int
+  codigo   String    @unique @db.VarChar(16)
+  estado   String    @default("disponible") @db.VarChar(15) // disponible | usado
+  usadoAt  DateTime?
+
+  sorteo        Sorteo               @relation(fields: [sorteoId], references: [id])
+  lote          SorteoLote           @relation(fields: [loteId], references: [id])
+  participacion SorteoParticipacion?
+
+  @@index([sorteoId, estado])
+  @@index([loteId])
+  @@map("sorteo_codigo")
+}
+
+model SorteoMomentoGanador {
+  id              Int      @id @default(autoincrement())
+  sorteoId        Int
+  fechaMomento    DateTime
+  participacionId Int?     @unique
+
+  sorteo        Sorteo               @relation(fields: [sorteoId], references: [id])
+  participacion SorteoParticipacion? @relation(fields: [participacionId], references: [id])
+
+  @@index([sorteoId, fechaMomento])
+  @@map("sorteo_momento_ganador")
+}
+
+model SorteoParticipacion {
+  id       Int @id @default(autoincrement())
+  sorteoId Int
+  codigoId Int @unique
+
+  // Datos visibles del formulario
+  nombre   String  @db.VarChar(120)
+  telefono String  @db.VarChar(20)
+  edad     Int
+  email    String? @db.VarChar(120)
+
+  // Resultado
+  ganador            Boolean   @default(false)
+  codigoCanje        String?   @unique @db.VarChar(12)
+  premioEntregado    Boolean   @default(false)
+  premioEntregadoAt  DateTime?
+
+  // Invisibles: dispositivo
+  deviceId    String  @db.VarChar(40)
+  fingerprint String? @db.VarChar(64)
+  userAgent   String? @db.VarChar(500)
+  ip          String? @db.VarChar(45)
+  idioma      String? @db.VarChar(10)
+  plataforma  String? @db.VarChar(60)
+  resolucion  String? @db.VarChar(20)
+
+  // Invisibles: geo
+  ipPais          String?  @db.VarChar(60)
+  ipRegion        String?  @db.VarChar(60)
+  ipCiudad        String?  @db.VarChar(80)
+  gpsLat          Decimal? @db.Decimal(10, 7)
+  gpsLng          Decimal? @db.Decimal(10, 7)
+  gpsPais         String?  @db.VarChar(60)
+  gpsDepartamento String?  @db.VarChar(60)
+  gpsLocalidad    String?  @db.VarChar(80)
+  geoFuente       String?  @db.VarChar(10) // ip | gps
+
+  createdAt DateTime @default(now())
+
+  sorteo  Sorteo                @relation(fields: [sorteoId], references: [id])
+  codigo  SorteoCodigo          @relation(fields: [codigoId], references: [id])
+  momento SorteoMomentoGanador?
+
+  @@index([sorteoId, telefono])
+  @@index([sorteoId, deviceId, createdAt])
+  @@map("sorteo_participacion")
+}

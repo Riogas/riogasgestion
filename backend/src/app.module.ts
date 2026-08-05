@@ -12,6 +12,7 @@ import { PersonasModule } from './personas/personas.module';
 import { WorkbenchModule } from './workbench/workbench.module';
 import { CoberturaModule } from './cobertura/cobertura.module';
 import { IdentificacionModule } from './identificacion/identificacion.module';
+import { SorteosModule } from './sorteos/sorteos.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { IdentificacionModule } from './identificacion/identificacion.module';
     WorkbenchModule,
     CoberturaModule,
     IdentificacionModule,
+    SorteosModule,
     // TODO: Agregar módulos a medida que se migran las APIs
     // UsuariosModule,
     // AsignacionesModule,

@@ -237,6 +237,9 @@ export async function proxy(request: NextRequest) {
   // 1) Excluir assets/sistema y rutas públicas sin chequear
   if (
     PUBLIC_PATHS.includes(pathname) ||
+    // Formulario público de sorteos (QR): sin sesión ni permisos
+    pathname === '/sorteo' ||
+    pathname.startsWith('/sorteo/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
     pathname === '/favicon.ico' ||

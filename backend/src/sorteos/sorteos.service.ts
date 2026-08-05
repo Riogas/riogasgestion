@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { GeoService } from './geo.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CODIGO_REGEX,
@@ -63,7 +64,10 @@ function normalizarTelefono(raw: string): string {
 export class SorteosService {
   private readonly logger = new Logger(SorteosService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly geo: GeoService,
+  ) {}
 
   // ─── Vigencia ───────────────────────────────────────────────────────────────
 
@@ -110,6 +114,13 @@ export class SorteosService {
     if (!limpio) return { resultado: 'invalido' };
 
     const ahora = new Date();
+    const tieneGps = dto.gpsLat != null && dto.gpsLng != null;
+
+    // Lecturas externas de solo lectura: se resuelven antes de abrir la transacción
+    // para no atarla a la latencia/errores de geoip-lite o Nominatim. No-fatales.
+    const geoIp = this.geo.porIp(dto.ip);
+    const geoGps = tieneGps ? await this.geo.reverse(dto.gpsLat as number, dto.gpsLng as number) : {};
+    const geoFuente = tieneGps ? 'gps' : geoIp.ipPais ? 'ip' : null;
 
     return this.prisma.$transaction(async (tx): Promise<ResultadoParticipacion> => {
       const codigo = await tx.sorteoCodigo.findUnique({
@@ -143,7 +154,6 @@ export class SorteosService {
       if (consumo.count === 0) return { resultado: 'usado' };
 
       const telefono = normalizarTelefono(dto.telefono);
-      const tieneGps = dto.gpsLat != null && dto.gpsLng != null;
 
       const participacion = await tx.sorteoParticipacion.create({
         data: {
@@ -160,10 +170,15 @@ export class SorteosService {
           idioma: dto.idioma ?? null,
           plataforma: dto.plataforma ?? null,
           resolucion: dto.resolucion ?? null,
-          // Task 5 enriquece estos campos con geo por IP y reverse Nominatim.
           gpsLat: tieneGps ? dto.gpsLat : null,
           gpsLng: tieneGps ? dto.gpsLng : null,
-          geoFuente: tieneGps ? 'gps' : null,
+          ipPais: geoIp.ipPais ?? null,
+          ipRegion: geoIp.ipRegion ?? null,
+          ipCiudad: geoIp.ipCiudad ?? null,
+          gpsPais: geoGps.gpsPais ?? null,
+          gpsDepartamento: geoGps.gpsDepartamento ?? null,
+          gpsLocalidad: geoGps.gpsLocalidad ?? null,
+          geoFuente,
         },
       });
 

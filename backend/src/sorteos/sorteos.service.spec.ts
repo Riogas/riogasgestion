@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { GeoService } from './geo.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SorteosService, ParticiparInput } from './sorteos.service';
 
@@ -21,6 +22,13 @@ function crearPrismaMock() {
   };
   mock.$transaction = jest.fn((cb: (tx: unknown) => unknown) => cb(mock));
   return mock;
+}
+
+function crearGeoMock() {
+  return {
+    porIp: jest.fn().mockReturnValue({}),
+    reverse: jest.fn().mockResolvedValue({}),
+  };
 }
 
 function sorteoBase(over: Record<string, unknown> = {}) {
@@ -51,6 +59,7 @@ function inputBase(over: Partial<ParticiparInput> = {}): ParticiparInput {
 
 describe('SorteosService', () => {
   let prisma: any;
+  let geo: any;
   let service: SorteosService;
 
   /** El count de participaciones se usa para dos cosas: límite por dispositivo y "ya ganó". */
@@ -76,7 +85,8 @@ describe('SorteosService', () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(NOW);
     prisma = crearPrismaMock();
-    service = new SorteosService(prisma as unknown as PrismaService);
+    geo = crearGeoMock();
+    service = new SorteosService(prisma as unknown as PrismaService, geo as unknown as GeoService);
 
     mockCodigo();
     mockCounts();
@@ -262,6 +272,36 @@ describe('SorteosService', () => {
       expect(data.gpsLat).toBeNull();
       expect(data.gpsLng).toBeNull();
       expect(data.geoFuente).toBeNull();
+    });
+
+    it('con coordenadas y reverse con datos, geoFuente queda en gps y guarda los campos del reverse', async () => {
+      geo.reverse.mockResolvedValue({
+        gpsPais: 'Uruguay',
+        gpsDepartamento: 'Montevideo',
+        gpsLocalidad: 'Pocitos',
+      });
+
+      await service.participar(inputBase({ gpsLat: -34.9011, gpsLng: -56.1645 }));
+
+      expect(geo.reverse).toHaveBeenCalledWith(-34.9011, -56.1645);
+      const data = prisma.sorteoParticipacion.create.mock.calls[0][0].data;
+      expect(data.geoFuente).toBe('gps');
+      expect(data.gpsPais).toBe('Uruguay');
+      expect(data.gpsDepartamento).toBe('Montevideo');
+      expect(data.gpsLocalidad).toBe('Pocitos');
+    });
+
+    it('sin GPS pero con país por IP, geoFuente queda en ip', async () => {
+      geo.porIp.mockReturnValue({ ipPais: 'Uruguay', ipRegion: 'MO', ipCiudad: 'Montevideo' });
+
+      await service.participar(inputBase({ ip: '190.64.1.2' }));
+
+      expect(geo.reverse).not.toHaveBeenCalled();
+      const data = prisma.sorteoParticipacion.create.mock.calls[0][0].data;
+      expect(data.geoFuente).toBe('ip');
+      expect(data.ipPais).toBe('Uruguay');
+      expect(data.ipRegion).toBe('MO');
+      expect(data.ipCiudad).toBe('Montevideo');
     });
   });
 

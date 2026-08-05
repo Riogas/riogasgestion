@@ -10,6 +10,14 @@ const useLogRocket = () => {
     // Solo ejecutar en el cliente
     if (typeof window === 'undefined' || initialized) return;
 
+    // Página pública del sorteo (/sorteo): NO grabar sesión. Ahí navegan
+    // consumidores finales y LogRocket capturaría PII (nombre/teléfono/email,
+    // código de canje, bodies de /api/sorteo-publico/*). A /sorteo se llega
+    // siempre por carga completa desde el QR (no hay navegación client-side
+    // desde el dashboard hacia ahí), así que este chequeo al montar alcanza.
+    const { pathname } = window.location;
+    if (pathname === '/sorteo' || pathname.startsWith('/sorteo/')) return;
+
     // Importar LogRocket dinámicamente
     import('logrocket')
       .then((LogRocket) => {

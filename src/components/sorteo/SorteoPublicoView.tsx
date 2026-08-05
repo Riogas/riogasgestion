@@ -291,7 +291,11 @@ export default function SorteoPublicoView() {
 
     case "mensaje": {
       clave = `mensaje-${fase.estado}`;
-      const pantalla = PANTALLAS[fase.estado];
+      // Fallback: si el backend devuelve un estado que no conocemos (o
+      // basura), se muestra el mensaje de error transitorio con reintento
+      // en lugar de reventar con pantalla blanca.
+      const pantalla = PANTALLAS[fase.estado] ?? PANTALLAS.error_temporal;
+      const conReintento = pantalla === PANTALLAS.error_temporal;
       contenido = (
         <EstadoMensaje
           icono={pantalla.icono}
@@ -299,7 +303,7 @@ export default function SorteoPublicoView() {
           mensaje={pantalla.mensaje}
           tono={pantalla.tono}
           accion={
-            fase.estado === "error_temporal" ? (
+            conReintento ? (
               <Button
                 type="button"
                 onClick={() => void cargarEstado()}
@@ -327,7 +331,9 @@ export default function SorteoPublicoView() {
           />
         );
       } else {
-        const pantalla = PANTALLAS[fase.resultado];
+        // Mismo fallback que en "mensaje": resultado desconocido → mensaje
+        // de error transitorio en lugar de TypeError.
+        const pantalla = PANTALLAS[fase.resultado] ?? PANTALLAS.error_temporal;
         contenido = (
           <EstadoMensaje
             icono={pantalla.icono}

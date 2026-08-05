@@ -113,10 +113,6 @@ export default function ResultadoGanador({ codigoCanje, telefono, sorteo }: Prop
     setCopiaManual(true);
   }, [codigoCanje, marcarCopiado]);
 
-  // "ABCD2345MNPQ" → "ABCD 2345 MNPQ": legible sin romper el copiado (el
-  // botón siempre copia el código crudo).
-  const codigoAgrupado = codigoCanje.replace(/(.{4})/g, "$1 ").trim();
-
   return (
     <div>
       {/* Héroe gradiente azul → naranja */}
@@ -156,8 +152,10 @@ export default function ResultadoGanador({ codigoCanje, telefono, sorteo }: Prop
           <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
             Tu código de canje
           </p>
-          <p className="mt-3 break-words font-mono text-[1.7rem] font-bold leading-tight tracking-[0.14em] text-primary">
-            <span ref={codigoRef}>{codigoAgrupado}</span>
+          {/* El backend ya lo manda formateado (XXXX-YYYY): se muestra y se
+              copia TAL CUAL, sin re-formatear. */}
+          <p className="mt-3 break-words font-mono text-[1.85rem] font-bold leading-tight tracking-widest text-primary">
+            <span ref={codigoRef}>{codigoCanje}</span>
           </p>
           <Button
             type="button"

@@ -1,0 +1,51 @@
+/* ==========================================================================
+   /sorteo — Tema CLARO forzado para la página pública de la campaña.
+
+   El root layout puede colgar `.dark` en <html> (preferencia del usuario del
+   dashboard o del sistema). El cliente final que escanea el QR tiene que ver
+   SIEMPRE la campaña en claro: acá se re-declaran, sobre el wrapper
+   `.sorteo-light`, todos los tokens que `.dark` pisa (los custom properties
+   más cercanos en el árbol ganan). Valores copiados 1:1 del `:root` claro de
+   globals.css — mantener en sync si cambia la marca.
+   ========================================================================== */
+.sorteo-light {
+  color-scheme: light;
+
+  /* Surfaces */
+  --background: oklch(0.985 0.005 240);
+  --foreground: oklch(0.14 0.04 264);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.14 0.04 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.14 0.04 264);
+
+  /* Brand */
+  --primary: oklch(0.485 0.13 256); /* #1E5BB8 */
+  --primary-foreground: oklch(1 0 0);
+  --accent: oklch(0.72 0.18 47); /* #FF7A1A */
+  --accent-foreground: oklch(0.14 0.04 264);
+
+  /* Neutral scales */
+  --secondary: oklch(0.965 0.01 240);
+  --secondary-foreground: oklch(0.14 0.04 264);
+  --muted: oklch(0.965 0.01 240);
+  --muted-foreground: oklch(0.5 0.03 250);
+
+  /* Semantic */
+  --success: oklch(0.72 0.17 165);
+  --warn: oklch(0.79 0.17 80);
+  --destructive: oklch(0.63 0.24 27);
+
+  /* Lines + focus */
+  --border: oklch(0.92 0.01 250);
+  --input: oklch(0.92 0.01 250);
+  --ring: oklch(0.485 0.13 256 / 50%);
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(11, 18, 32, 0.04);
+  --shadow-sm: 0 2px 6px rgba(11, 18, 32, 0.06), 0 1px 2px rgba(11, 18, 32, 0.04);
+  --shadow-md: 0 8px 24px -8px rgba(11, 18, 32, 0.1), 0 2px 6px rgba(11, 18, 32, 0.05);
+  --shadow-lg: 0 24px 48px -16px rgba(11, 18, 32, 0.16);
+  --shadow-glow-primary: 0 0 0 4px rgba(30, 91, 184, 0.18);
+  --shadow-glow-accent: 0 0 0 4px rgba(255, 122, 26, 0.22);
+}

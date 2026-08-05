@@ -51,6 +51,11 @@ RioGas imprime lotes de QRs con códigos únicos (stickers en garrafas, folletos
 
 ## 3. Modelo de datos (Prisma, convenciones del repo: modelo PascalCase español, `@@map` snake_case)
 
+Nota de convención: `@@map` pasa las **tablas** a snake_case (`sorteo_participacion`, `sorteo_momento_ganador`,
+etc.); las **columnas** quedan en camelCase (`sorteoId`, `participacionId`, `fechaMomento`), como en el resto
+del repo. Cualquier SQL a mano contra estas tablas necesita comillas dobles en las columnas
+(`select * from sorteo_participacion where "sorteoId" = 1`).
+
 ### `Sorteo` → `sorteo`
 - `id` autoincrement PK
 - `nombre` VarChar(120), `descripcion` VarChar(500)?
@@ -92,7 +97,7 @@ RioGas imprime lotes de QRs con códigos únicos (stickers en garrafas, folletos
 ## 4. Mecánica del sorteo
 
 ### Activación
-Al pasar un sorteo a `activo` se generan `cantidadPremios` momentos ganadores: timestamps aleatorios uniformes en [fechaDesde, fechaHasta]. Si se editan fechas o cantidad con el sorteo activo, se regeneran **solo los momentos pendientes** (los ya asignados no se tocan).
+Al pasar un sorteo a `activo` se generan `cantidadPremios` momentos ganadores: timestamps aleatorios uniformes en `[max(now, fechaDesde), fechaHasta]` — no en `fechaDesde` a secas. Si `fechaDesde` ya pasó al momento de activar (activación tardía), los momentos se reparten solo en el tiempo que queda hasta `fechaHasta`, no en toda la ventana original; esto es **comportamiento deseado** (evita que activar un sorteo con fecha de inicio pasada deje todos los momentos reclamables de golpe). Si se editan fechas o cantidad con el sorteo activo, se regeneran **solo los momentos pendientes** (los ya asignados no se tocan), con la misma regla de `max(now, fechaDesde)`.
 
 ### Confirmación (una transacción Prisma)
 1. **Código válido:** existe, `estado=disponible`, sorteo `activo`, `now` dentro de [fechaDesde, fechaHasta].

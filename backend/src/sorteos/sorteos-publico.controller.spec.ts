@@ -226,6 +226,55 @@ describe('ParticiparDto (ValidationPipe real)', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rechaza un email más largo que la columna (VarChar(120))', async () => {
+    const largo = `${'a'.repeat(115)}@ejemplo.com`;
+
+    await expect(
+      pipe.transform(
+        {
+          codigo: CODIGO_VALIDO,
+          nombre: 'Juan Pérez',
+          telefono: '099123456',
+          edad: 30,
+          email: largo,
+          deviceId: 'device-1234',
+        },
+        metadata,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('acepta un email dentro del largo de la columna', async () => {
+    const r = await pipe.transform(
+      {
+        codigo: CODIGO_VALIDO,
+        nombre: 'Juan Pérez',
+        telefono: '099123456',
+        edad: 30,
+        email: 'juan.perez@ejemplo.com',
+        deviceId: 'device-1234',
+      },
+      metadata,
+    );
+
+    expect(r.email).toBe('juan.perez@ejemplo.com');
+  });
+
+  it('rechaza un teléfono con relleno absurdo de separadores', async () => {
+    await expect(
+      pipe.transform(
+        {
+          codigo: CODIGO_VALIDO,
+          nombre: 'Juan Pérez',
+          telefono: `099123456${'-'.repeat(50)}`,
+          edad: 30,
+          deviceId: 'device-1234',
+        },
+        metadata,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rechaza campos extra (ip/userAgent no son parte del dto)', async () => {
     await expect(
       pipe.transform(

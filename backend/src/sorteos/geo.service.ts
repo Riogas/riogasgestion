@@ -25,6 +25,19 @@ interface NominatimReverseResponse {
   address?: NominatimAddress;
 }
 
+/**
+ * Anchos de las columnas geo de `sorteo_participacion`. Ni Nominatim ni geoip-lite
+ * garantizan largo: las coordenadas las manda el cliente, y un nombre más largo
+ * que la columna aborta la transacción entera de participar (500 persistente).
+ */
+const MAX_PAIS = 60;
+const MAX_REGION = 60;
+const MAX_LOCALIDAD = 80;
+
+function recortar(valor: string | undefined, max: number): string | undefined {
+  return valor ? valor.slice(0, max) : undefined;
+}
+
 @Injectable()
 export class GeoService {
   private readonly logger = new Logger(GeoService.name);
@@ -38,9 +51,9 @@ export class GeoService {
       if (!resultado) return {};
 
       return {
-        ipPais: resultado.country || undefined,
-        ipRegion: resultado.region || undefined,
-        ipCiudad: resultado.city || undefined,
+        ipPais: recortar(resultado.country || undefined, MAX_PAIS),
+        ipRegion: recortar(resultado.region || undefined, MAX_REGION),
+        ipCiudad: recortar(resultado.city || undefined, MAX_LOCALIDAD),
       };
     } catch (error) {
       this.logger.warn(`porIp(${ip}) falló: ${(error as Error).message}`);
@@ -61,9 +74,12 @@ export class GeoService {
       if (!address) return {};
 
       return {
-        gpsPais: address.country || undefined,
-        gpsDepartamento: address.state || undefined,
-        gpsLocalidad: address.city ?? address.town ?? address.village ?? undefined,
+        gpsPais: recortar(address.country || undefined, MAX_PAIS),
+        gpsDepartamento: recortar(address.state || undefined, MAX_REGION),
+        gpsLocalidad: recortar(
+          address.city ?? address.town ?? address.village ?? undefined,
+          MAX_LOCALIDAD,
+        ),
       };
     } catch (error) {
       this.logger.warn(`reverse(${lat}, ${lng}) falló: ${(error as Error).message}`);

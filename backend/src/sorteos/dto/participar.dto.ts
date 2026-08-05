@@ -24,6 +24,7 @@ export class ParticiparDto {
   // /\d/ garantiza que haya al menos un dígito; el segundo @Matches cuenta
   // los dígitos del string completo (ignorando separadores) y exige 8-15.
   @IsString()
+  @MaxLength(30)
   @Matches(/\d/, { message: 'telefono debe contener dígitos' })
   @Matches(/^\D*(\d\D*){8,15}$/, { message: 'telefono debe tener entre 8 y 15 dígitos' })
   telefono!: string;
@@ -31,7 +32,10 @@ export class ParticiparDto {
   @Type(() => Number) @IsInt() @Min(1) @Max(120)
   edad!: number;
 
-  @IsOptional() @IsEmail()
+  // @IsEmail acepta hasta ~254 chars y la columna es VarChar(120): sin el
+  // MaxLength, un email largo aborta la transacción y el participante queda
+  // en 'error_temporal' permanente sin saber por qué.
+  @IsOptional() @IsEmail() @MaxLength(120)
   email?: string;
 
   @IsString() @Length(8, 40)

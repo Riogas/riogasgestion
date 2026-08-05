@@ -13,34 +13,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useActualizarSorteo, useCrearSorteo } from "@/hooks/sorteos";
+import { useCrearSorteo } from "@/hooks/sorteos";
 import type { Sorteo } from "@/lib/types/sorteo";
 import { SorteoFormFields } from "./SorteoFormFields";
 import {
   SORTEO_FORM_DEFAULTS,
   payloadDesdeValores,
   sorteoFormSchema,
-  valoresDesdeSorteo,
   type SorteoFormValues,
 } from "./helpers";
 
+// Solo alta. La edición vive en la pestaña Configuración del detalle
+// (`SorteoConfigTab`), que además bloquea los sorteos cerrados y avisa que
+// cambiar fechas o premios regenera los momentos ganadores pendientes.
 interface SorteoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Si viene, el dialog edita ese sorteo; si no, crea uno nuevo. */
-  sorteo?: Sorteo | null;
   onCreated?: (sorteo: Sorteo) => void;
 }
 
 export function SorteoFormDialog({
   open,
   onOpenChange,
-  sorteo = null,
   onCreated,
 }: SorteoFormDialogProps) {
   const crear = useCrearSorteo();
-  const actualizar = useActualizarSorteo();
-  const editando = !!sorteo;
 
   const {
     register,
@@ -49,28 +46,18 @@ export function SorteoFormDialog({
     formState: { errors },
   } = useForm<SorteoFormValues>({
     resolver: zodResolver(sorteoFormSchema),
-    defaultValues: sorteo ? valoresDesdeSorteo(sorteo) : SORTEO_FORM_DEFAULTS,
+    defaultValues: SORTEO_FORM_DEFAULTS,
   });
 
-  // Al reabrir el dialog el form vuelve al estado del sorteo (o a los defaults).
+  // Al reabrir el dialog el form vuelve a los defaults.
   useEffect(() => {
-    if (open) reset(sorteo ? valoresDesdeSorteo(sorteo) : SORTEO_FORM_DEFAULTS);
-  }, [open, sorteo, reset]);
+    if (open) reset(SORTEO_FORM_DEFAULTS);
+  }, [open, reset]);
 
-  const pending = crear.isPending || actualizar.isPending;
+  const pending = crear.isPending;
 
   const onSubmit = (values: SorteoFormValues) => {
-    const payload = payloadDesdeValores(values);
-
-    if (sorteo) {
-      actualizar.mutate(
-        { id: sorteo.id, payload },
-        { onSuccess: () => onOpenChange(false) },
-      );
-      return;
-    }
-
-    crear.mutate(payload, {
+    crear.mutate(payloadDesdeValores(values), {
       onSuccess: (creado) => {
         onOpenChange(false);
         onCreated?.(creado);
@@ -84,12 +71,11 @@ export function SorteoFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gift className="size-5 text-primary" />
-            {editando ? "Editar sorteo" : "Nuevo sorteo"}
+            Nuevo sorteo
           </DialogTitle>
           <DialogDescription>
-            {editando
-              ? "Los cambios de fechas o cantidad de premios regeneran los momentos ganadores pendientes."
-              : "El sorteo se crea en estado borrador: podés generar los códigos antes de activarlo."}
+            El sorteo se crea en estado borrador: podés generar los códigos antes de
+            activarlo.
           </DialogDescription>
         </DialogHeader>
 
@@ -97,7 +83,7 @@ export function SorteoFormDialog({
           <SorteoFormFields
             register={register}
             errors={errors}
-            idPrefix={editando ? `sorteo-editar-${sorteo?.id}` : "sorteo-nuevo"}
+            idPrefix="sorteo-nuevo"
             disabled={pending}
           />
           <DialogFooter>
@@ -111,7 +97,7 @@ export function SorteoFormDialog({
             </Button>
             <Button type="submit" disabled={pending}>
               <Save className="size-4" />
-              {pending ? "Guardando…" : editando ? "Guardar cambios" : "Crear sorteo"}
+              {pending ? "Guardando…" : "Crear sorteo"}
             </Button>
           </DialogFooter>
         </form>

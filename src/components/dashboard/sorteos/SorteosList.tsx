@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import { ChevronRight, Gift, Plus, RefreshCw, SearchX } from "lucide-react";
@@ -12,6 +12,7 @@ import { ListHeader } from "@/components/abm/ListHeader";
 import { Pager } from "@/components/abm/Pager";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useSorteos } from "@/hooks/sorteos";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   ESTADOS_SORTEO,
   esEstadoSorteo,
@@ -20,24 +21,6 @@ import {
 } from "@/lib/types/sorteo";
 import { SorteoFormDialog } from "./SorteoFormDialog";
 import { fmtFechaHora, fmtNumero, porcentaje } from "./helpers";
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-
-  return debounced;
-}
-
-const ESTADO_LABEL: Record<string, string> = {
-  borrador: "Borrador",
-  activo: "Activo",
-  finalizado: "Finalizado",
-  cancelado: "Cancelado",
-};
 
 export default function SorteosList() {
   const router = useRouter();
@@ -107,7 +90,7 @@ export default function SorteosList() {
                   <option value="">Estado: todos</option>
                   {ESTADOS_SORTEO.map((e) => (
                     <option key={e} value={e}>
-                      {ESTADO_LABEL[e]}
+                      {estadoSorteoBadge(e).label}
                     </option>
                   ))}
                 </select>
@@ -159,7 +142,7 @@ export default function SorteosList() {
               debouncedSearch
                 ? `No encontramos sorteos que coincidan con "${debouncedSearch}".`
                 : estado
-                  ? `No hay sorteos en estado ${ESTADO_LABEL[estado]?.toLowerCase() ?? estado}.`
+                  ? `No hay sorteos en estado ${estadoSorteoBadge(estado).label.toLowerCase()}.`
                   : "Creá el primer sorteo para generar los códigos QR y empezar a recibir participaciones."
             }
             action={

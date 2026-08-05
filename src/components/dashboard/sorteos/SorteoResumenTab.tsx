@@ -18,7 +18,13 @@ import { Progress } from "@/components/ui/progress";
 import { ChartCard } from "@/components/dashboard/charts/ChartCard";
 import { chartColors } from "@/lib/chart-colors";
 import type { SorteoDetalle } from "@/lib/types/sorteo";
-import { fmtDiaCorto, fmtDiaLargo, fmtNumero, porcentaje } from "./helpers";
+import {
+  agruparDepartamentos,
+  fmtDiaCorto,
+  fmtDiaLargo,
+  fmtNumero,
+  porcentaje,
+} from "./helpers";
 
 const TOP_DEPARTAMENTOS = 8;
 
@@ -98,14 +104,23 @@ export function SorteoResumenTab({ sorteo }: { sorteo: SorteoDetalle }) {
     [stats.porDia],
   );
 
-  const serieDepartamentos = useMemo(
-    () => stats.porDepartamento.slice(0, TOP_DEPARTAMENTOS),
+  const { series: departamentos, sinUbicacion } = useMemo(
+    () => agruparDepartamentos(stats.porDepartamento),
     [stats.porDepartamento],
   );
 
+  const serieDepartamentos = departamentos.slice(0, TOP_DEPARTAMENTOS);
   const pendientes = Math.max(0, stats.ganadores - stats.premiosEntregados);
   const pctCodigos = porcentaje(stats.codigosUsados, stats.codigosTotal);
-  const hayMasDepartamentos = stats.porDepartamento.length > TOP_DEPARTAMENTOS;
+
+  const detalleDepartamentos = [
+    departamentos.length > TOP_DEPARTAMENTOS
+      ? `Top ${TOP_DEPARTAMENTOS} de ${departamentos.length}`
+      : "Según el GPS del celular o, si no lo compartió, su IP",
+    sinUbicacion > 0 ? `${fmtNumero(sinUbicacion)} sin ubicación precisa` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="space-y-5">
@@ -220,11 +235,7 @@ export function SorteoResumenTab({ sorteo }: { sorteo: SorteoDetalle }) {
         <div className="bento-item animate-fade-in-up stagger-6 lg:!col-span-4">
           <ChartCard
             title="Participaciones por departamento"
-            description={
-              hayMasDepartamentos
-                ? `Top ${TOP_DEPARTAMENTOS} de ${stats.porDepartamento.length}`
-                : "Según GPS o IP del participante"
-            }
+            description={detalleDepartamentos}
             height={300}
             emptyState={
               <>

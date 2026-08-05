@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import { CheckCircle2, Clock, PackageCheck, RefreshCw, SearchX, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -10,25 +10,15 @@ import { ListHeader } from "@/components/abm/ListHeader";
 import { Pager } from "@/components/abm/Pager";
 import { TableCard } from "@/components/abm/TableCard";
 import { useMarcarEntregado, useSorteoParticipaciones } from "@/hooks/sorteos";
+import { useDebounce } from "@/hooks/useDebounce";
 import type { SorteoDetalle, SorteoParticipacion } from "@/lib/types/sorteo";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { fmtFechaHora, fmtNumero } from "./helpers";
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-
-  return debounced;
-}
-
 export function SorteoGanadoresTab({ sorteo }: { sorteo: SorteoDetalle }) {
   const [searchInput, setSearchInput] = useQueryState("gq", parseAsString.withDefault(""));
   const [page, setPage] = useQueryState("gp", parseAsInteger.withDefault(1));
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useQueryState("gps", parseAsInteger.withDefault(20));
   const [aEntregar, setAEntregar] = useState<SorteoParticipacion | null>(null);
 
   const debouncedSearch = useDebounce(searchInput, 400);
@@ -81,9 +71,11 @@ export function SorteoGanadoresTab({ sorteo }: { sorteo: SorteoDetalle }) {
                     aria-label="Actualizando"
                   />
                 )}
+                {/* Los dos números salen de `stats`: `total` está filtrado por
+                    la búsqueda y mezclarlos daba ratios sin sentido. */}
                 <span className="hidden text-xs text-muted-foreground sm:inline tabular-nums">
-                  {fmtNumero(sorteo.stats.premiosEntregados)} de {fmtNumero(total)} premios
-                  entregados
+                  {fmtNumero(sorteo.stats.premiosEntregados)} de{" "}
+                  {fmtNumero(sorteo.stats.ganadores)} premios entregados
                 </span>
               </div>
             }

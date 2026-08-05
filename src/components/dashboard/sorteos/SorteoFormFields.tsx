@@ -13,9 +13,16 @@ interface SorteoFormFieldsProps {
   disabled?: boolean;
 }
 
-function FieldError({ message }: { message?: string }) {
+/** El `id` lo referencia el input con `aria-describedby` (mismo patrón que el
+ *  formulario público): sin eso el lector de pantalla anuncia "inválido" y
+ *  nunca lee el motivo. */
+function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
-  return <p className="text-xs text-destructive">{message}</p>;
+  return (
+    <p id={id} role="alert" className="text-xs text-destructive">
+      {message}
+    </p>
+  );
 }
 
 export function SorteoFormFields({
@@ -25,6 +32,8 @@ export function SorteoFormFields({
   disabled = false,
 }: SorteoFormFieldsProps) {
   const id = (name: string) => `${idPrefix}-${name}`;
+  const idError = (name: string) => `${idPrefix}-${name}-error`;
+  const describe = (name: string, hay: boolean) => (hay ? idError(name) : undefined);
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -36,10 +45,11 @@ export function SorteoFormFields({
           id={id("nombre")}
           placeholder="Sorteo de verano 2026"
           aria-invalid={!!errors.nombre}
+          aria-describedby={describe("nombre", !!errors.nombre)}
           disabled={disabled}
           {...register("nombre")}
         />
-        <FieldError message={errors.nombre?.message} />
+        <FieldError id={idError("nombre")} message={errors.nombre?.message} />
       </div>
 
       <div className="space-y-1.5 sm:col-span-2">
@@ -48,10 +58,11 @@ export function SorteoFormFields({
           id={id("descripcion")}
           placeholder="Texto interno de referencia (opcional)"
           aria-invalid={!!errors.descripcion}
+          aria-describedby={describe("descripcion", !!errors.descripcion)}
           disabled={disabled}
           {...register("descripcion")}
         />
-        <FieldError message={errors.descripcion?.message} />
+        <FieldError id={idError("descripcion")} message={errors.descripcion?.message} />
       </div>
 
       <div className="space-y-1.5 sm:col-span-2">
@@ -62,13 +73,21 @@ export function SorteoFormFields({
           id={id("premioDescripcion")}
           placeholder="Garrafa de 13 kg sin cargo"
           aria-invalid={!!errors.premioDescripcion}
+          aria-describedby={
+            errors.premioDescripcion
+              ? idError("premioDescripcion")
+              : id("premioDescripcion-ayuda")
+          }
           disabled={disabled}
           {...register("premioDescripcion")}
         />
-        <p className="text-xs text-muted-foreground">
+        <p id={id("premioDescripcion-ayuda")} className="text-xs text-muted-foreground">
           Es el texto que ve el participante cuando gana.
         </p>
-        <FieldError message={errors.premioDescripcion?.message} />
+        <FieldError
+          id={idError("premioDescripcion")}
+          message={errors.premioDescripcion?.message}
+        />
       </div>
 
       <div className="space-y-1.5">
@@ -79,10 +98,11 @@ export function SorteoFormFields({
           id={id("fechaDesde")}
           type="datetime-local"
           aria-invalid={!!errors.fechaDesde}
+          aria-describedby={describe("fechaDesde", !!errors.fechaDesde)}
           disabled={disabled}
           {...register("fechaDesde")}
         />
-        <FieldError message={errors.fechaDesde?.message} />
+        <FieldError id={idError("fechaDesde")} message={errors.fechaDesde?.message} />
       </div>
 
       <div className="space-y-1.5">
@@ -93,10 +113,11 @@ export function SorteoFormFields({
           id={id("fechaHasta")}
           type="datetime-local"
           aria-invalid={!!errors.fechaHasta}
+          aria-describedby={describe("fechaHasta", !!errors.fechaHasta)}
           disabled={disabled}
           {...register("fechaHasta")}
         />
-        <FieldError message={errors.fechaHasta?.message} />
+        <FieldError id={idError("fechaHasta")} message={errors.fechaHasta?.message} />
       </div>
 
       <div className="space-y-1.5">
@@ -111,10 +132,14 @@ export function SorteoFormFields({
           inputMode="numeric"
           className="tabular-nums"
           aria-invalid={!!errors.cantidadPremios}
+          aria-describedby={describe("cantidadPremios", !!errors.cantidadPremios)}
           disabled={disabled}
           {...register("cantidadPremios")}
         />
-        <FieldError message={errors.cantidadPremios?.message} />
+        <FieldError
+          id={idError("cantidadPremios")}
+          message={errors.cantidadPremios?.message}
+        />
       </div>
 
       <div className="space-y-1.5">
@@ -129,10 +154,17 @@ export function SorteoFormFields({
           inputMode="numeric"
           className="tabular-nums"
           aria-invalid={!!errors.maxRegistrosDispositivoDia}
+          aria-describedby={describe(
+            "maxRegistrosDispositivoDia",
+            !!errors.maxRegistrosDispositivoDia,
+          )}
           disabled={disabled}
           {...register("maxRegistrosDispositivoDia")}
         />
-        <FieldError message={errors.maxRegistrosDispositivoDia?.message} />
+        <FieldError
+          id={idError("maxRegistrosDispositivoDia")}
+          message={errors.maxRegistrosDispositivoDia?.message}
+        />
       </div>
 
       <div className="space-y-1.5">
@@ -147,10 +179,11 @@ export function SorteoFormFields({
           inputMode="numeric"
           className="tabular-nums"
           aria-invalid={!!errors.edadMinima}
+          aria-describedby={describe("edadMinima", !!errors.edadMinima)}
           disabled={disabled}
           {...register("edadMinima")}
         />
-        <FieldError message={errors.edadMinima?.message} />
+        <FieldError id={idError("edadMinima")} message={errors.edadMinima?.message} />
       </div>
     </div>
   );

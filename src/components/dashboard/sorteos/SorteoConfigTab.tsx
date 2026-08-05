@@ -57,26 +57,31 @@ export function SorteoConfigTab({ sorteo }: { sorteo: SorteoDetalle }) {
     cambiarEstado.mutate({ id: sorteo.id, accion }, { onSuccess: () => setAccion(null) });
   };
 
-  const textosAccion: Record<Accion, { title: string; description: string; confirmLabel: string }> =
-    {
-      activar: {
-        title: "¿Activar el sorteo?",
-        description: `Se generan ${fmtNumero(sorteo.cantidadPremios)} momentos ganadores repartidos al azar dentro del rango de fechas. A partir de ahí el sorteo acepta participaciones y no puede volver a borrador.`,
-        confirmLabel: "Activar sorteo",
-      },
-      finalizar: {
-        title: "¿Finalizar el sorteo?",
-        description:
-          "El sorteo deja de aceptar participaciones de inmediato. Los premios pendientes se siguen entregando desde la pestaña Ganadores.",
-        confirmLabel: "Finalizar sorteo",
-      },
-      cancelar: {
-        title: "¿Cancelar el sorteo?",
-        description:
-          "El sorteo deja de aceptar participaciones y no se puede reactivar. Los códigos ya impresos quedan sin uso.",
-        confirmLabel: "Cancelar sorteo",
-      },
-    };
+  const textosAccion: Record<
+    Accion,
+    { title: string; description: string; confirmLabel: string; cancelLabel?: string }
+  > = {
+    activar: {
+      title: "¿Activar el sorteo?",
+      description: `Se generan ${fmtNumero(sorteo.cantidadPremios)} momentos ganadores repartidos al azar dentro del rango de fechas. A partir de ahí el sorteo acepta participaciones y no puede volver a borrador.`,
+      confirmLabel: "Activar sorteo",
+    },
+    finalizar: {
+      title: "¿Finalizar el sorteo?",
+      description:
+        "El sorteo deja de aceptar participaciones de inmediato. Los premios pendientes se siguen entregando desde la pestaña Ganadores.",
+      confirmLabel: "Finalizar sorteo",
+    },
+    cancelar: {
+      title: "¿Cancelar el sorteo?",
+      description:
+        "El sorteo deja de aceptar participaciones y no se puede reactivar. Los códigos ya impresos quedan sin uso.",
+      confirmLabel: "Sí, cancelar el sorteo",
+      // Un botón "Cancelar" al lado de "Cancelar sorteo" es ambiguo y la acción
+      // es irreversible.
+      cancelLabel: "No, dejarlo como está",
+    },
+  };
 
   return (
     <div className="space-y-5">
@@ -203,6 +208,7 @@ export function SorteoConfigTab({ sorteo }: { sorteo: SorteoDetalle }) {
         title={accion ? textosAccion[accion].title : ""}
         description={accion ? textosAccion[accion].description : ""}
         confirmLabel={accion ? textosAccion[accion].confirmLabel : ""}
+        cancelLabel={accion ? textosAccion[accion].cancelLabel : undefined}
         confirmIcon={
           accion === "activar" ? (
             <Rocket className="size-4" />

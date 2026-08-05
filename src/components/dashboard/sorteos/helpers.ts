@@ -2,7 +2,12 @@
 // y conversión entre <input type="datetime-local"> (hora local) e ISO 8601.
 
 import { z } from "zod";
-import type { CrearSorteoPayload, Sorteo } from "@/lib/types/sorteo";
+import { normalizarDepartamento } from "@/lib/geo-uy";
+import type {
+  CrearSorteoPayload,
+  Sorteo,
+  SorteoStatsPorDepartamento,
+} from "@/lib/types/sorteo";
 
 // ─── Formato ────────────────────────────────────────────────────────────────
 
@@ -51,6 +56,38 @@ export function fmtNumero(n: number | null | undefined): string {
 export function porcentaje(parte: number, total: number): number {
   if (!total) return 0;
   return Math.min(100, Math.round((parte / total) * 100));
+}
+
+// ─── Departamentos del gráfico ──────────────────────────────────────────────
+
+/**
+ * El backend agrupa por el string crudo, así que el mismo departamento llega
+ * partido en dos filas cuando una vino del GPS ("Montevideo") y la otra del
+ * geoip ("MO"). Acá se unifican, se suman y se separan las participaciones sin
+ * ubicación, que no son un departamento y no van al gráfico.
+ */
+export function agruparDepartamentos(filas: SorteoStatsPorDepartamento[]): {
+  series: SorteoStatsPorDepartamento[];
+  sinUbicacion: number;
+} {
+  const acumulado = new Map<string, number>();
+  let sinUbicacion = 0;
+
+  for (const fila of filas) {
+    const departamento = normalizarDepartamento(fila.departamento);
+    if (!departamento) {
+      sinUbicacion += fila.cantidad;
+      continue;
+    }
+    acumulado.set(departamento, (acumulado.get(departamento) ?? 0) + fila.cantidad);
+  }
+
+  const series = Array.from(acumulado, ([departamento, cantidad]) => ({
+    departamento,
+    cantidad,
+  })).sort((a, b) => b.cantidad - a.cantidad);
+
+  return { series, sinUbicacion };
 }
 
 // ─── Fechas del form ────────────────────────────────────────────────────────

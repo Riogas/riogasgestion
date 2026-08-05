@@ -19,6 +19,9 @@ interface ConfirmDialogProps {
   /** Detalle adicional (lista de consecuencias, aviso, etc.). */
   children?: ReactNode;
   confirmLabel: string;
+  /** Texto del botón que descarta. Cambiarlo cuando "Cancelar" se confunda con
+   *  la acción confirmada (ej: "¿Cancelar el sorteo?"). */
+  cancelLabel?: string;
   confirmIcon?: ReactNode;
   variant?: "default" | "destructive";
   pending?: boolean;
@@ -36,6 +39,7 @@ export function ConfirmDialog({
   description,
   children,
   confirmLabel,
+  cancelLabel = "Cancelar",
   confirmIcon,
   variant = "default",
   pending = false,
@@ -51,7 +55,7 @@ export function ConfirmDialog({
         {children}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-            Cancelar
+            {cancelLabel}
           </Button>
           <Button
             variant={variant === "destructive" ? "destructive" : "default"}

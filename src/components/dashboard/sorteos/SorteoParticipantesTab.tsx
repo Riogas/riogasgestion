@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import { toast } from "sonner";
 import {
@@ -16,23 +16,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ListHeader } from "@/components/abm/ListHeader";
 import { Pager } from "@/components/abm/Pager";
 import { TableCard } from "@/components/abm/TableCard";
 import { useDescargarCsvParticipaciones, useSorteoParticipaciones } from "@/hooks/sorteos";
+import { useDebounce } from "@/hooks/useDebounce";
+import { normalizarDepartamento, normalizarPais } from "@/lib/geo-uy";
 import type { SorteoDetalle, SorteoParticipacion } from "@/lib/types/sorteo";
 import { fmtFechaHora, fmtNumero } from "./helpers";
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-
-  return debounced;
-}
 
 function DatoDetalle({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -63,9 +55,12 @@ function DetallePopover({ p }: { p: SorteoParticipacion }) {
               Ubicación
             </p>
             <dl className="divide-y divide-border/50">
-              <DatoDetalle label="Departamento" value={p.gpsDepartamento ?? p.ipRegion} />
+              <DatoDetalle
+                label="Departamento"
+                value={normalizarDepartamento(p.gpsDepartamento ?? p.ipRegion)}
+              />
               <DatoDetalle label="Localidad" value={p.gpsLocalidad ?? p.ipCiudad} />
-              <DatoDetalle label="País" value={p.gpsPais ?? p.ipPais} />
+              <DatoDetalle label="País" value={normalizarPais(p.gpsPais ?? p.ipPais)} />
               <DatoDetalle label="Coordenadas" value={coords} />
               <DatoDetalle label="Fuente" value={p.geoFuente} />
             </dl>
@@ -131,9 +126,17 @@ export function SorteoParticipantesTab({ sorteo }: { sorteo: SorteoDetalle }) {
     setPage(1);
   };
 
+  // El endpoint de export no acepta filtros: siempre baja el sorteo completo.
+  // El botón lo dice ("Exportar todo") y por eso se habilita según el total del
+  // sorteo, no según lo que quedó en pantalla tras buscar.
+  const totalSorteo = sorteo.stats.participaciones;
+
   const exportarCsv = () => {
     exportar.mutate(sorteo.id, {
-      onSuccess: () => toast.success("CSV de participaciones descargado"),
+      onSuccess: () =>
+        toast.success(
+          `CSV descargado con las ${fmtNumero(totalSorteo)} participaciones del sorteo`,
+        ),
     });
   };
 
@@ -152,21 +155,31 @@ export function SorteoParticipantesTab({ sorteo }: { sorteo: SorteoDetalle }) {
                 />
               )}
               <span className="hidden text-xs text-muted-foreground sm:inline tabular-nums">
-                {fmtNumero(total)} participaciones
+                {debouncedSearch
+                  ? `${fmtNumero(total)} de ${fmtNumero(totalSorteo)} participaciones`
+                  : `${fmtNumero(total)} participaciones`}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportarCsv}
-                disabled={exportar.isPending || total === 0}
-              >
-                {exportar.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="size-4" />
-                )}
-                Exportar CSV
-              </Button>
+              <Tooltip delayDuration={400}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportarCsv}
+                    disabled={exportar.isPending || totalSorteo === 0}
+                  >
+                    {exportar.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="size-4" />
+                    )}
+                    {exportar.isPending ? "Generando CSV…" : "Exportar todo (CSV)"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Baja las {fmtNumero(totalSorteo)} participaciones del sorteo, sin el
+                  filtro de búsqueda.
+                </TooltipContent>
+              </Tooltip>
             </div>
           }
         />

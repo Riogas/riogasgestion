@@ -25,3 +25,13 @@ export function inicioDiaMontevideo(ahora: Date): Date {
   const local = new Date(ahora.getTime() - MVD_OFFSET_MS);
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + MVD_OFFSET_MS);
 }
+
+/** Día calendario de Montevideo en formato YYYY-MM-DD. */
+export function fechaMontevideo(fecha: Date): string {
+  return new Date(fecha.getTime() - MVD_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Fecha y hora de Montevideo en formato YYYY-MM-DD HH:mm:ss (para el CSV). */
+export function fechaHoraMontevideo(fecha: Date): string {
+  return new Date(fecha.getTime() - MVD_OFFSET_MS).toISOString().replace('T', ' ').slice(0, 19);
+}

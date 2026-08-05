@@ -1,8 +1,11 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { GeoService } from './geo.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CODIGO_REGEX,
+  fechaHoraMontevideo,
+  fechaMontevideo,
   formatearCanje,
   generarCodigo,
   generarMomentos,
@@ -48,6 +51,59 @@ interface SorteoVigencia {
   estado: string;
   fechaDesde: Date;
   fechaHasta: Date;
+}
+
+export interface RegeneracionMomentos {
+  generados: number;
+  ganadores: number;
+  /** true cuando el sorteo no estaba en condiciones de regenerar y no se tocó nada. */
+  omitido?: boolean;
+}
+
+export interface ListarSorteosQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  estado?: string;
+}
+
+export interface ListarParticipacionesQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  soloGanadores?: boolean;
+}
+
+export interface CrearSorteoInput {
+  nombre: string;
+  descripcion?: string;
+  premioDescripcion: string;
+  fechaDesde: Date;
+  fechaHasta: Date;
+  cantidadPremios: number;
+  maxRegistrosDispositivoDia?: number;
+  edadMinima?: number;
+}
+
+export type ActualizarSorteoInput = Partial<CrearSorteoInput>;
+
+const PAGE_SIZE_DEFAULT = 20;
+const PAGE_SIZE_MAX = 200;
+
+/** Violación de unique de Postgres vía Prisma (el `instanceof` no sobrevive al mock). */
+function esColisionDeCodigo(e: unknown): boolean {
+  return (e as { code?: unknown } | null)?.code === 'P2002';
+}
+
+/** Campo CSV con separador `;` (RFC4180 adaptado). */
+function csvCampo(valor: unknown): string {
+  if (valor === null || valor === undefined) return '';
+  const texto = String(valor);
+  return /[";\r\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+}
+
+function csvBooleano(valor: boolean): string {
+  return valor ? 'Sí' : 'No';
 }
 
 /** Solo dígitos; +598 se colapsa al formato local (099123456 / 24001234). */
@@ -182,6 +238,11 @@ export class SorteosService {
         },
       });
 
+      // Serializa las confirmaciones del mismo teléfono en el mismo sorteo: sin esto,
+      // dos requests paralelos pueden ver "todavía no ganó" y reclamar dos momentos
+      // distintos. Se libera solo al commit/rollback de la transacción.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sorteo:${sorteo.id}:tel:${telefono}`}))`;
+
       const yaGano = await tx.sorteoParticipacion.count({
         where: { sorteoId: sorteo.id, telefono, ganador: true },
       });
@@ -246,12 +307,19 @@ export class SorteosService {
     });
   }
 
-  async regenerarMomentosPendientes(id: number) {
+  async regenerarMomentosPendientes(id: number): Promise<RegeneracionMomentos> {
     const ahora = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx): Promise<RegeneracionMomentos> => {
       const sorteo = await tx.sorteo.findUnique({ where: { id } });
       if (!sorteo) throw new NotFoundException(`Sorteo ${id} no encontrado`);
+
+      // Sobre un sorteo que no está corriendo no hay nada que redistribuir: regenerar
+      // repoblaría momentos en un sorteo cancelado/finalizado, o los colapsaría todos
+      // al mismo instante si la ventana ya venció (todos reclamables de golpe).
+      if (sorteo.estado !== 'activo' || sorteo.fechaHasta <= ahora) {
+        return { generados: 0, ganadores: 0, omitido: true };
+      }
 
       await tx.sorteoMomentoGanador.deleteMany({ where: { sorteoId: id, participacionId: null } });
 
@@ -272,6 +340,395 @@ export class SorteosService {
       this.logger.log(`Sorteo ${id}: ${restantes} momentos pendientes regenerados`);
 
       return { generados: restantes, ganadores };
+    });
+  }
+
+  // ─── Admin: sorteos ─────────────────────────────────────────────────────────
+
+  private paginado(page?: number, pageSize?: number) {
+    const p = Math.max(1, Math.trunc(page ?? 1));
+    const size = Math.min(PAGE_SIZE_MAX, Math.max(1, Math.trunc(pageSize ?? PAGE_SIZE_DEFAULT)));
+    return { skip: (p - 1) * size, take: size };
+  }
+
+  private validarRango(fechaDesde: Date, fechaHasta: Date) {
+    if (fechaHasta.getTime() <= fechaDesde.getTime()) {
+      throw new BadRequestException('fechaHasta debe ser posterior a fechaDesde');
+    }
+  }
+
+  private async buscarSorteo(id: number) {
+    const sorteo = await this.prisma.sorteo.findUnique({ where: { id } });
+    if (!sorteo) throw new NotFoundException(`Sorteo ${id} no encontrado`);
+    return sorteo;
+  }
+
+  async listar(q: ListarSorteosQuery) {
+    const { skip, take } = this.paginado(q.page, q.pageSize);
+
+    const where: Prisma.SorteoWhereInput = {};
+    if (q.estado) where.estado = q.estado;
+    const search = q.search?.trim();
+    if (search) where.nombre = { contains: search, mode: 'insensitive' };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.sorteo.findMany({
+        where,
+        orderBy: { id: 'desc' },
+        skip,
+        take,
+        include: { _count: { select: { participaciones: true, codigos: true } } },
+      }),
+      this.prisma.sorteo.count({ where }),
+    ]);
+
+    const ids = rows.map((r) => r.id);
+    const [ganadores, entregados] = await Promise.all([
+      this.prisma.sorteoParticipacion.groupBy({
+        by: ['sorteoId'],
+        where: { sorteoId: { in: ids }, ganador: true },
+        _count: { _all: true },
+      }),
+      this.prisma.sorteoParticipacion.groupBy({
+        by: ['sorteoId'],
+        where: { sorteoId: { in: ids }, premioEntregado: true },
+        _count: { _all: true },
+      }),
+    ]);
+    const porSorteo = (filas: { sorteoId: number; _count: { _all: number } }[]) =>
+      new Map(filas.map((f) => [f.sorteoId, f._count._all]));
+    const ganadoresPorSorteo = porSorteo(ganadores);
+    const entregadosPorSorteo = porSorteo(entregados);
+
+    const items = rows.map(({ _count, ...sorteo }) => ({
+      ...sorteo,
+      _count: {
+        participaciones: _count.participaciones,
+        codigos: _count.codigos,
+        ganadores: ganadoresPorSorteo.get(sorteo.id) ?? 0,
+      },
+      premiosEntregados: entregadosPorSorteo.get(sorteo.id) ?? 0,
+    }));
+
+    return { items, total };
+  }
+
+  async crear(dto: CrearSorteoInput) {
+    this.validarRango(dto.fechaDesde, dto.fechaHasta);
+
+    return this.prisma.sorteo.create({
+      data: {
+        nombre: dto.nombre.trim(),
+        descripcion: dto.descripcion?.trim() || null,
+        premioDescripcion: dto.premioDescripcion.trim(),
+        fechaDesde: dto.fechaDesde,
+        fechaHasta: dto.fechaHasta,
+        cantidadPremios: dto.cantidadPremios,
+        maxRegistrosDispositivoDia: dto.maxRegistrosDispositivoDia,
+        edadMinima: dto.edadMinima,
+        estado: 'borrador',
+      },
+    });
+  }
+
+  async detalle(id: number) {
+    const sorteo = await this.buscarSorteo(id);
+
+    const [participaciones, ganadores, premiosEntregados, codigosTotal, codigosUsados, filas] =
+      await Promise.all([
+        this.prisma.sorteoParticipacion.count({ where: { sorteoId: id } }),
+        this.prisma.sorteoParticipacion.count({ where: { sorteoId: id, ganador: true } }),
+        this.prisma.sorteoParticipacion.count({ where: { sorteoId: id, premioEntregado: true } }),
+        this.prisma.sorteoCodigo.count({ where: { sorteoId: id } }),
+        this.prisma.sorteoCodigo.count({ where: { sorteoId: id, estado: 'usado' } }),
+        this.prisma.sorteoParticipacion.findMany({
+          where: { sorteoId: id },
+          select: { createdAt: true, ganador: true, gpsDepartamento: true, ipRegion: true },
+        }),
+      ]);
+
+    const dias = new Map<string, { fecha: string; cantidad: number; ganadores: number }>();
+    const departamentos = new Map<string, number>();
+    for (const fila of filas) {
+      const fecha = fechaMontevideo(fila.createdAt);
+      const dia = dias.get(fecha) ?? { fecha, cantidad: 0, ganadores: 0 };
+      dia.cantidad += 1;
+      if (fila.ganador) dia.ganadores += 1;
+      dias.set(fecha, dia);
+
+      const departamento = (fila.gpsDepartamento ?? fila.ipRegion ?? '').trim();
+      if (departamento) {
+        departamentos.set(departamento, (departamentos.get(departamento) ?? 0) + 1);
+      }
+    }
+
+    return {
+      ...sorteo,
+      stats: {
+        participaciones,
+        ganadores,
+        premiosEntregados,
+        codigosTotal,
+        codigosUsados,
+        porDia: [...dias.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)),
+        porDepartamento: [...departamentos.entries()]
+          .map(([departamento, cantidad]) => ({ departamento, cantidad }))
+          .sort((a, b) => b.cantidad - a.cantidad),
+      },
+    };
+  }
+
+  async actualizar(id: number, dto: ActualizarSorteoInput) {
+    const actual = await this.buscarSorteo(id);
+    this.validarRango(dto.fechaDesde ?? actual.fechaDesde, dto.fechaHasta ?? actual.fechaHasta);
+
+    const sorteo = await this.prisma.sorteo.update({
+      where: { id },
+      data: {
+        nombre: dto.nombre?.trim(),
+        descripcion: dto.descripcion === undefined ? undefined : dto.descripcion.trim() || null,
+        premioDescripcion: dto.premioDescripcion?.trim(),
+        fechaDesde: dto.fechaDesde,
+        fechaHasta: dto.fechaHasta,
+        cantidadPremios: dto.cantidadPremios,
+        maxRegistrosDispositivoDia: dto.maxRegistrosDispositivoDia,
+        edadMinima: dto.edadMinima,
+      },
+    });
+
+    const cambiaronMomentos =
+      (dto.fechaDesde !== undefined && dto.fechaDesde.getTime() !== actual.fechaDesde.getTime()) ||
+      (dto.fechaHasta !== undefined && dto.fechaHasta.getTime() !== actual.fechaHasta.getTime()) ||
+      (dto.cantidadPremios !== undefined && dto.cantidadPremios !== actual.cantidadPremios);
+
+    if (sorteo.estado === 'activo' && cambiaronMomentos) {
+      await this.regenerarMomentosPendientes(id);
+    }
+
+    return sorteo;
+  }
+
+  private async cambiarEstado(id: number, destino: string, desde: string[]) {
+    const sorteo = await this.buscarSorteo(id);
+    if (!desde.includes(sorteo.estado)) {
+      throw new BadRequestException(
+        `No se puede pasar a ${destino} un sorteo en estado ${sorteo.estado}`,
+      );
+    }
+    this.logger.log(`Sorteo ${id}: ${sorteo.estado} → ${destino}`);
+    return this.prisma.sorteo.update({ where: { id }, data: { estado: destino } });
+  }
+
+  async finalizar(id: number) {
+    return this.cambiarEstado(id, 'finalizado', ['activo']);
+  }
+
+  async cancelar(id: number) {
+    return this.cambiarEstado(id, 'cancelado', ['borrador', 'activo']);
+  }
+
+  // ─── Admin: lotes y códigos ─────────────────────────────────────────────────
+
+  async crearLote(sorteoId: number, cantidad: number, generadoPor: string | null) {
+    await this.buscarSorteo(sorteoId);
+
+    try {
+      return await this.intentarLote(sorteoId, cantidad, generadoPor);
+    } catch (e) {
+      if (!esColisionDeCodigo(e)) throw e;
+      this.logger.warn(`Sorteo ${sorteoId}: colisión de código generando el lote, reintentando`);
+      return this.intentarLote(sorteoId, cantidad, generadoPor);
+    }
+  }
+
+  private async intentarLote(sorteoId: number, cantidad: number, generadoPor: string | null) {
+    // Los códigos se generan fuera de la transacción para no tenerla abierta de gusto.
+    const codigos = new Set<string>();
+    while (codigos.size < cantidad) codigos.add(generarCodigo());
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const lote = await tx.sorteoLote.create({ data: { sorteoId, cantidad, generadoPor } });
+        await tx.sorteoCodigo.createMany({
+          data: [...codigos].map((codigo) => ({ sorteoId, loteId: lote.id, codigo })),
+        });
+        this.logger.log(`Sorteo ${sorteoId}: lote ${lote.id} con ${cantidad} códigos`);
+        return { id: lote.id, cantidad };
+      },
+      { timeout: 60_000, maxWait: 15_000 },
+    );
+  }
+
+  async listarLotes(sorteoId: number) {
+    await this.buscarSorteo(sorteoId);
+
+    const [lotes, usados] = await Promise.all([
+      this.prisma.sorteoLote.findMany({
+        where: { sorteoId },
+        orderBy: { id: 'desc' },
+        include: { _count: { select: { codigos: true } } },
+      }),
+      this.prisma.sorteoCodigo.groupBy({
+        by: ['loteId'],
+        where: { sorteoId, estado: 'usado' },
+        _count: { _all: true },
+      }),
+    ]);
+    const usadosPorLote = new Map(usados.map((u) => [u.loteId, u._count._all]));
+
+    return lotes.map(({ _count, ...lote }) => ({
+      ...lote,
+      codigosTotal: _count.codigos,
+      codigosUsados: usadosPorLote.get(lote.id) ?? 0,
+    }));
+  }
+
+  async buscarLote(sorteoId: number, loteId: number) {
+    const lote = await this.prisma.sorteoLote.findFirst({ where: { id: loteId, sorteoId } });
+    if (!lote) throw new NotFoundException(`Lote ${loteId} no encontrado en el sorteo ${sorteoId}`);
+    return lote;
+  }
+
+  /** Keyset por id: el ZIP recorre lotes de hasta 10.000 códigos sin cargarlos todos. */
+  async codigosDelLote(loteId: number, desdeId: number, take: number) {
+    return this.prisma.sorteoCodigo.findMany({
+      where: { loteId, id: { gt: desdeId } },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true, codigo: true },
+    });
+  }
+
+  // ─── Admin: participaciones ─────────────────────────────────────────────────
+
+  private whereParticipaciones(
+    sorteoId: number,
+    q: ListarParticipacionesQuery,
+  ): Prisma.SorteoParticipacionWhereInput {
+    const where: Prisma.SorteoParticipacionWhereInput = { sorteoId };
+    if (q.soloGanadores) where.ganador = true;
+
+    const search = q.search?.trim();
+    if (search) {
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { telefono: { contains: search } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { codigoCanje: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    return where;
+  }
+
+  async listarParticipaciones(sorteoId: number, q: ListarParticipacionesQuery) {
+    await this.buscarSorteo(sorteoId);
+    const { skip, take } = this.paginado(q.page, q.pageSize);
+    const where = this.whereParticipaciones(sorteoId, q);
+
+    const [items, total] = await Promise.all([
+      this.prisma.sorteoParticipacion.findMany({
+        where,
+        orderBy: { id: 'desc' },
+        skip,
+        take,
+        include: { codigo: { select: { codigo: true } } },
+      }),
+      this.prisma.sorteoParticipacion.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async exportarParticipacionesCsv(sorteoId: number): Promise<string> {
+    await this.buscarSorteo(sorteoId);
+
+    const filas = await this.prisma.sorteoParticipacion.findMany({
+      where: { sorteoId },
+      orderBy: { id: 'asc' },
+      include: { codigo: { select: { codigo: true } } },
+    });
+
+    const columnas = [
+      'Id',
+      'Fecha',
+      'Nombre',
+      'Teléfono',
+      'Edad',
+      'Email',
+      'Código',
+      'Ganador',
+      'Código de canje',
+      'Premio entregado',
+      'Fecha de entrega',
+      'Dispositivo',
+      'Fingerprint',
+      'User agent',
+      'IP',
+      'Idioma',
+      'Plataforma',
+      'Resolución',
+      'País (IP)',
+      'Región (IP)',
+      'Ciudad (IP)',
+      'Latitud',
+      'Longitud',
+      'País (GPS)',
+      'Departamento (GPS)',
+      'Localidad (GPS)',
+      'Fuente geo',
+    ];
+
+    const lineas = filas.map((f) =>
+      [
+        f.id,
+        fechaHoraMontevideo(f.createdAt),
+        f.nombre,
+        f.telefono,
+        f.edad,
+        f.email,
+        f.codigo?.codigo,
+        csvBooleano(f.ganador),
+        f.codigoCanje,
+        csvBooleano(f.premioEntregado),
+        f.premioEntregadoAt ? fechaHoraMontevideo(f.premioEntregadoAt) : null,
+        f.deviceId,
+        f.fingerprint,
+        f.userAgent,
+        f.ip,
+        f.idioma,
+        f.plataforma,
+        f.resolucion,
+        f.ipPais,
+        f.ipRegion,
+        f.ipCiudad,
+        f.gpsLat,
+        f.gpsLng,
+        f.gpsPais,
+        f.gpsDepartamento,
+        f.gpsLocalidad,
+        f.geoFuente,
+      ].map(csvCampo),
+    );
+
+    const cuerpo = [columnas.map(csvCampo), ...lineas].map((c) => c.join(';')).join('\r\n');
+    // BOM para que Excel en español abra el UTF-8 sin romper los acentos.
+    return `\uFEFF${cuerpo}\r\n`;
+  }
+
+  async marcarPremioEntregado(participacionId: number) {
+    const participacion = await this.prisma.sorteoParticipacion.findUnique({
+      where: { id: participacionId },
+    });
+    if (!participacion) {
+      throw new NotFoundException(`Participación ${participacionId} no encontrada`);
+    }
+    if (!participacion.ganador) {
+      throw new BadRequestException(`La participación ${participacionId} no es ganadora`);
+    }
+
+    return this.prisma.sorteoParticipacion.update({
+      where: { id: participacionId },
+      data: { premioEntregado: true, premioEntregadoAt: new Date() },
     });
   }
 }

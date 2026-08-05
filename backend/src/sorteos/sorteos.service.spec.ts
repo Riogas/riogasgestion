@@ -42,8 +42,14 @@ function crearPrismaMock() {
     },
   };
   mock.$executeRaw = jest.fn();
+  mock.$queryRaw = jest.fn();
   mock.$transaction = jest.fn((cb: (tx: unknown) => unknown) => cb(mock));
   return mock;
+}
+
+/** Claves de los advisory locks tomados, en orden de invocación. */
+function clavesLock(prisma: any): string[] {
+  return prisma.$executeRaw.mock.calls.map((c: any[]) => c[1]);
 }
 
 function crearGeoMock() {
@@ -121,6 +127,7 @@ describe('SorteosService', () => {
     prisma.sorteoMomentoGanador.deleteMany.mockResolvedValue({ count: 0 });
     prisma.sorteoMomentoGanador.count.mockResolvedValue(0);
     prisma.$executeRaw.mockResolvedValue(1);
+    prisma.$queryRaw.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -401,10 +408,10 @@ describe('SorteosService', () => {
 
       await service.participar(inputBase({ telefono: '+598 99 123 456' }));
 
-      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
-      const [sql, valor] = prisma.$executeRaw.mock.calls[0];
+      const indice = clavesLock(prisma).indexOf('sorteo:7:tel:099123456');
+      expect(indice).toBeGreaterThanOrEqual(0);
+      const [sql] = prisma.$executeRaw.mock.calls[indice];
       expect(sql.join('?')).toContain('pg_advisory_xact_lock(hashtext(');
-      expect(valor).toBe('sorteo:7:tel:099123456');
     });
 
     it('el advisory lock se toma antes del count de "ya ganó"', async () => {
@@ -412,7 +419,8 @@ describe('SorteosService', () => {
 
       await service.participar(inputBase());
 
-      const ordenLock = prisma.$executeRaw.mock.invocationCallOrder[0];
+      const indiceLock = clavesLock(prisma).indexOf('sorteo:7:tel:099123456');
+      const ordenLock = prisma.$executeRaw.mock.invocationCallOrder[indiceLock];
       const indiceCount = prisma.sorteoParticipacion.count.mock.calls.findIndex(
         (c: any[]) => c[0]?.where?.ganador === true,
       );
@@ -425,7 +433,149 @@ describe('SorteosService', () => {
 
       await service.participar(inputBase());
 
-      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(clavesLock(prisma)).toContain('sorteo:7:tel:099123456');
+    });
+  });
+
+  // ─── participar: límite por dispositivo serializado ───────────────────────
+
+  describe('participar — advisory lock del límite diario por dispositivo', () => {
+    it('toma un lock por sorteo+deviceId antes de contar los registros del día', async () => {
+      await service.participar(inputBase({ deviceId: 'dev-1' }));
+
+      const claves = clavesLock(prisma);
+      const indiceLock = claves.indexOf('sorteo:7:device:dev-1');
+      expect(indiceLock).toBeGreaterThanOrEqual(0);
+      const [sql] = prisma.$executeRaw.mock.calls[indiceLock];
+      expect(sql.join('?')).toContain('pg_advisory_xact_lock(hashtext(');
+
+      const ordenLock = prisma.$executeRaw.mock.invocationCallOrder[indiceLock];
+      const indiceCount = prisma.sorteoParticipacion.count.mock.calls.findIndex(
+        (c: any[]) => c[0]?.where?.deviceId === 'dev-1',
+      );
+      const ordenCount = prisma.sorteoParticipacion.count.mock.invocationCallOrder[indiceCount];
+      expect(ordenLock).toBeLessThan(ordenCount);
+    });
+
+    it('el lock del dispositivo se toma antes que el del teléfono (mismo orden siempre, sin deadlock)', async () => {
+      await service.participar(inputBase());
+
+      const claves = clavesLock(prisma);
+      expect(claves.indexOf('sorteo:7:device:dev-1')).toBeLessThan(
+        claves.indexOf('sorteo:7:tel:099123456'),
+      );
+    });
+
+    it('con el límite alcanzado ya tomó el lock (el count no corre sin serializar)', async () => {
+      mockCounts({ dispositivo: 1 });
+
+      await expect(service.participar(inputBase())).resolves.toEqual({
+        resultado: 'limite_dispositivo',
+      });
+      expect(clavesLock(prisma)).toEqual(['sorteo:7:device:dev-1']);
+    });
+  });
+
+  // ─── participar: normalización de teléfono e ip ───────────────────────────
+
+  describe('participar — normalización del teléfono (misma canónica que el front)', () => {
+    it.each([
+      ['099123456', '099123456'],
+      ['099 123 456', '099123456'],
+      ['+598 99 123 456', '099123456'],
+      ['59899123456', '099123456'],
+      ['0059899123456', '099123456'],
+      ['99123456', '099123456'],
+      ['24001234', '24001234'],
+      ['+598 2 400 1234', '24001234'],
+      ['0059824001234', '24001234'],
+      ['43334444', '43334444'],
+    ])('%s → %s', async (entrada, esperado) => {
+      await service.participar(inputBase({ telefono: entrada }));
+
+      expect(prisma.sorteoParticipacion.create.mock.calls[0][0].data.telefono).toBe(esperado);
+    });
+
+    it('todas las variantes del mismo número comparten la clave del lock de premio', async () => {
+      for (const telefono of ['099123456', '99123456', '59899123456', '0059899123456']) {
+        prisma.$executeRaw.mockClear();
+
+        await service.participar(inputBase({ telefono }));
+
+        expect(clavesLock(prisma)).toContain('sorteo:7:tel:099123456');
+      }
+    });
+
+    it('lo que no es un teléfono uruguayo válido se guarda como dígitos crudos', async () => {
+      await service.participar(inputBase({ telefono: '+1 555 0100 999' }));
+
+      expect(prisma.sorteoParticipacion.create.mock.calls[0][0].data.telefono).toBe('15550100999');
+    });
+  });
+
+  describe('participar — saneo de la ip (header controlado por el cliente)', () => {
+    it.each([
+      ['190.64.1.2', '190.64.1.2'],
+      ['::1', '::1'],
+      ['2800:a4:1d2:3f00::1', '2800:a4:1d2:3f00::1'],
+      ['::ffff:190.64.1.2', '::ffff:190.64.1.2'],
+    ])('%s se guarda tal cual', async (ip, esperado) => {
+      await service.participar(inputBase({ ip }));
+
+      expect(prisma.sorteoParticipacion.create.mock.calls[0][0].data.ip).toBe(esperado);
+    });
+
+    it.each([
+      ['a'.repeat(300)],
+      ['<script>alert(1)</script>'],
+      ['no-es-una-ip'],
+      ['   '],
+    ])('%s no parece una ip → se guarda null', async (ip) => {
+      await service.participar(inputBase({ ip }));
+
+      expect(prisma.sorteoParticipacion.create.mock.calls[0][0].data.ip).toBeNull();
+    });
+
+    it('a geoip-lite solo se le pasa una ip saneada', async () => {
+      await service.participar(inputBase({ ip: 'x'.repeat(200) }));
+
+      expect(geo.porIp).toHaveBeenCalledWith(undefined);
+    });
+  });
+
+  // ─── participar: no gastar red en participaciones que se rechazan ─────────
+
+  describe('participar — el geocoding corre después de las validaciones baratas', () => {
+    it('código ya usado → no llama a Nominatim', async () => {
+      mockCodigo({ estado: 'usado' });
+
+      await service.participar(inputBase({ gpsLat: -34.9, gpsLng: -56.1 }));
+
+      expect(geo.reverse).not.toHaveBeenCalled();
+      expect(geo.porIp).not.toHaveBeenCalled();
+    });
+
+    it('sorteo vencido → no llama a Nominatim', async () => {
+      mockCodigo({}, { fechaHasta: new Date('2026-08-10T03:00:00Z') });
+
+      await service.participar(inputBase({ gpsLat: -34.9, gpsLng: -56.1 }));
+
+      expect(geo.reverse).not.toHaveBeenCalled();
+    });
+
+    it('edad menor a la mínima → no llama a Nominatim', async () => {
+      await service.participar(inputBase({ edad: 17, gpsLat: -34.9, gpsLng: -56.1 }));
+
+      expect(geo.reverse).not.toHaveBeenCalled();
+    });
+
+    it('participación válida → el reverse corre fuera de la transacción', async () => {
+      await service.participar(inputBase({ gpsLat: -34.9, gpsLng: -56.1 }));
+
+      expect(geo.reverse).toHaveBeenCalledTimes(1);
+      expect(geo.reverse.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.$transaction.mock.invocationCallOrder[0],
+      );
     });
   });
 
@@ -528,6 +678,38 @@ describe('SorteosService', () => {
 
       expect(prisma.$transaction.mock.calls[0][1]).toEqual({ timeout: 60_000, maxWait: 15_000 });
     });
+
+    it('sorteo con la ventana ya vencida → BadRequestException y no genera momentos', async () => {
+      prisma.sorteo.findUnique.mockResolvedValue(
+        sorteoBase({ estado: 'borrador', fechaHasta: new Date('2026-08-15T11:59:59Z') }),
+      );
+
+      await expect(service.activar(7)).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.sorteoMomentoGanador.createMany).not.toHaveBeenCalled();
+      expect(prisma.sorteo.update).not.toHaveBeenCalled();
+    });
+
+    it('fechaHasta exactamente ahora → BadRequestException (span cero)', async () => {
+      prisma.sorteo.findUnique.mockResolvedValue(
+        sorteoBase({ estado: 'borrador', fechaHasta: NOW }),
+      );
+
+      await expect(service.activar(7)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('toma el advisory lock de momentos antes de leer el sorteo', async () => {
+      prisma.sorteo.findUnique.mockResolvedValue(sorteoBase({ estado: 'borrador' }));
+      prisma.sorteo.update.mockResolvedValue(sorteoBase({ estado: 'activo' }));
+
+      await service.activar(7);
+
+      expect(clavesLock(prisma)).toEqual(['sorteo:7:momentos']);
+      const [sql] = prisma.$executeRaw.mock.calls[0];
+      expect(sql.join('?')).toContain('pg_advisory_xact_lock(hashtext(');
+      expect(prisma.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.sorteo.findUnique.mock.invocationCallOrder[0],
+      );
+    });
   });
 
   // ─── regenerarMomentosPendientes ──────────────────────────────────────────
@@ -600,6 +782,25 @@ describe('SorteosService', () => {
       await service.regenerarMomentosPendientes(7);
 
       expect(prisma.$transaction.mock.calls[0][1]).toEqual({ timeout: 60_000, maxWait: 15_000 });
+    });
+
+    it('toma el advisory lock de momentos antes de borrar y regenerar', async () => {
+      prisma.sorteo.findUnique.mockResolvedValue(sorteoBase());
+
+      await service.regenerarMomentosPendientes(7);
+
+      expect(clavesLock(prisma)).toEqual(['sorteo:7:momentos']);
+      expect(prisma.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.sorteoMomentoGanador.deleteMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('el lock también se toma cuando la regeneración se omite (sorteo no activo)', async () => {
+      prisma.sorteo.findUnique.mockResolvedValue(sorteoBase({ estado: 'finalizado' }));
+
+      await service.regenerarMomentosPendientes(7);
+
+      expect(clavesLock(prisma)).toEqual(['sorteo:7:momentos']);
     });
   });
 
@@ -696,6 +897,11 @@ describe('SorteosService', () => {
   // ─── Admin: detalle con stats ─────────────────────────────────────────────
 
   describe('detalle', () => {
+    /** Los agregados salen de dos queries SQL: se distinguen por el texto del SQL. */
+    function sqlDe(call: any[]): string {
+      return (call[0] as string[]).join('?');
+    }
+
     beforeEach(() => {
       prisma.sorteo.findUnique.mockResolvedValue(sorteoBase());
       prisma.sorteoParticipacion.count.mockImplementation(async (args: any) => {
@@ -706,13 +912,17 @@ describe('SorteosService', () => {
       prisma.sorteoCodigo.count.mockImplementation(async (args: any) =>
         args.where.estado === 'usado' ? 4 : 500,
       );
-      prisma.sorteoParticipacion.findMany.mockResolvedValue([
-        // 02:00 UTC cae el día anterior en Montevideo (UTC-3)
-        { createdAt: new Date('2026-08-15T02:00:00Z'), ganador: false, gpsDepartamento: 'Montevideo', ipRegion: 'MO' },
-        { createdAt: new Date('2026-08-15T12:00:00Z'), ganador: true, gpsDepartamento: null, ipRegion: 'Canelones' },
-        { createdAt: new Date('2026-08-15T18:00:00Z'), ganador: true, gpsDepartamento: 'Montevideo', ipRegion: null },
-        { createdAt: new Date('2026-08-15T20:00:00Z'), ganador: false, gpsDepartamento: null, ipRegion: null },
-      ]);
+      prisma.$queryRaw.mockImplementation(async (...call: any[]) =>
+        sqlDe(call).includes('gpsDepartamento')
+          ? [
+              { departamento: 'Montevideo', cantidad: 2n },
+              { departamento: 'Canelones', cantidad: 1n },
+            ]
+          : [
+              { fecha: '2026-08-14', cantidad: 1n, ganadores: 0n },
+              { fecha: '2026-08-15', cantidad: 3n, ganadores: 2n },
+            ],
+      );
     });
 
     it('sorteo inexistente → NotFoundException', async () => {
@@ -734,13 +944,16 @@ describe('SorteosService', () => {
       });
     });
 
-    it('agrupa por día calendario de Montevideo', async () => {
+    it('agrupa por día calendario de Montevideo en SQL (UTC-3)', async () => {
       const r = await service.detalle(7);
 
       expect(r.stats.porDia).toEqual([
         { fecha: '2026-08-14', cantidad: 1, ganadores: 0 },
         { fecha: '2026-08-15', cantidad: 3, ganadores: 2 },
       ]);
+      const sql = prisma.$queryRaw.mock.calls.map(sqlDe).join(' ');
+      expect(sql).toContain("interval '3 hours'");
+      expect(sql).toContain('GROUP BY');
     });
 
     it('agrupa por departamento con gpsDepartamento ?? ipRegion y descarta los sin dato', async () => {
@@ -750,6 +963,26 @@ describe('SorteosService', () => {
         { departamento: 'Montevideo', cantidad: 2 },
         { departamento: 'Canelones', cantidad: 1 },
       ]);
+      const sqlDepto = prisma.$queryRaw.mock.calls
+        .map(sqlDe)
+        .find((s: string) => s.includes('gpsDepartamento'));
+      expect(sqlDepto).toContain('COALESCE');
+      expect(sqlDepto).toContain('IS NOT NULL');
+    });
+
+    it('no materializa las participaciones en memoria', async () => {
+      await service.detalle(7);
+
+      expect(prisma.sorteoParticipacion.findMany).not.toHaveBeenCalled();
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('los agregados se piden solo del sorteo pedido', async () => {
+      await service.detalle(7);
+
+      for (const call of prisma.$queryRaw.mock.calls) {
+        expect(call[1]).toBe(7);
+      }
     });
   });
 
@@ -809,6 +1042,32 @@ describe('SorteosService', () => {
       await service.actualizar(7, { cantidadPremios: 20 });
 
       expect(prisma.sorteoMomentoGanador.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('el update y la regeneración van en la misma transacción, bajo el lock de momentos', async () => {
+      await service.actualizar(7, { cantidadPremios: 20 });
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.$transaction.mock.calls[0][1]).toEqual({ timeout: 60_000, maxWait: 15_000 });
+      expect(clavesLock(prisma)).toEqual(['sorteo:7:momentos']);
+      expect(prisma.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.sorteo.update.mock.invocationCallOrder[0],
+      );
+      expect(prisma.sorteo.update.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.sorteoMomentoGanador.deleteMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('regenera con las fechas ya actualizadas (no vuelve a leer el sorteo viejo)', async () => {
+      const fechaHasta = new Date('2026-08-20T03:00:00Z');
+      prisma.sorteo.update.mockResolvedValue(sorteoBase({ fechaHasta }));
+
+      await service.actualizar(7, { fechaHasta });
+
+      const filas = prisma.sorteoMomentoGanador.createMany.mock.calls[0][0].data;
+      for (const f of filas) {
+        expect(f.fechaMomento.getTime()).toBeLessThanOrEqual(fechaHasta.getTime());
+      }
     });
   });
 
@@ -1038,13 +1297,22 @@ describe('SorteosService', () => {
       };
     }
 
+    /** El CSV se streamea por chunks: los tests lo reconstruyen para inspeccionarlo. */
+    async function exportar(): Promise<string> {
+      const chunks: string[] = [];
+      await service.exportarParticipacionesCsv(7, (c) => {
+        chunks.push(c);
+      });
+      return chunks.join('');
+    }
+
     beforeEach(() => {
       prisma.sorteo.findUnique.mockResolvedValue(sorteoBase());
       prisma.sorteoParticipacion.findMany.mockResolvedValue([participacionCsv()]);
     });
 
     it('arranca con BOM y header en español separado por ;', async () => {
-      const csv = await service.exportarParticipacionesCsv(7);
+      const csv = await exportar();
 
       expect(csv.charCodeAt(0)).toBe(0xfeff);
       const header = csv.slice(1).split('\r\n')[0];
@@ -1054,7 +1322,7 @@ describe('SorteosService', () => {
     });
 
     it('escribe las fechas en hora de Montevideo y los booleanos en español', async () => {
-      const csv = await service.exportarParticipacionesCsv(7);
+      const csv = await exportar();
       const fila = csv.split('\r\n')[1].split(';');
 
       expect(fila[1]).toBe('2026-08-15 09:30:00');
@@ -1069,7 +1337,7 @@ describe('SorteosService', () => {
         participacionCsv({ nombre: 'Pérez; Juan "el 9"\nsegunda línea' }),
       ]);
 
-      const csv = await service.exportarParticipacionesCsv(7);
+      const csv = await exportar();
 
       expect(csv).toContain('"Pérez; Juan ""el 9""\nsegunda línea"');
     });
@@ -1079,7 +1347,7 @@ describe('SorteosService', () => {
       async (nombre) => {
         prisma.sorteoParticipacion.findMany.mockResolvedValue([participacionCsv({ nombre })]);
 
-        const csv = await service.exportarParticipacionesCsv(7);
+        const csv = await exportar();
         const fila = csv.split('\r\n')[1].split(';');
 
         expect(fila[2]).toBe(`'${nombre}`);
@@ -1091,13 +1359,13 @@ describe('SorteosService', () => {
         participacionCsv({ email: '=HYPERLINK("http://x";"click")' }),
       ]);
 
-      const csv = await service.exportarParticipacionesCsv(7);
+      const csv = await exportar();
 
       expect(csv).toContain('"\'=HYPERLINK(""http://x"";""click"")"');
     });
 
     it('un valor normal no se toca', async () => {
-      const csv = await service.exportarParticipacionesCsv(7);
+      const csv = await exportar();
       const fila = csv.split('\r\n')[1].split(';');
 
       expect(fila[2]).toBe('Juan Pérez');
@@ -1107,7 +1375,51 @@ describe('SorteosService', () => {
     it('sorteo inexistente → NotFoundException', async () => {
       prisma.sorteo.findUnique.mockResolvedValue(null);
 
-      await expect(service.exportarParticipacionesCsv(7)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(exportar()).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.sorteoParticipacion.findMany).not.toHaveBeenCalled();
+    });
+
+    it('lee por batches con keyset ascendente en vez de traer todo junto', async () => {
+      const lleno = Array.from({ length: 500 }, (_, i) => participacionCsv({ id: i + 1 }));
+      prisma.sorteoParticipacion.findMany
+        .mockResolvedValueOnce(lleno)
+        .mockResolvedValueOnce([participacionCsv({ id: 501 })]);
+
+      await exportar();
+
+      expect(prisma.sorteoParticipacion.findMany).toHaveBeenCalledTimes(2);
+      expect(prisma.sorteoParticipacion.findMany.mock.calls[0][0]).toMatchObject({
+        where: { sorteoId: 7, id: { gt: 0 } },
+        orderBy: { id: 'asc' },
+        take: 500,
+      });
+      expect(prisma.sorteoParticipacion.findMany.mock.calls[1][0]).toMatchObject({
+        where: { sorteoId: 7, id: { gt: 500 } },
+      });
+    });
+
+    it('escribe el header primero y una línea por participación', async () => {
+      prisma.sorteoParticipacion.findMany.mockResolvedValue([
+        participacionCsv({ id: 1 }),
+        participacionCsv({ id: 2 }),
+      ]);
+
+      const chunks: string[] = [];
+      await service.exportarParticipacionesCsv(7, (c) => {
+        chunks.push(c);
+      });
+
+      expect(chunks[0].charCodeAt(0)).toBe(0xfeff);
+      expect(chunks).toHaveLength(2);
+      expect(chunks.join('').trimEnd().split('\r\n')).toHaveLength(3);
+    });
+
+    it('sin participaciones devuelve solo el header', async () => {
+      prisma.sorteoParticipacion.findMany.mockResolvedValue([]);
+
+      const csv = await exportar();
+
+      expect(csv.slice(1).trimEnd().split('\r\n')).toHaveLength(1);
     });
   });
 

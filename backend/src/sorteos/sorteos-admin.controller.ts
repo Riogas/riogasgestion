@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpException,
+  HttpStatus,
   InternalServerErrorException,
   Logger,
   Param,
@@ -33,6 +35,20 @@ const QR_OPTIONS: QRCode.QRCodeToBufferOptions = {
   margin: 4,
   errorCorrectionLevel: 'M',
 };
+
+/**
+ * Cada código es un PNG de 1024px encodeado en el hilo principal (~decenas de ms):
+ * un lote de 10.000 son minutos de CPU. Sin tope, dos descargas en paralelo dejan
+ * sin event loop al resto del backend (clientes, móviles, zonas), así que la
+ * segunda se rechaza con 429 en vez de encolarse.
+ */
+const ZIP_MAX_CONCURRENTES = 1;
+let zipsEnCurso = 0;
+
+/** Devuelve el turno al event loop entre batches para que otras requests avancen. */
+function cederEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 
 /**
  * Espera a que la response drene. Si el cliente corta la descarga no llega
@@ -170,6 +186,14 @@ export class SorteosAdminController {
       );
     }
 
+    if (zipsEnCurso >= ZIP_MAX_CONCURRENTES) {
+      throw new HttpException(
+        'Ya hay una descarga de códigos generándose; esperá a que termine y volvé a intentar',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    zipsEnCurso += 1;
+
     // Los PNG ya vienen comprimidos: deflatearlos otra vez es CPU regalada.
     const zip = archiver('zip', { store: true });
 
@@ -196,12 +220,15 @@ export class SorteosAdminController {
         // Si el cliente no da abasto, esperar antes de encolar el batch siguiente:
         // los buffers encolados en el archiver son los que consumen la memoria.
         await esperarDrain(res);
+        await cederEventLoop();
       }
       await zip.finalize();
     } catch (err) {
       this.logger.error(`ZIP del lote ${loteId} abortado: ${(err as Error).message}`);
       zip.abort();
       res.destroy(err as Error);
+    } finally {
+      zipsEnCurso -= 1;
     }
   }
 
@@ -221,14 +248,20 @@ export class SorteosAdminController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
   async exportarParticipaciones(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const csv = await this.sorteos.exportarParticipacionesCsv(id);
+    // Los headers se escriben con el primer chunk: si el sorteo no existe, el
+    // service tira 404 antes de escribir nada y Nest todavía puede responder JSON.
+    let iniciado = false;
 
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="sorteo-${id}-participaciones.csv"`,
-    );
-    res.send(csv);
+    await this.sorteos.exportarParticipacionesCsv(id, async (chunk) => {
+      if (!iniciado) {
+        iniciado = true;
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="sorteo-${id}-participaciones.csv"`);
+      }
+      if (!res.write(chunk)) await esperarDrain(res);
+    });
+
+    res.end();
   }
 
   @Post('participaciones/:id/entregar')

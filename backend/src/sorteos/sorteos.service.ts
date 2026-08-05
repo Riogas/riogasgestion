@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CODIGO_REGEX,
   fechaHoraMontevideo,
-  fechaMontevideo,
   formatearCanje,
   generarCodigo,
   generarMomentos,
@@ -53,6 +52,14 @@ interface SorteoVigencia {
   fechaHasta: Date;
 }
 
+interface SorteoRegenerable extends SorteoVigencia {
+  id: number;
+  cantidadPremios: number;
+}
+
+/** Cliente de Prisma dentro de un `$transaction` interactivo. */
+type TxCliente = Prisma.TransactionClient;
+
 export interface RegeneracionMomentos {
   generados: number;
   ganadores: number;
@@ -93,6 +100,9 @@ const PAGE_SIZE_MAX = 200;
 /** Los createMany masivos (hasta 100.000 momentos / 10.000 códigos) no entran en los 5s default. */
 const TX_MOMENTOS = { timeout: 60_000, maxWait: 15_000 };
 
+/** Filas por vuelta del CSV: una campaña grande son cientos de miles de participaciones. */
+const CSV_BATCH = 500;
+
 /** Violación de unique de Postgres vía Prisma (el `instanceof` no sobrevive al mock). */
 function esColisionDeCodigo(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === 'P2002';
@@ -114,14 +124,43 @@ function csvBooleano(valor: boolean): string {
   return valor ? 'Sí' : 'No';
 }
 
-/** Solo dígitos; +598 se colapsa al formato local (099123456 / 24001234). */
+/** Celular (09 + 7 cifras) o fijo (2/4 + 7 cifras), ya normalizado. */
+const TELEFONO_UY_REGEX = /^(09\d{7}|[24]\d{7})$/;
+
+/**
+ * Forma canónica del teléfono: mismo algoritmo que `normalizarTelefonoUy` del
+ * front (`src/components/sorteo/SorteoForm.tsx`). Es la clave del tope de
+ * "1 premio por teléfono por sorteo" (advisory lock + count de ganadores), así
+ * que front y back tienen que coincidir: si el back es más laxo, el mismo número
+ * escrito distinto (`00598…`, `598…`, `9XXXXXXX`) genera identidades distintas y
+ * el tope se saltea. Lo que no canoniza a un teléfono uruguayo válido se guarda
+ * como los dígitos crudos (no se inventa un formato a medias).
+ */
 function normalizarTelefono(raw: string): string {
-  const digitos = (raw ?? '').replace(/\D/g, '');
-  if (digitos.startsWith('598') && digitos.length > 9) {
-    const local = digitos.slice(3);
-    return local.startsWith('9') ? `0${local}` : local;
-  }
-  return digitos;
+  const crudo = (raw ?? '').replace(/\D+/g, '');
+  let digitos = crudo;
+  if (digitos.startsWith('00598') && digitos.length > 11) digitos = digitos.slice(5);
+  else if (digitos.startsWith('598') && digitos.length > 9) digitos = digitos.slice(3);
+  if (/^9\d{7}$/.test(digitos)) digitos = `0${digitos}`;
+  return TELEFONO_UY_REGEX.test(digitos) ? digitos : crudo;
+}
+
+/** Ancho de la columna `ip` (VarChar(45), suficiente para IPv6 con zona). */
+const IP_MAX = 45;
+
+/**
+ * La ip llega de `x-forwarded-for`: es un header que escribe el cliente. Se
+ * recorta al ancho de la columna y se descarta lo que no parece una IP (un valor
+ * más largo que la columna aborta la transacción entera de participar).
+ */
+function normalizarIp(raw?: string): string | null {
+  const valor = (raw ?? '').trim().slice(0, IP_MAX);
+  if (!valor) return null;
+
+  const esV4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(valor);
+  const esV6 = /^[0-9A-Fa-f:]+$/.test(valor) && valor.includes(':');
+  const esV4EnV6 = /^[0-9A-Fa-f:]+:(\d{1,3}\.){3}\d{1,3}$/.test(valor);
+  return esV4 || esV6 || esV4EnV6 ? valor : null;
 }
 
 @Injectable()
@@ -179,10 +218,24 @@ export class SorteosService {
 
     const ahora = new Date();
     const tieneGps = dto.gpsLat != null && dto.gpsLng != null;
+    const ip = normalizarIp(dto.ip);
+
+    // Pre-chequeo barato antes de gastar red: sin esto un código inválido, vencido
+    // o ya usado igual dispara el reverse geocoding contra Nominatim. La transacción
+    // vuelve a validar todo (esto es solo un descarte temprano, no la autoridad).
+    const previo = await this.prisma.sorteoCodigo.findUnique({
+      where: { codigo: limpio },
+      include: { sorteo: true },
+    });
+    if (!previo) return { resultado: 'invalido' };
+    const fueraPrevio = this.vigencia(previo.sorteo, ahora);
+    if (fueraPrevio) return { resultado: fueraPrevio };
+    if (previo.estado !== 'disponible') return { resultado: 'usado' };
+    if (dto.edad < previo.sorteo.edadMinima) return { resultado: 'edad_invalida' };
 
     // Lecturas externas de solo lectura: se resuelven antes de abrir la transacción
     // para no atarla a la latencia/errores de geoip-lite o Nominatim. No-fatales.
-    const geoIp = this.geo.porIp(dto.ip);
+    const geoIp = this.geo.porIp(ip ?? undefined);
     const geoGps = tieneGps ? await this.geo.reverse(dto.gpsLat as number, dto.gpsLng as number) : {};
     const geoFuente = tieneGps ? 'gps' : geoIp.ipPais ? 'ip' : null;
 
@@ -198,6 +251,10 @@ export class SorteosService {
       if (fuera) return { resultado: fuera };
       if (codigo.estado !== 'disponible') return { resultado: 'usado' };
       if (dto.edad < sorteo.edadMinima) return { resultado: 'edad_invalida' };
+
+      // Sin este lock el count-then-create es un TOCTOU: N requests paralelas del
+      // mismo dispositivo leen todas "0 registros hoy" y todas insertan.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sorteo:${sorteo.id}:device:${dto.deviceId}`}))`;
 
       const registrosHoy = await tx.sorteoParticipacion.count({
         where: {
@@ -230,7 +287,7 @@ export class SorteosService {
           deviceId: dto.deviceId,
           fingerprint: dto.fingerprint ?? null,
           userAgent: dto.userAgent ?? null,
-          ip: dto.ip ?? null,
+          ip,
           idioma: dto.idioma ?? null,
           plataforma: dto.plataforma ?? null,
           resolucion: dto.resolucion ?? null,
@@ -289,15 +346,36 @@ export class SorteosService {
     return new Date(Math.max(ahora.getTime(), sorteo.fechaDesde.getTime()));
   }
 
+  /**
+   * Serializa todo lo que toca los momentos de un sorteo (activación, regeneración
+   * y la edición que la dispara). Sin esto dos PATCH concurrentes borran cada uno
+   * los pendientes del otro y terminan creando dos juegos completos de momentos:
+   * el sorteo puede entregar más premios que `cantidadPremios`.
+   * Se libera solo con el commit/rollback de la transacción.
+   */
+  private async lockMomentos(tx: TxCliente, id: number): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sorteo:${id}:momentos`}))`;
+  }
+
   async activar(id: number) {
     const ahora = new Date();
 
     return this.prisma.$transaction(async (tx) => {
+      await this.lockMomentos(tx, id);
+
       const sorteo = await tx.sorteo.findUnique({ where: { id } });
       if (!sorteo) throw new NotFoundException(`Sorteo ${id} no encontrado`);
       if (sorteo.estado !== 'borrador') {
         throw new BadRequestException(
           `Solo se puede activar un sorteo en borrador (estado actual: ${sorteo.estado})`,
+        );
+      }
+      // Con la ventana vencida los momentos se colapsarían todos en `ahora`, después
+      // del fin del sorteo: quedarían para siempre sin reclamar y el sorteo, activo
+      // para el admin y finalizado para el público.
+      if (sorteo.fechaHasta <= ahora) {
+        throw new BadRequestException(
+          'No se puede activar un sorteo cuya fecha de fin ya pasó: corregí las fechas primero',
         );
       }
 
@@ -319,36 +397,45 @@ export class SorteosService {
     const ahora = new Date();
 
     return this.prisma.$transaction(async (tx): Promise<RegeneracionMomentos> => {
+      await this.lockMomentos(tx, id);
+
       const sorteo = await tx.sorteo.findUnique({ where: { id } });
       if (!sorteo) throw new NotFoundException(`Sorteo ${id} no encontrado`);
 
-      // Sobre un sorteo que no está corriendo no hay nada que redistribuir: regenerar
-      // repoblaría momentos en un sorteo cancelado/finalizado, o los colapsaría todos
-      // al mismo instante si la ventana ya venció (todos reclamables de golpe).
-      if (sorteo.estado !== 'activo' || sorteo.fechaHasta <= ahora) {
-        return { generados: 0, ganadores: 0, omitido: true };
-      }
-
-      await tx.sorteoMomentoGanador.deleteMany({ where: { sorteoId: id, participacionId: null } });
-
-      const ganadores = await tx.sorteoMomentoGanador.count({
-        where: { sorteoId: id, participacionId: { not: null } },
-      });
-      const restantes = sorteo.cantidadPremios - ganadores;
-      if (restantes <= 0) return { generados: 0, ganadores };
-
-      const momentos = generarMomentos(
-        restantes,
-        this.ventana(sorteo, ahora),
-        sorteo.fechaHasta,
-      );
-      await tx.sorteoMomentoGanador.createMany({
-        data: momentos.map((fechaMomento) => ({ sorteoId: id, fechaMomento })),
-      });
-      this.logger.log(`Sorteo ${id}: ${restantes} momentos pendientes regenerados`);
-
-      return { generados: restantes, ganadores };
+      return this.regenerarEnTx(tx, sorteo, ahora);
     }, TX_MOMENTOS);
+  }
+
+  /** Cuerpo de la regeneración: asume el `lockMomentos` ya tomado en esta transacción. */
+  private async regenerarEnTx(
+    tx: TxCliente,
+    sorteo: SorteoRegenerable,
+    ahora: Date,
+  ): Promise<RegeneracionMomentos> {
+    const id = sorteo.id;
+
+    // Sobre un sorteo que no está corriendo no hay nada que redistribuir: regenerar
+    // repoblaría momentos en un sorteo cancelado/finalizado, o los colapsaría todos
+    // al mismo instante si la ventana ya venció (todos reclamables de golpe).
+    if (sorteo.estado !== 'activo' || sorteo.fechaHasta <= ahora) {
+      return { generados: 0, ganadores: 0, omitido: true };
+    }
+
+    await tx.sorteoMomentoGanador.deleteMany({ where: { sorteoId: id, participacionId: null } });
+
+    const ganadores = await tx.sorteoMomentoGanador.count({
+      where: { sorteoId: id, participacionId: { not: null } },
+    });
+    const restantes = sorteo.cantidadPremios - ganadores;
+    if (restantes <= 0) return { generados: 0, ganadores };
+
+    const momentos = generarMomentos(restantes, this.ventana(sorteo, ahora), sorteo.fechaHasta);
+    await tx.sorteoMomentoGanador.createMany({
+      data: momentos.map((fechaMomento) => ({ sorteoId: id, fechaMomento })),
+    });
+    this.logger.log(`Sorteo ${id}: ${restantes} momentos pendientes regenerados`);
+
+    return { generados: restantes, ganadores };
   }
 
   // ─── Admin: sorteos ─────────────────────────────────────────────────────────
@@ -439,36 +526,64 @@ export class SorteosService {
     });
   }
 
+  /**
+   * Participaciones por día calendario de Montevideo (UTC-3 fijo, sin DST desde
+   * 2015 — mismo criterio que `fechaMontevideo`). Se agrupa en SQL: traer todas
+   * las filas del sorteo para contarlas en JS no escala a campañas grandes.
+   */
+  private async porDia(sorteoId: number) {
+    const filas = await this.prisma.$queryRaw<
+      { fecha: string; cantidad: bigint; ganadores: bigint }[]
+    >`
+      SELECT to_char("createdAt" - interval '3 hours', 'YYYY-MM-DD') AS fecha,
+             COUNT(*) AS cantidad,
+             COUNT(*) FILTER (WHERE ganador) AS ganadores
+      FROM sorteo_participacion
+      WHERE "sorteoId" = ${sorteoId}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `;
+    return filas.map((f) => ({
+      fecha: f.fecha,
+      cantidad: Number(f.cantidad),
+      ganadores: Number(f.ganadores),
+    }));
+  }
+
+  /** Participaciones por departamento (GPS y, si no hay, la región de la IP). */
+  private async porDepartamento(sorteoId: number) {
+    const filas = await this.prisma.$queryRaw<{ departamento: string; cantidad: bigint }[]>`
+      SELECT COALESCE(NULLIF(btrim("gpsDepartamento"), ''), NULLIF(btrim("ipRegion"), '')) AS departamento,
+             COUNT(*) AS cantidad
+      FROM sorteo_participacion
+      WHERE "sorteoId" = ${sorteoId}
+      GROUP BY 1
+      HAVING COALESCE(NULLIF(btrim("gpsDepartamento"), ''), NULLIF(btrim("ipRegion"), '')) IS NOT NULL
+      ORDER BY 2 DESC, 1 ASC
+    `;
+    return filas.map((f) => ({ departamento: f.departamento, cantidad: Number(f.cantidad) }));
+  }
+
   async detalle(id: number) {
     const sorteo = await this.buscarSorteo(id);
 
-    const [participaciones, ganadores, premiosEntregados, codigosTotal, codigosUsados, filas] =
-      await Promise.all([
-        this.prisma.sorteoParticipacion.count({ where: { sorteoId: id } }),
-        this.prisma.sorteoParticipacion.count({ where: { sorteoId: id, ganador: true } }),
-        this.prisma.sorteoParticipacion.count({ where: { sorteoId: id, premioEntregado: true } }),
-        this.prisma.sorteoCodigo.count({ where: { sorteoId: id } }),
-        this.prisma.sorteoCodigo.count({ where: { sorteoId: id, estado: 'usado' } }),
-        this.prisma.sorteoParticipacion.findMany({
-          where: { sorteoId: id },
-          select: { createdAt: true, ganador: true, gpsDepartamento: true, ipRegion: true },
-        }),
-      ]);
-
-    const dias = new Map<string, { fecha: string; cantidad: number; ganadores: number }>();
-    const departamentos = new Map<string, number>();
-    for (const fila of filas) {
-      const fecha = fechaMontevideo(fila.createdAt);
-      const dia = dias.get(fecha) ?? { fecha, cantidad: 0, ganadores: 0 };
-      dia.cantidad += 1;
-      if (fila.ganador) dia.ganadores += 1;
-      dias.set(fecha, dia);
-
-      const departamento = (fila.gpsDepartamento ?? fila.ipRegion ?? '').trim();
-      if (departamento) {
-        departamentos.set(departamento, (departamentos.get(departamento) ?? 0) + 1);
-      }
-    }
+    const [
+      participaciones,
+      ganadores,
+      premiosEntregados,
+      codigosTotal,
+      codigosUsados,
+      porDia,
+      porDepartamento,
+    ] = await Promise.all([
+      this.prisma.sorteoParticipacion.count({ where: { sorteoId: id } }),
+      this.prisma.sorteoParticipacion.count({ where: { sorteoId: id, ganador: true } }),
+      this.prisma.sorteoParticipacion.count({ where: { sorteoId: id, premioEntregado: true } }),
+      this.prisma.sorteoCodigo.count({ where: { sorteoId: id } }),
+      this.prisma.sorteoCodigo.count({ where: { sorteoId: id, estado: 'usado' } }),
+      this.porDia(id),
+      this.porDepartamento(id),
+    ]);
 
     return {
       ...sorteo,
@@ -478,10 +593,8 @@ export class SorteosService {
         premiosEntregados,
         codigosTotal,
         codigosUsados,
-        porDia: [...dias.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)),
-        porDepartamento: [...departamentos.entries()]
-          .map(([departamento, cantidad]) => ({ departamento, cantidad }))
-          .sort((a, b) => b.cantidad - a.cantidad),
+        porDia,
+        porDepartamento,
       },
     };
   }
@@ -490,30 +603,39 @@ export class SorteosService {
     const actual = await this.buscarSorteo(id);
     this.validarRango(dto.fechaDesde ?? actual.fechaDesde, dto.fechaHasta ?? actual.fechaHasta);
 
-    const sorteo = await this.prisma.sorteo.update({
-      where: { id },
-      data: {
-        nombre: dto.nombre?.trim(),
-        descripcion: dto.descripcion === undefined ? undefined : dto.descripcion.trim() || null,
-        premioDescripcion: dto.premioDescripcion?.trim(),
-        fechaDesde: dto.fechaDesde,
-        fechaHasta: dto.fechaHasta,
-        cantidadPremios: dto.cantidadPremios,
-        maxRegistrosDispositivoDia: dto.maxRegistrosDispositivoDia,
-        edadMinima: dto.edadMinima,
-      },
-    });
-
     const cambiaronMomentos =
       (dto.fechaDesde !== undefined && dto.fechaDesde.getTime() !== actual.fechaDesde.getTime()) ||
       (dto.fechaHasta !== undefined && dto.fechaHasta.getTime() !== actual.fechaHasta.getTime()) ||
       (dto.cantidadPremios !== undefined && dto.cantidadPremios !== actual.cantidadPremios);
 
-    if (sorteo.estado === 'activo' && cambiaronMomentos) {
-      await this.regenerarMomentosPendientes(id);
-    }
+    const ahora = new Date();
 
-    return sorteo;
+    // El update y la regeneración van en la MISMA transacción (y bajo el mismo lock):
+    // separados, un participar() concurrente podía reclamar momentos calculados con
+    // las fechas viejas, y dos ediciones simultáneas duplicaban los pendientes.
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockMomentos(tx, id);
+
+      const sorteo = await tx.sorteo.update({
+        where: { id },
+        data: {
+          nombre: dto.nombre?.trim(),
+          descripcion: dto.descripcion === undefined ? undefined : dto.descripcion.trim() || null,
+          premioDescripcion: dto.premioDescripcion?.trim(),
+          fechaDesde: dto.fechaDesde,
+          fechaHasta: dto.fechaHasta,
+          cantidadPremios: dto.cantidadPremios,
+          maxRegistrosDispositivoDia: dto.maxRegistrosDispositivoDia,
+          edadMinima: dto.edadMinima,
+        },
+      });
+
+      if (sorteo.estado === 'activo' && cambiaronMomentos) {
+        await this.regenerarEnTx(tx, sorteo, ahora);
+      }
+
+      return sorteo;
+    }, TX_MOMENTOS);
   }
 
   private async cambiarEstado(id: number, destino: string, desde: string[]) {
@@ -647,14 +769,16 @@ export class SorteosService {
     return { items, total };
   }
 
-  async exportarParticipacionesCsv(sorteoId: number): Promise<string> {
+  /**
+   * Exporta el CSV en batches por keyset y se lo va entregando a `escribir`
+   * (la response). Materializar todas las participaciones y armar un único string
+   * era memoria proporcional a la campaña entera en cada descarga.
+   */
+  async exportarParticipacionesCsv(
+    sorteoId: number,
+    escribir: (chunk: string) => void | Promise<void>,
+  ): Promise<void> {
     await this.buscarSorteo(sorteoId);
-
-    const filas = await this.prisma.sorteoParticipacion.findMany({
-      where: { sorteoId },
-      orderBy: { id: 'asc' },
-      include: { codigo: { select: { codigo: true } } },
-    });
 
     const columnas = [
       'Id',
@@ -686,41 +810,57 @@ export class SorteosService {
       'Fuente geo',
     ];
 
-    const lineas = filas.map((f) =>
-      [
-        f.id,
-        fechaHoraMontevideo(f.createdAt),
-        f.nombre,
-        f.telefono,
-        f.edad,
-        f.email,
-        f.codigo?.codigo,
-        csvBooleano(f.ganador),
-        f.codigoCanje,
-        csvBooleano(f.premioEntregado),
-        f.premioEntregadoAt ? fechaHoraMontevideo(f.premioEntregadoAt) : null,
-        f.deviceId,
-        f.fingerprint,
-        f.userAgent,
-        f.ip,
-        f.idioma,
-        f.plataforma,
-        f.resolucion,
-        f.ipPais,
-        f.ipRegion,
-        f.ipCiudad,
-        f.gpsLat,
-        f.gpsLng,
-        f.gpsPais,
-        f.gpsDepartamento,
-        f.gpsLocalidad,
-        f.geoFuente,
-      ].map(csvCampo),
-    );
-
-    const cuerpo = [columnas.map(csvCampo), ...lineas].map((c) => c.join(';')).join('\r\n');
     // BOM para que Excel en español abra el UTF-8 sin romper los acentos.
-    return `\uFEFF${cuerpo}\r\n`;
+    await escribir(`\uFEFF${columnas.map(csvCampo).join(';')}\r\n`);
+
+    let ultimoId = 0;
+    for (;;) {
+      const filas = await this.prisma.sorteoParticipacion.findMany({
+        where: { sorteoId, id: { gt: ultimoId } },
+        orderBy: { id: 'asc' },
+        take: CSV_BATCH,
+        include: { codigo: { select: { codigo: true } } },
+      });
+      if (filas.length === 0) break;
+
+      const lineas = filas.map((f) =>
+        [
+          f.id,
+          fechaHoraMontevideo(f.createdAt),
+          f.nombre,
+          f.telefono,
+          f.edad,
+          f.email,
+          f.codigo?.codigo,
+          csvBooleano(f.ganador),
+          f.codigoCanje,
+          csvBooleano(f.premioEntregado),
+          f.premioEntregadoAt ? fechaHoraMontevideo(f.premioEntregadoAt) : null,
+          f.deviceId,
+          f.fingerprint,
+          f.userAgent,
+          f.ip,
+          f.idioma,
+          f.plataforma,
+          f.resolucion,
+          f.ipPais,
+          f.ipRegion,
+          f.ipCiudad,
+          f.gpsLat,
+          f.gpsLng,
+          f.gpsPais,
+          f.gpsDepartamento,
+          f.gpsLocalidad,
+          f.geoFuente,
+        ]
+          .map(csvCampo)
+          .join(';'),
+      );
+      await escribir(`${lineas.join('\r\n')}\r\n`);
+
+      ultimoId = filas[filas.length - 1].id;
+      if (filas.length < CSV_BATCH) break;
+    }
   }
 
   async marcarPremioEntregado(participacionId: number) {

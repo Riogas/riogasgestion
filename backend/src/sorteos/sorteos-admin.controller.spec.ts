@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import { HttpException, HttpStatus, InternalServerErrorException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Writable } from 'stream';
 import { SorteosAdminController } from './sorteos-admin.controller';
@@ -18,15 +18,26 @@ function crearServiceMock() {
     crearLote: jest.fn().mockResolvedValue({ id: 3, cantidad: 100 }),
     listarLotes: jest.fn().mockResolvedValue([]),
     listarParticipaciones: jest.fn().mockResolvedValue({ items: [], total: 0 }),
-    exportarParticipacionesCsv: jest.fn().mockResolvedValue('Id;Nombre\r\n'),
+    exportarParticipacionesCsv: jest
+      .fn()
+      .mockImplementation(async (_id: number, escribir: (c: string) => void) => {
+        await escribir('Id;Nombre\r\n');
+      }),
     marcarPremioEntregado: jest.fn().mockResolvedValue({ id: 900 }),
   };
 }
 
 function crearResMock() {
-  return { setHeader: jest.fn(), send: jest.fn() } as unknown as Response & {
+  return {
+    setHeader: jest.fn(),
+    send: jest.fn(),
+    write: jest.fn().mockReturnValue(true),
+    end: jest.fn(),
+  } as unknown as Response & {
     setHeader: jest.Mock;
     send: jest.Mock;
+    write: jest.Mock;
+    end: jest.Mock;
   };
 }
 
@@ -172,21 +183,90 @@ describe('SorteosAdminController', () => {
       },
       30_000,
     );
+
+    it('un segundo ZIP mientras hay uno en curso → 429 sin tocar la base', async () => {
+      process.env.SORTEOS_PUBLIC_BASE_URL = 'https://goya.riogas.com.uy';
+      let liberar!: (codigos: unknown[]) => void;
+      service.codigosDelLote.mockImplementationOnce(
+        () => new Promise((resolve) => { liberar = resolve as (c: unknown[]) => void; }),
+      );
+
+      const primero = controller.zipDelLote(7, 3, crearResStream().res);
+      // dejar que el primero tome el semáforo y quede esperando el batch
+      await new Promise((r) => setImmediate(r));
+
+      const error = await controller.zipDelLote(7, 3, crearResStream().res).catch((e) => e);
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+      expect(service.codigosDelLote).toHaveBeenCalledTimes(1);
+
+      liberar([]);
+      await primero;
+    });
+
+    it('terminado el ZIP se libera el semáforo (la descarga siguiente pasa)', async () => {
+      process.env.SORTEOS_PUBLIC_BASE_URL = 'https://goya.riogas.com.uy';
+      service.codigosDelLote.mockResolvedValue([]);
+
+      await controller.zipDelLote(7, 3, crearResStream().res);
+      await controller.zipDelLote(7, 3, crearResStream().res);
+
+      expect(service.codigosDelLote).toHaveBeenCalledTimes(2);
+    });
+
+    it('un ZIP que falla también libera el semáforo', async () => {
+      process.env.SORTEOS_PUBLIC_BASE_URL = 'https://goya.riogas.com.uy';
+      service.codigosDelLote.mockRejectedValueOnce(new Error('base caída'));
+
+      const { res } = crearResStream();
+      (res as unknown as { destroy: jest.Mock }).destroy = jest.fn();
+      await controller.zipDelLote(7, 3, res);
+
+      service.codigosDelLote.mockResolvedValue([]);
+      await expect(controller.zipDelLote(7, 3, crearResStream().res)).resolves.toBeUndefined();
+    });
   });
 
   describe('export CSV', () => {
-    it('responde el CSV como adjunto en UTF-8', async () => {
+    it('streamea el CSV como adjunto en UTF-8', async () => {
       const res = crearResMock();
 
       await controller.exportarParticipaciones(7, res);
 
-      expect(service.exportarParticipacionesCsv).toHaveBeenCalledWith(7);
+      expect(service.exportarParticipacionesCsv).toHaveBeenCalledWith(7, expect.any(Function));
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
       expect(res.setHeader).toHaveBeenCalledWith(
         'Content-Disposition',
         'attachment; filename="sorteo-7-participaciones.csv"',
       );
-      expect(res.send).toHaveBeenCalledWith('Id;Nombre\r\n');
+      expect(res.write).toHaveBeenCalledWith('Id;Nombre\r\n');
+      expect(res.end).toHaveBeenCalled();
+    });
+
+    it('escribe cada chunk sin acumular el CSV entero', async () => {
+      service.exportarParticipacionesCsv.mockImplementation(
+        async (_id: number, escribir: (c: string) => void) => {
+          await escribir('header\r\n');
+          await escribir('fila1\r\n');
+          await escribir('fila2\r\n');
+        },
+      );
+      const res = crearResMock();
+
+      await controller.exportarParticipaciones(7, res);
+
+      expect(res.write).toHaveBeenCalledTimes(3);
+      // los headers se escriben una sola vez, con el primer chunk
+      expect(res.setHeader).toHaveBeenCalledTimes(2);
+    });
+
+    it('sorteo inexistente: el error sale antes de tocar la response', async () => {
+      service.exportarParticipacionesCsv.mockRejectedValue(new Error('sorteo 7 no encontrado'));
+      const res = crearResMock();
+
+      await expect(controller.exportarParticipaciones(7, res)).rejects.toThrow('no encontrado');
+      expect(res.setHeader).not.toHaveBeenCalled();
+      expect(res.end).not.toHaveBeenCalled();
     });
   });
 });

@@ -28,6 +28,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import EstadoMensaje, { type TonoMensaje } from "@/components/sorteo/EstadoMensaje";
+import PantallaRaspa from "@/components/sorteo/PantallaRaspa";
 import ResultadoGanador from "@/components/sorteo/ResultadoGanador";
 import ResultadoSigue from "@/components/sorteo/ResultadoSigue";
 import SorteoForm, { type DatosParticipacion } from "@/components/sorteo/SorteoForm";
@@ -116,19 +117,28 @@ const PANTALLAS: Record<
   },
 };
 
+type FaseGanador = {
+  tipo: "ganador";
+  codigoCanje: string;
+  telefono: string;
+  sorteo: SorteoPublico;
+  /** true cuando se repone desde sessionStorage tras recargar la página. */
+  recuperado?: boolean;
+  /** Se llegó desde la raspadita, que ya festejó: no se repite el confetti. */
+  celebracionHecha?: boolean;
+};
+
+type FaseSigue = { tipo: "sigue"; nombre: string };
+
 type Fase =
   | { tipo: "cargando" }
   | { tipo: "formulario"; sorteo: SorteoPublico }
   | { tipo: "mensaje"; estado: Exclude<EstadoPublico, "ok"> }
-  | {
-      tipo: "ganador";
-      codigoCanje: string;
-      telefono: string;
-      sorteo: SorteoPublico;
-      /** true cuando se repone desde sessionStorage tras recargar la página. */
-      recuperado?: boolean;
-    }
-  | { tipo: "sigue"; nombre: string }
+  // La raspadita ENVUELVE al resultado ya resuelto por el backend: solo lo
+  // revela, nunca lo decide. Por eso el destino viaja adentro de la fase.
+  | { tipo: "raspa"; siguiente: FaseGanador | FaseSigue }
+  | FaseGanador
+  | FaseSigue
   | {
       tipo: "post";
       resultado: ClavePantalla | "edad_invalida";
@@ -264,16 +274,24 @@ export default function SorteoPublicoView() {
               telefono: datos.telefono,
               sorteo: fase.sorteo,
             };
-            // Respaldo para que un refresh no se lleve el código de canje.
+            // Respaldo ANTES de la raspadita: si el ganador recarga a mitad
+            // del raspado, la recuperación por sessionStorage le devuelve el
+            // código igual (y directo, sin volver a raspar).
             guardarResultadoGanador(premio);
-            setFase({ tipo: "ganador", ...premio });
+            setFase({
+              tipo: "raspa",
+              siguiente: { tipo: "ganador", ...premio },
+            });
           } else {
             // ganador sin código = respuesta corrupta: reintentable
             setErrorEnvio(MENSAJE_ERROR_ENVIO);
           }
           break;
         case "sigue":
-          setFase({ tipo: "sigue", nombre: datos.nombre });
+          setFase({
+            tipo: "raspa",
+            siguiente: { tipo: "sigue", nombre: datos.nombre },
+          });
           break;
         case "error_temporal":
           // El código NO se quemó: el form queda cargado para reintentar.
@@ -310,6 +328,27 @@ export default function SorteoPublicoView() {
       );
       break;
 
+    case "raspa": {
+      clave = "raspa";
+      const siguiente = fase.siguiente;
+      contenido = (
+        <PantallaRaspa
+          ganador={siguiente.tipo === "ganador"}
+          premio={
+            siguiente.tipo === "ganador" ? siguiente.sorteo.premioDescripcion : ""
+          }
+          onFin={() =>
+            setFase(
+              siguiente.tipo === "ganador"
+                ? { ...siguiente, celebracionHecha: true }
+                : siguiente,
+            )
+          }
+        />
+      );
+      break;
+    }
+
     case "ganador":
       clave = "ganador";
       contenido = (
@@ -318,6 +357,7 @@ export default function SorteoPublicoView() {
           telefono={fase.telefono}
           sorteo={fase.sorteo}
           recuperado={fase.recuperado}
+          celebracionHecha={fase.celebracionHecha}
         />
       );
       break;

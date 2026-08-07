@@ -11,7 +11,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { SorteoPublico } from "@/lib/sorteo/publicApi";
 
-const COLORES_CONFETTI = ["#1E5BB8", "#FF7A1A", "#10B981", "#FFFFFF"];
+/** Paleta de marca del confetti. La reusa la raspadita para que la celebración
+ *  sea la misma pieza, disparada un paso antes. */
+export const COLORES_CONFETTI = ["#1E5BB8", "#FF7A1A", "#10B981", "#FFFFFF"];
 
 /** 099123456 → "099 123 456" · 24001234 → "2400 1234" (solo para mostrar). */
 function formatearTelefono(telefono: string): string {
@@ -31,6 +33,12 @@ type Props = {
   sorteo: SorteoPublico;
   /** Se repuso tras recargar: se avisa que no es un premio nuevo y no va confetti. */
   recuperado?: boolean;
+  /**
+   * La raspadita ya festejó al revelar el premio: no se repite el confetti
+   * (sería la misma celebración dos veces en dos segundos). El spring del
+   * trofeo SÍ corre: lee como continuación del reveal, no como repetición.
+   */
+  celebracionHecha?: boolean;
 };
 
 export default function ResultadoGanador({
@@ -38,6 +46,7 @@ export default function ResultadoGanador({
   telefono,
   sorteo,
   recuperado = false,
+  celebracionHecha = false,
 }: Props) {
   const reducirMovimiento = useReducedMotion();
   const [copiado, setCopiado] = useState(false);
@@ -48,7 +57,7 @@ export default function ResultadoGanador({
   // Confetti: ráfaga inicial + segunda a los 400ms. Nada si el usuario pidió
   // menos movimiento (chequeo propio + disableForReducedMotion de la lib).
   useEffect(() => {
-    if (reducirMovimiento || recuperado) return;
+    if (reducirMovimiento || recuperado || celebracionHecha) return;
     const rafaga = (opts: confetti.Options) =>
       confetti({
         origin: { y: 0.35 },
@@ -63,7 +72,7 @@ export default function ResultadoGanador({
       400,
     );
     return () => clearTimeout(segunda);
-  }, [reducirMovimiento, recuperado]);
+  }, [reducirMovimiento, recuperado, celebracionHecha]);
 
   useEffect(() => {
     return () => {

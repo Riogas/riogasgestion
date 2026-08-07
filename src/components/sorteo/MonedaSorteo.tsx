@@ -7,13 +7,19 @@
 // canvas: así se anima y se desvanece sin repintar la lámina.
 
 /**
- * Llama del logo simplificada como gota bezier, caja 28×32 px
- * (dirección visual §1c). También es la unidad del patrón del foil.
+ * Llama del logo: mismo cuerpo que la unidad del patrón del foil
+ * (`LLAMA_FOIL_PATH` en RaspaFoil), sin el vacío interior — a 13 px de alto
+ * el hueco se cierra visualmente y solo ensucia el contorno. La punta
+ * ganchuda y la muesca cóncava de la izquierda son las que la separan de una
+ * gota de agua, que es lo que parecía la versión anterior.
  */
 export const LLAMA_PATH =
-  "M14,0 C20,8 26,14 26,21 C26,28 20,32 14,32 C8,32 2,28 2,21 C2,14 8,8 14,0 Z";
-export const LLAMA_W = 28;
-export const LLAMA_H = 32;
+  "M15,0 C13.4,3.6 10.2,7.4 7.4,11 C4.8,14.2 3.2,16.8 3.6,19.2 " +
+  "C4,21 5.6,22 6.8,22.8 C4.6,23.4 2.2,25.4 2.2,27.6 " +
+  "C2.2,31 5.8,33.6 10.6,33.6 C16.2,33.6 20.4,29.4 20.4,24.2 " +
+  "C20.4,19 17.4,15.2 16.4,11.4 C15.4,7.8 15.2,3.6 15,0 Z";
+export const LLAMA_W = 22;
+export const LLAMA_H = 34;
 
 const ORO_CLARO = "#FFD36B";
 const ORO_OSCURO = "#FF9E3D";

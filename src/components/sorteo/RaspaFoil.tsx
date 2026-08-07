@@ -25,9 +25,9 @@ import { cursorMoneda } from "@/components/sorteo/MonedaSorteo";
  * (punta inclinada a la derecha, hombro cargado, panza abajo) más la lengüeta
  * chica que el logo tiene abajo a la izquierda.
  *
- * No se reusa `LLAMA_PATH` de la moneda a propósito: esa es una gota bezier
- * simétrica y, repetida como textura, se leía literalmente como gotas de agua.
- * La moneda queda igual (ahí la gota funciona: va sola, chica y en oro).
+ * Es el mismo cuerpo que `LLAMA_PATH` de la moneda; acá se le suma el vacío
+ * interior (regla evenodd), que a 13 px —el tamaño de la moneda— se cerraría
+ * visualmente y solo ensuciaría el contorno.
  */
 const LLAMA_FOIL_PATH =
   // Cuerpo. Las dos piezas que hacen que se lea FUEGO y no gota:

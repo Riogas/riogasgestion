@@ -26,20 +26,22 @@ export function decodeJwtPayload(token: string): JwtPayload | null {
 }
 
 /**
- * Únicos ambientes donde se tolera correr sin JWT_SECRET (tokens mock sin firmar).
- * La lista es explícita a propósito: si NODE_ENV no está seteada, el guard exige el
- * secreto. Confiar en `NODE_ENV === 'production'` dejaba el agujero abierto en
- * silencio en cualquier deploy que se olvidara de setear la variable.
+ * Cierra la API cuando falta JWT_SECRET. Es opt-in explícito (`AUTH_REQUIRE_JWT_SECRET=1`)
+ * y no se deduce de NODE_ENV: Goya nunca verificó la firma (el JWT lo emite secapi), así
+ * que deducirlo dejaba sin servicio a los ambientes que ya venían corriendo sin secreto.
+ * Activarlo requiere primero configurar el MISMO secreto con el que secapi firma; si no
+ * coincide, los tokens legítimos pasan a rebotar por "Firma inválida".
  */
-const AMBIENTES_SIN_SECRETO = ['development', 'test'];
+function exigeSecreto(): boolean {
+  return process.env.AUTH_REQUIRE_JWT_SECRET === '1';
+}
 
 /**
  * AuthGuard — verifica el JWT del header Authorization.
  *
- * JWT_SECRET es obligatoria salvo en development/test: sin ella el guard NO puede
- * verificar ninguna firma (cualquiera arma un payload base64 y entra), así que falla
- * cerrado y devuelve 401 a todo. En local se mantiene el comportamiento permisivo de
- * siempre (tokens mock sin firmar) para no romper el flujo de desarrollo.
+ * Con JWT_SECRET configurada se verifica la firma HMAC-SHA256. Sin ella no hay forma de
+ * verificar nada (cualquiera arma un payload base64 y entra): se avisa por log al arrancar
+ * y, si `AUTH_REQUIRE_JWT_SECRET=1`, se falla cerrado con 401.
  * El hardening completo de auth es parte del esfuerzo de seguridad separado.
  */
 @Injectable()
@@ -52,16 +54,19 @@ export class AuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const secret = process.env.JWT_SECRET;
     const ambiente = process.env.NODE_ENV ?? '';
-    if (!secret && !AMBIENTES_SIN_SECRETO.includes(ambiente)) {
+    if (!secret) {
       if (!AuthGuard.avisoSecretoEmitido) {
         AuthGuard.avisoSecretoEmitido = true;
-        AuthGuard.logger.error(
-          `JWT_SECRET no está configurada (NODE_ENV=${ambiente || 'sin definir'}): la API queda cerrada ` +
-            '(401 en todos los endpoints autenticados). Seteá JWT_SECRET con el mismo secreto con el que ' +
-            'secapi firma los JWT; en una máquina de desarrollo, NODE_ENV=development.',
+        const cerrada = exigeSecreto();
+        AuthGuard.logger[cerrada ? 'error' : 'warn'](
+          `JWT_SECRET no está configurada (NODE_ENV=${ambiente || 'sin definir'}): las firmas de los JWT ` +
+            `NO se verifican${cerrada ? ', y con AUTH_REQUIRE_JWT_SECRET=1 la API queda cerrada (401)' : ''}. ` +
+            'Seteá JWT_SECRET con el mismo secreto con el que secapi firma los JWT.',
         );
       }
-      throw new UnauthorizedException('Autenticación no disponible: JWT_SECRET no configurada');
+      if (exigeSecreto()) {
+        throw new UnauthorizedException('Autenticación no disponible: JWT_SECRET no configurada');
+      }
     }
 
     const req = context.switchToHttp().getRequest();

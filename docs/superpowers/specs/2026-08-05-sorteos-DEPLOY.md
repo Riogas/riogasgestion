@@ -36,39 +36,43 @@ a `/no-autorizado`, aunque el resto del deploy esté OK.
 
 ## 2. Variables de entorno
 
-### 2.0 `JWT_SECRET` — BLOQUEANTE DE DEPLOY 🚫
+### 2.0 `JWT_SECRET` — riesgo abierto, cerrarlo requiere el secreto de secapi ⚠
 
-**Sin `JWT_SECRET` seteada en el backend de producción, el módulo Sorteos no funciona: el
-`AuthGuard` falla cerrado y devuelve 401 en TODOS los endpoints admin** (`/api/sorteos/*` y el
-resto de la API autenticada del backend NestJS).
+Goya **nunca verificó la firma de los JWT**: el token lo emite secapi y el backend NestJS solo lo
+decodifica. Mientras `JWT_SECRET` no esté configurada, cualquiera que alcance el backend arma un
+payload base64 y entra — y detrás de esos endpoints hay PII de consumidores finales (nombre,
+teléfono, email, IP, GPS — Ley 18.331), el control de entrega de premios y la lista completa de
+códigos de un lote.
 
-Es deliberado. El guard solo puede verificar la firma HMAC de los JWT si tiene el secreto; sin él
-no verifica nada y cualquiera que llegue al backend arma un payload base64 y entra — y detrás de
-esos endpoints hay PII de consumidores finales (nombre, teléfono, email, IP, GPS — Ley 18.331), el
-control de entrega de premios y la lista completa de códigos de un lote. Antes de este fix el
-comportamiento era permisivo (se decodificaba el token sin verificar), así que **este es un cambio
-de comportamiento en producción**: si el backend se deploya sin la variable, el admin de sorteos
-responde 401 y en el log de arranque aparece, una sola vez:
+Estado actual del guard (`backend/src/common/guards/auth.guard.ts`):
 
-```
-[AuthGuard] JWT_SECRET no está configurada: en producción la API queda cerrada (401 en todos los
-endpoints autenticados). Seteá JWT_SECRET con el mismo secreto con el que secapi firma los JWT.
-```
+| Situación | Comportamiento |
+|---|---|
+| `JWT_SECRET` configurada | Verifica la firma HMAC-SHA256. Un token que no venga en 3 partes se rechaza. |
+| Sin `JWT_SECRET` | **Sigue autenticando** (comportamiento histórico) y avisa por log, una vez por proceso. |
+| Sin `JWT_SECRET` + `AUTH_REQUIRE_JWT_SECRET=1` | Falla cerrado: 401 en todos los endpoints autenticados. |
+
+**El cierre es opt-in a propósito.** Una versión anterior lo deducía de `NODE_ENV` y tumbó la API
+entera del ambiente que corría con `NODE_ENV=production` sin secreto (PM2): todos los endpoints,
+no solo Sorteos, devolvieron `401 Autenticación no disponible`. Deducirlo del ambiente no es
+seguro cuando el comportamiento histórico era permisivo.
+
+**Cómo cerrar el riesgo de verdad** (no se puede hacer solo desde este repo):
+1. Averiguar con qué algoritmo y secreto firma secapi los JWT (si no es HS256, el guard necesita
+   otro verificador — p. ej. clave pública si fuera RS256).
+2. Setear ese mismo secreto en `JWT_SECRET` del backend. Si no coincide, los tokens legítimos
+   pasan a rebotar con "Firma inválida" y se cae el login de toda la app.
+3. Recién ahí, agregar `AUTH_REQUIRE_JWT_SECRET=1` para que un deploy futuro sin la variable falle
+   ruidosamente en vez de quedar permisivo en silencio.
 
 | Variable | Valor | Nota |
 |---|---|---|
-| `JWT_SECRET` | **el mismo secreto con el que secapi firma los JWT** (HS256) | **Obligatoria salvo en `NODE_ENV=development` o `NODE_ENV=test`.** Si no coincide con el de secapi, los tokens legítimos se rechazan con "Firma inválida". |
+| `JWT_SECRET` | el mismo secreto con el que secapi firma los JWT (HS256) | Opcional hoy; sin ella no se verifica ninguna firma. |
+| `AUTH_REQUIRE_JWT_SECRET` | `1` | Opt-in. **Activar solo después** de confirmar que `JWT_SECRET` es la correcta. |
 
-⚠ **La excepción es por lista blanca, no por `!== 'production'`.** Solo `development` y `test` corren
-sin secreto; con `NODE_ENV` sin setear, vacío, `staging`, `prod` o cualquier otro valor, `JWT_SECRET`
-es obligatoria. Es a propósito: si el fail-closed dependiera de que alguien se acuerde de poner
-`NODE_ENV=production`, un deploy que se olvide de la variable dejaría la API abierta en silencio —
-justo el escenario que este fix cierra. Consecuencia práctica: **en una máquina de desarrollo hay que
-tener `NODE_ENV=development` en el `.env` del backend** (o setear `JWT_SECRET`), si no el backend
-local responde 401 a todo.
-
-Verificación después del deploy: con sesión válida, `GET /api/sorteos` debe responder 200; con un
-token inventado (`Authorization: Bearer x.eyJzdWIiOiJhIn0.x`) debe responder 401.
+Verificación después del deploy: con sesión válida, `GET /api/sorteos` debe responder 200. Con
+`JWT_SECRET` correcta, un token inventado (`Authorization: Bearer x.eyJzdWIiOiJhIn0.x`) debe
+responder 401.
 
 ### Backend (`backend/.env` en el server de prod, o el mecanismo de envs que use el deploy)
 

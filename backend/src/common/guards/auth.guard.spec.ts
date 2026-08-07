@@ -85,86 +85,85 @@ describe('AuthGuard', () => {
     });
   });
 
-  describe('sin JWT_SECRET fuera de development/test (fail-closed)', () => {
+  describe('sin JWT_SECRET', () => {
     const nodeEnvOriginal = process.env.NODE_ENV;
     let errores: jest.SpyInstance;
+    let avisos: jest.SpyInstance;
 
     beforeEach(() => {
       // El aviso se emite una sola vez por proceso: se resetea para cada caso.
       (AuthGuard as unknown as { avisoSecretoEmitido: boolean }).avisoSecretoEmitido = false;
       errores = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      avisos = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
       delete process.env.JWT_SECRET;
+      delete process.env.AUTH_REQUIRE_JWT_SECRET;
     });
 
     afterEach(() => {
       process.env.NODE_ENV = nodeEnvOriginal;
+      delete process.env.AUTH_REQUIRE_JWT_SECRET;
       jest.restoreAllMocks();
     });
 
-    it('rechaza aunque el token esté bien formado y vigente', () => {
-      process.env.NODE_ENV = 'production';
-      const token = makeToken({ sub: 'u1', exp: 32503680000 });
-
-      expect(() => guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('rechaza incluso sin header (no hay forma de autenticar)', () => {
-      process.env.NODE_ENV = 'production';
-
-      expect(() => guard.canActivate(ctx({}))).toThrow(UnauthorizedException);
-    });
-
-    // El fail-closed no puede depender de que alguien se acuerde de setear NODE_ENV:
-    // sin la variable (o con un valor cualquiera) el secreto sigue siendo obligatorio.
-    it.each([undefined, '', 'staging', 'prod', 'produccion', 'PRODUCTION'])(
-      'NODE_ENV=%s sin JWT_SECRET → 401',
+    // Goya nunca verificó la firma (el JWT lo emite secapi): sin secreto la API
+    // tiene que seguir sirviendo en cualquier ambiente, incluido production, o se
+    // cae toda la app. El cierre es opt-in explícito.
+    it.each([undefined, '', 'development', 'test', 'staging', 'production'])(
+      'NODE_ENV=%s sin el opt-in → sigue autenticando y avisa por log',
       (ambiente) => {
         if (ambiente === undefined) delete process.env.NODE_ENV;
         else process.env.NODE_ENV = ambiente;
+        const token = makeToken({ sub: 'u1', exp: 32503680000 });
+        const req: any = { headers: { authorization: `Bearer ${token}` } };
+        const context = {
+          switchToHttp: () => ({ getRequest: () => req }),
+        } as unknown as ExecutionContext;
+
+        expect(guard.canActivate(context)).toBe(true);
+        expect(req.user.sub).toBe('u1');
+        expect(errores).not.toHaveBeenCalled();
+      },
+    );
+
+    it('avisa una sola vez por proceso, no en cada request', () => {
+      process.env.NODE_ENV = 'production';
+      const token = makeToken({ sub: 'u1', exp: 32503680000 });
+
+      for (let i = 0; i < 3; i++) {
+        expect(guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toBe(true);
+      }
+
+      expect(avisos).toHaveBeenCalledTimes(1);
+      expect(String(avisos.mock.calls[0][0])).toContain('JWT_SECRET');
+    });
+
+    describe('con AUTH_REQUIRE_JWT_SECRET=1 (fail-closed opt-in)', () => {
+      beforeEach(() => {
+        process.env.AUTH_REQUIRE_JWT_SECRET = '1';
+      });
+
+      it('rechaza aunque el token esté bien formado y vigente', () => {
         const token = makeToken({ sub: 'u1', exp: 32503680000 });
 
         expect(() => guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toThrow(
           UnauthorizedException,
         );
-      },
-    );
+      });
 
-    it('NODE_ENV=test sigue permitiendo el token mock (así corre la suite)', () => {
-      process.env.NODE_ENV = 'test';
-      const token = makeToken({ sub: 'u1', exp: 32503680000 });
-      const req: any = { headers: { authorization: `Bearer ${token}` } };
-      const context = {
-        switchToHttp: () => ({ getRequest: () => req }),
-      } as unknown as ExecutionContext;
+      it('rechaza incluso sin header (no hay forma de autenticar)', () => {
+        expect(() => guard.canActivate(ctx({}))).toThrow(UnauthorizedException);
+      });
 
-      expect(guard.canActivate(context)).toBe(true);
-    });
+      it('loguea el error una sola vez', () => {
+        const token = makeToken({ sub: 'u1', exp: 32503680000 });
 
-    it('loguea el error una sola vez, no en cada request', () => {
-      process.env.NODE_ENV = 'production';
-      const token = makeToken({ sub: 'u1', exp: 32503680000 });
+        for (let i = 0; i < 3; i++) {
+          expect(() => guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toThrow();
+        }
 
-      for (let i = 0; i < 3; i++) {
-        expect(() => guard.canActivate(ctx({ authorization: `Bearer ${token}` }))).toThrow();
-      }
-
-      expect(errores).toHaveBeenCalledTimes(1);
-      expect(String(errores.mock.calls[0][0])).toContain('JWT_SECRET');
-    });
-
-    it('fuera de producción sigue aceptando el token mock de desarrollo', () => {
-      process.env.NODE_ENV = 'development';
-      const token = makeToken({ sub: 'u1', exp: 32503680000 });
-      const req: any = { headers: { authorization: `Bearer ${token}` } };
-      const context = {
-        switchToHttp: () => ({ getRequest: () => req }),
-      } as unknown as ExecutionContext;
-
-      expect(guard.canActivate(context)).toBe(true);
-      expect(req.user.sub).toBe('u1');
-      expect(errores).not.toHaveBeenCalled();
+        expect(errores).toHaveBeenCalledTimes(1);
+        expect(String(errores.mock.calls[0][0])).toContain('JWT_SECRET');
+      });
     });
 
     it('con JWT_SECRET seteada, producción funciona normal', () => {
@@ -178,6 +177,7 @@ describe('AuthGuard', () => {
 
       expect(guard.canActivate(context)).toBe(true);
       expect(errores).not.toHaveBeenCalled();
+      expect(avisos).not.toHaveBeenCalled();
       delete process.env.JWT_SECRET;
     });
   });

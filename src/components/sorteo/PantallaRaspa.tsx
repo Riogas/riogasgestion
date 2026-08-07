@@ -428,11 +428,16 @@ export default function PantallaRaspa({ ganador, premio, onFin }: Props) {
         </p>
       </div>
 
+      {/* Al revelar desaparece del todo (conservando su alto, igual que la
+          instrucción): atenuado al 40 % seguía leyéndose "ver el resultado"
+          justo cuando el resultado ya está en pantalla. */}
       <button
         type="button"
         onClick={rasparSolo}
         disabled={revelado !== null}
-        className="mx-auto mt-2 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+        className={`mx-auto mt-2 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm text-muted-foreground underline underline-offset-4 transition-[color,opacity] duration-[250ms] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none ${
+          revelado === null ? "opacity-100" : "opacity-0"
+        }`}
       >
         Ver el resultado sin raspar
       </button>

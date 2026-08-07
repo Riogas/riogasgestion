@@ -18,12 +18,36 @@ import {
   type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-  cursorMoneda,
-  LLAMA_H,
-  LLAMA_PATH,
-  LLAMA_W,
-} from "@/components/sorteo/MonedaSorteo";
+import { cursorMoneda } from "@/components/sorteo/MonedaSorteo";
+
+/**
+ * Silueta de la llama del logo RioGas para el patrón del foil: ASIMÉTRICA
+ * (punta inclinada a la derecha, hombro cargado, panza abajo) más la lengüeta
+ * chica que el logo tiene abajo a la izquierda.
+ *
+ * No se reusa `LLAMA_PATH` de la moneda a propósito: esa es una gota bezier
+ * simétrica y, repetida como textura, se leía literalmente como gotas de agua.
+ * La moneda queda igual (ahí la gota funciona: va sola, chica y en oro).
+ */
+const LLAMA_FOIL_PATH =
+  // Cuerpo. Las dos piezas que hacen que se lea FUEGO y no gota:
+  //
+  //  · La punta (15,0) está corrida al 68 % del ancho y sale ganchuda: el
+  //    borde izquierdo arranca casi horizontal y recién después cae.
+  //  · La MUESCA CÓNCAVA de la izquierda (x va 3.6 → 6.8 → 2.2 entre y=19 e
+  //    y=27): es donde el logo separa la lengüeta chica del cuerpo. Una gota
+  //    de agua tiene el contorno íntegramente convexo, así que una sola
+  //    concavidad ya la descarta — a 14×21 px es la única señal que sobrevive.
+  "M15,0 C13.4,3.6 10.2,7.4 7.4,11 C4.8,14.2 3.2,16.8 3.6,19.2 " +
+  "C4,21 5.6,22 6.8,22.8 C4.6,23.4 2.2,25.4 2.2,27.6 " +
+  "C2.2,31 5.8,33.6 10.6,33.6 C16.2,33.6 20.4,29.4 20.4,24.2 " +
+  "C20.4,19 17.4,15.2 16.4,11.4 C15.4,7.8 15.2,3.6 15,0 Z " +
+  // Vacío interior del logo (regla evenodd): convierte la silueta en anillo.
+  "M11.6,22 C13.8,24 14.9,25.8 14.9,27.4 C14.9,29.4 13.4,30.7 11.5,30.7 " +
+  "C9.6,30.7 8.1,29.4 8.1,27.4 C8.1,25.6 9.7,23.8 11.6,22 Z";
+/** Caja de la llama: 22×34 (aspecto 0.65, bien vertical). */
+const LLAMA_FOIL_W = 22;
+const LLAMA_FOIL_H = 34;
 
 /** Cap del devicePixelRatio: @3x no aporta sobre una textura y come memoria iOS. */
 const DPR_MAX = 2;
@@ -33,6 +57,8 @@ const RADIO_PINCEL = 22;
 const UMBRAL = 0.55;
 /** Tope de trazos guardados para el replay tras resize/rotación. */
 const MAX_TRAZOS = 20000;
+/** Ángulo (convención CSS) del laminado de la base y del cepillado del foil. */
+const GRADOS_BASE = 152;
 
 export type FoilRevelado = null | "ganador" | "sigue" | "corte";
 
@@ -130,7 +156,15 @@ function crearPincel(radio: number, dpr: number): HTMLCanvasElement | null {
   return b;
 }
 
-/** Pinta la lámina completa (dirección visual §1, valores exactos). */
+/**
+ * Pinta la lámina completa.
+ *
+ * Lo que hace que una superficie se lea "metálica" y no "pastel" no es el
+ * color: es el RANGO y la DUREZA de los saltos de luz. Un gradiente suave y
+ * claro da plástico; el metal tiene la base oscura, muchos quiebres especulares
+ * angostos y un highlight chico y filoso. Por eso acá la base baja hasta
+ * #3F4E66 y las bandas de brillo son angostas en vez de una sábana blanca.
+ */
 function pintarFoil(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -139,62 +173,177 @@ function pintarFoil(
 ) {
   ctx.globalCompositeOperation = "source-over";
 
-  // a) Base metálica azulada a 135° (plata con subtono del azul RioGas).
-  const base = gradienteAngular(ctx, w, h, 135);
-  base.addColorStop(0, "#AEBDD2");
-  base.addColorStop(0.22, "#E7EDF5");
-  base.addColorStop(0.45, "#BCC8DA");
-  base.addColorStop(0.68, "#F2F5FA");
-  base.addColorStop(1, "#A5B4CB");
+  // a) Base de acero azulado: doce paradas con alternancia dura claro/oscuro.
+  //    Son los "rolos" del laminado; con 5 paradas suaves la lámina se leía
+  //    como un fondo celeste.
+  //
+  //    El ángulo (152°) es a propósito distinto del de las bandas especulares
+  //    (115°): con los dos ejes casi paralelos las franjas se sumaban y salían
+  //    dos "reflectores" blancos. Cruzados ~37° se modulan entre sí y dan el
+  //    tornasol del foil.
+  const base = gradienteAngular(ctx, w, h, GRADOS_BASE);
+  const parada: ReadonlyArray<readonly [number, string]> = [
+    [0.0, "#3E4D66"],
+    [0.08, "#7284A1"],
+    [0.16, "#4F6180"],
+    [0.27, "#A8B8CE"],
+    [0.35, "#5A6C89"],
+    [0.46, "#8395B0"],
+    [0.54, "#455670"],
+    [0.66, "#B2C1D6"],
+    [0.74, "#5F718D"],
+    [0.84, "#8899B4"],
+    [0.92, "#485972"],
+    [1.0, "#3A4961"],
+  ];
+  for (const [p, c] of parada) base.addColorStop(p, c);
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, w, h);
 
-  // b) Banda de brillo estática a 115°: lo que hace que se lea "foil".
-  const brillo = gradienteAngular(ctx, w, h, 115);
-  brillo.addColorStop(0, "rgba(255,255,255,0)");
-  brillo.addColorStop(0.48, "rgba(255,255,255,0.55)");
-  brillo.addColorStop(0.54, "rgba(255,255,255,0.55)");
-  brillo.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = brillo;
-  ctx.fillRect(0, 0, w, h);
+  // b) Cepillado del laminado: líneas finas a lo largo del eje del gradiente.
+  //    Le da dirección a la luz (el metal se "peina", el plástico no).
+  const rnd = mulberry32(0x5107ea5);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  // El cepillado corre por el eje de la base (css 152° ⇒ canvas 62°).
+  ctx.rotate(((GRADOS_BASE - 90) * Math.PI) / 180);
+  const largo = Math.hypot(w, h);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 190; i++) {
+    const y = (rnd() - 0.5) * largo;
+    const claro = rnd() > 0.5;
+    ctx.strokeStyle = claro
+      ? `rgba(233,241,252,${0.05 + rnd() * 0.09})`
+      : `rgba(24,36,56,${0.05 + rnd() * 0.09})`;
+    ctx.beginPath();
+    ctx.moveTo(-largo / 2, y);
+    ctx.lineTo(largo / 2, y);
+    ctx.stroke();
+  }
+  ctx.restore();
 
-  // c) Patrón de llamas en ladrillo (filas impares corridas, rotadas -8°,
-  //    tintas azul/naranja alternadas por columna a opacidad de papel de
-  //    seguridad).
-  const llama = new Path2D(LLAMA_PATH);
+  // c) Micro-texto de seguridad en diagonal, como los billetes y las tarjetas
+  //    de raspar reales. A 6px no se lee: se percibe como trama.
+  //
+  //    ORDEN IMPORTANTE: la trama y las llamas se graban ANTES de la luz. Con
+  //    el highlight abajo, el micro-texto funcionaba como un velo gris sobre
+  //    toda la lámina y le comía el contraste (se vio en la iteración v2).
+  //    Grabado primero, la banda especular después le pasa por encima y todo
+  //    queda bajo la misma luz, que es como se comporta un foil de verdad.
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate((-30 * Math.PI) / 180);
+  ctx.font = `700 6px ${fuente}`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const conEsp = "letterSpacing" in ctx;
+  if (conEsp) ctx.letterSpacing = "1.4px";
+  const cinta = "RIOGAS · ".repeat(14);
+  for (let y = -largo / 2; y < largo / 2; y += 13) {
+    // Filas alternadas corridas: la trama no forma columnas verticales.
+    const off = Math.round(y / 13) % 2 === 0 ? 0 : 22;
+    // Grabado: sombra abajo + luz arriba. Al 0.09 no se veía nada.
+    ctx.fillStyle = "rgba(6,13,26,0.22)";
+    ctx.fillText(cinta, -largo / 2 + off, y + 0.5);
+    ctx.fillStyle = "rgba(255,255,255,0.17)";
+    ctx.fillText(cinta, -largo / 2 + off, y - 0.5);
+  }
+  if (conEsp) ctx.letterSpacing = "0px";
+  ctx.restore();
+
+  // d) Patrón de llamas RioGas en ladrillo, CHICAS y densas: a tamaño completo
+  //    eran seis stickers grandes; así se lee como trama. Tinta del propio
+  //    metal: el naranja como relleno daba manchas marrones sobre el acero, así
+  //    que el único acento cálido de la lámina son dos destellos en g).
+  const llama = new Path2D(LLAMA_FOIL_PATH);
+  // Un poco más grandes que en v4: con el hueco interior la silueta necesita
+  // píxeles para leerse, y se compensa bajando la tinta (marca de agua).
+  const esc = 0.62;
+  const paso = { x: 26, y: 21 };
   const rot = (-8 * Math.PI) / 180;
-  const filas = Math.ceil(h / 34) + 1;
-  const cols = Math.ceil(w / 54) + 1;
+  const filas = Math.ceil(h / paso.y) + 2;
+  const cols = Math.ceil(w / paso.x) + 2;
+  const grabar = (dx: number, dy: number, color: string) => {
+    ctx.save();
+    ctx.translate(dx, dy);
+    ctx.scale(esc, esc);
+    ctx.translate(-LLAMA_FOIL_W / 2, -LLAMA_FOIL_H / 2);
+    ctx.fillStyle = color;
+    // evenodd: el subpath interior tiene que salir como hueco, no relleno.
+    ctx.fill(llama, "evenodd");
+    ctx.restore();
+  };
   for (let f = -1; f <= filas; f++) {
-    const corrimiento = ((f % 2) + 2) % 2 === 1 ? 27 : 0;
+    const corr = ((f % 2) + 2) % 2 === 1 ? paso.x / 2 : 0;
     for (let c = -1; c <= cols; c++) {
       ctx.save();
-      ctx.translate(c * 54 + corrimiento + LLAMA_W / 2, f * 34 + LLAMA_H / 2);
+      ctx.translate(c * paso.x + corr, f * paso.y);
       ctx.rotate(rot);
-      ctx.translate(-LLAMA_W / 2, -LLAMA_H / 2);
-      ctx.fillStyle =
-        ((c % 2) + 2) % 2 === 0
-          ? "rgba(30,91,184,0.10)"
-          : "rgba(255,122,26,0.10)";
-      ctx.fill(llama);
+      // Relieve MUY plano: con el highlight fuerte cada llama se abultaba y
+      // volvía a leerse como gota de agua sobre un vidrio. Acá es un grabado
+      // seco, casi una marca de agua.
+      grabar(-0.6, -0.6, "rgba(238,246,255,0.13)");
+      grabar(0.6, 0.6, "rgba(11,22,40,0.14)");
       ctx.restore();
     }
   }
 
-  // d) Grano metálico + destellos de 4 puntas.
-  const rnd = mulberry32(0x5107ea5);
-  for (let i = 0; i < 350; i++) {
+  // e) Highlight especular: DOS bandas ANGOSTAS a 115°, con núcleo duro. La
+  //    original era una sábana blanca al 55 % que cubría media lámina — eso
+  //    es exactamente lo que lavaba el gris azulado y daba el celeste pastel.
+  const brillo = gradienteAngular(ctx, w, h, 115);
+  brillo.addColorStop(0.0, "rgba(255,255,255,0)");
+  brillo.addColorStop(0.28, "rgba(255,255,255,0)");
+  brillo.addColorStop(0.305, "rgba(255,255,255,0.22)");
+  brillo.addColorStop(0.325, "rgba(255,255,255,0.5)");
+  brillo.addColorStop(0.337, "rgba(255,255,255,0.5)");
+  brillo.addColorStop(0.358, "rgba(255,255,255,0.18)");
+  brillo.addColorStop(0.4, "rgba(255,255,255,0)");
+  brillo.addColorStop(0.52, "rgba(255,255,255,0)");
+  // Glint fino y aislado: el detalle chico es lo que termina de vender el foil.
+  brillo.addColorStop(0.545, "rgba(255,255,255,0.2)");
+  brillo.addColorStop(0.553, "rgba(255,255,255,0)");
+  brillo.addColorStop(0.68, "rgba(255,255,255,0)");
+  brillo.addColorStop(0.705, "rgba(255,255,255,0.28)");
+  brillo.addColorStop(0.72, "rgba(255,255,255,0.28)");
+  brillo.addColorStop(0.75, "rgba(255,255,255,0)");
+  brillo.addColorStop(1.0, "rgba(255,255,255,0)");
+  ctx.fillStyle = brillo;
+  ctx.fillRect(0, 0, w, h);
+
+  // f) Contra-bandas oscuras pegadas al highlight: sin sombra propia el brillo
+  //    no se lee como reflejo sino como pintura blanca encima.
+  const sombra = gradienteAngular(ctx, w, h, 115);
+  sombra.addColorStop(0.0, "rgba(13,22,38,0.3)");
+  sombra.addColorStop(0.16, "rgba(13,22,38,0.34)");
+  sombra.addColorStop(0.28, "rgba(13,22,38,0)");
+  sombra.addColorStop(0.42, "rgba(13,22,38,0.06)");
+  sombra.addColorStop(0.53, "rgba(13,22,38,0.34)");
+  sombra.addColorStop(0.62, "rgba(13,22,38,0.16)");
+  sombra.addColorStop(0.68, "rgba(13,22,38,0)");
+  sombra.addColorStop(0.79, "rgba(13,22,38,0.14)");
+  sombra.addColorStop(0.9, "rgba(13,22,38,0.36)");
+  sombra.addColorStop(1.0, "rgba(13,22,38,0.3)");
+  ctx.fillStyle = sombra;
+  ctx.fillRect(0, 0, w, h);
+
+  // g) Grano metálico + destellos de 4 puntas.
+  for (let i = 0; i < 520; i++) {
     const x = rnd() * w;
     const y = rnd() * h;
     ctx.fillStyle =
-      i % 2 === 0 ? "rgba(255,255,255,0.25)" : "rgba(30,91,184,0.06)";
+      i % 2 === 0 ? "rgba(255,255,255,0.34)" : "rgba(12,22,40,0.24)";
     ctx.fillRect(x, y, 1, 1);
   }
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
   ctx.lineWidth = 1;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 14; i++) {
     const x = rnd() * w;
     const y = rnd() * h;
+    // Dos de los catorce destellos en ámbar: es TODO el naranja que queda en
+    // la lámina, y entra como luz reflejada (que es como el metal toma color),
+    // no como tinta.
+    ctx.strokeStyle =
+      i % 7 === 3 ? "rgba(255,186,120,0.85)" : "rgba(255,255,255,0.8)";
     ctx.beginPath();
     ctx.moveTo(x - 2.5, y);
     ctx.lineTo(x + 2.5, y);
@@ -203,7 +352,8 @@ function pintarFoil(
     ctx.stroke();
   }
 
-  // e) Viñeta física + línea de luz en el borde superior.
+  // h) Viñeta física + línea de luz en el borde superior y sombra en el de
+  //    abajo: la lámina se lee como algo APOYADO sobre la tarjeta.
   const vineta = ctx.createRadialGradient(
     w / 2,
     h / 2,
@@ -212,13 +362,15 @@ function pintarFoil(
     h / 2,
     Math.hypot(w, h) / 2,
   );
-  vineta.addColorStop(0, "rgba(11,18,32,0)");
-  vineta.addColorStop(0.55, "rgba(11,18,32,0)");
-  vineta.addColorStop(1, "rgba(11,18,32,0.10)");
+  vineta.addColorStop(0, "rgba(8,14,26,0)");
+  vineta.addColorStop(0.5, "rgba(8,14,26,0.04)");
+  vineta.addColorStop(1, "rgba(8,14,26,0.24)");
   ctx.fillStyle = vineta;
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.fillRect(0, 0, w, 1);
+  ctx.fillStyle = "rgba(8,14,26,0.28)";
+  ctx.fillRect(0, h - 1, w, 1);
 
   // f) Badge de affordance horneado (se borra al raspar): círculo blanco con
   //    "RASPÁ ACÁ" en la mitad de abajo. El hueco de arriba es para la moneda,
@@ -227,12 +379,15 @@ function pintarFoil(
   const cx = w / 2;
   const cy = h / 2;
   ctx.save();
-  ctx.shadowColor = "rgba(11,18,32,0.15)";
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 2;
+  // Sombra más marcada que antes: sobre el metal oscuro el disco tiene que
+  // leerse apoyado encima, y el blanco casi pleno mantiene el contraste del
+  // texto azul (que sobre la lámina nueva mejoró, no empeoró).
+  ctx.shadowColor = "rgba(6,12,24,0.45)";
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 3;
   ctx.beginPath();
   ctx.arc(cx, cy, 40, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillStyle = "rgba(255,255,255,0.94)";
   ctx.fill();
   ctx.restore();
 

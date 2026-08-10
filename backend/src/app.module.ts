@@ -7,6 +7,7 @@ import { ClientesModule } from './clientes/clientes.module';
 import { CatalogosModule } from './catalogos/catalogos.module';
 import { MovilesModule } from './moviles/moviles.module';
 import { FleterasModule } from './fleteras/fleteras.module';
+import { PuestosModule } from './puestos/puestos.module';
 import { ZonasModule } from './zonas/zonas.module';
 import { PersonasModule } from './personas/personas.module';
 import { WorkbenchModule } from './workbench/workbench.module';
@@ -31,6 +32,7 @@ import { SorteosModule } from './sorteos/sorteos.module';
     CatalogosModule,
     MovilesModule,
     FleterasModule,
+    PuestosModule,
     ZonasModule,
     PersonasModule,
     WorkbenchModule,

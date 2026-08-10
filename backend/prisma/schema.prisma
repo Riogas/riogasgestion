@@ -334,6 +334,15 @@ model Puesto {
   lng            Decimal? @db.Decimal(12, 7)
   estado         String?  @db.VarChar(1)
 
+  // Agregados para la pantalla de administración de Puestos. Los tres son
+  // nullable a propósito: la tabla la puebla un ETL del AS400 que no los
+  // conoce, y las 19 filas existentes quedan en null (la UI muestra "—").
+  telefono    String?   @db.VarChar(20)
+  localidadId Int?
+  updatedAt   DateTime? @updatedAt
+
+  @@index([departamentoId])
+  @@index([localidadId])
   @@map("puesto")
 }
 

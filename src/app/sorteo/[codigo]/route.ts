@@ -21,7 +21,17 @@ export async function GET(
   // Los QR se generan en mayúsculas, pero un lector puede normalizar la URL.
   const normalizado = (codigo ?? "").toUpperCase();
 
-  const res = NextResponse.redirect(new URL("/sorteo", request.url), 302);
+  // `NextResponse.redirect()` exige URL absoluta y la copia tal cual al header
+  // `Location`. Detrás del reverse proxy, `request.url` es la interna
+  // (`https://localhost:3000/...`), así que el celular que escanea el QR
+  // terminaba mandado a un host que para él no existe. Un `Location` relativo
+  // lo resuelve el navegador contra la URL que pidió, sin depender de qué
+  // `Host` reenvíe el proxy. (El middleware ya emite redirects relativos; los
+  // route handlers no.)
+  const res = new NextResponse(null, {
+    status: 302,
+    headers: { Location: "/sorteo" },
+  });
 
   // Código malformado → redirige igual, sin cookie: la página muestra
   // "volvé a escanear" en lugar de un 404. Se borra además la cookie anterior:

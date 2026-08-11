@@ -26,11 +26,13 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   buscarCandidatas,
+  getCalleOsm,
   getMapaMatch,
   getMatches,
   revisarMatch,
 } from "@/services/callesMatch";
 import type {
+  CalleOsmDetalle,
   CalleSugerida,
   EstadoMatch,
   MapaMatch,
@@ -67,6 +69,9 @@ export default function CallesMatch() {
   const [corrigiendo, setCorrigiendo] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [candidatas, setCandidatas] = useState<CalleSugerida[]>([]);
+  // La candidata elegida se pinta en naranja en el mapa ANTES de confirmar:
+  // si la nube azul la abraza, es esa.
+  const [candidataPreview, setCandidataPreview] = useState<CalleOsmDetalle | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -88,6 +93,7 @@ export default function CallesMatch() {
     setMapa(null);
     setCorrigiendo(false);
     setCandidatas([]);
+    setCandidataPreview(null);
     if (seleccion) {
       void getMapaMatch(seleccion.id).then(setMapa).catch(() => setMapa(null));
     }
@@ -327,8 +333,16 @@ export default function CallesMatch() {
                       {candidatas.map((c) => (
                         <button
                           key={c.calleOsmId}
-                          className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted"
-                          onClick={() => void ejecutar("corregir", c.calleOsmId!)}
+                          className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted ${
+                            candidataPreview?.id === c.calleOsmId
+                              ? "bg-orange-50 dark:bg-orange-950/30"
+                              : ""
+                          }`}
+                          onClick={() =>
+                            void getCalleOsm(c.calleOsmId!)
+                              .then(setCandidataPreview)
+                              .catch(() => setCandidataPreview(null))
+                          }
                         >
                           <span>
                             {c.nombre}
@@ -343,13 +357,39 @@ export default function CallesMatch() {
                       ))}
                     </div>
                   )}
+                  {candidataPreview && (
+                    <div className="flex items-center gap-2 rounded-md border border-orange-300 bg-orange-50 p-2 dark:border-orange-800 dark:bg-orange-950/30">
+                      <span className="h-3 w-3 flex-none rounded-full bg-orange-500" />
+                      <span className="flex-1 text-sm">
+                        <b>{candidataPreview.nombre}</b>
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          {candidataPreview.localidad ?? ""} — mirala en naranja en el
+                          mapa: si la nube azul la abraza, es esa.
+                        </span>
+                      </span>
+                      <Button
+                        size="sm"
+                        disabled={accionEnCurso}
+                        onClick={() => void ejecutar("corregir", candidataPreview.id)}
+                      >
+                        <Check className="mr-1 h-4 w-4" /> Corregir a esta
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setCandidataPreview(null)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
 
             <Card className="h-[430px] overflow-hidden p-0">
               {mapa ? (
-                <MatchMap datos={mapa} />
+                <MatchMap datos={mapa} candidata={candidataPreview} />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -357,8 +397,9 @@ export default function CallesMatch() {
               )}
             </Card>
             <p className="text-xs text-muted-foreground">
-              Rojo: la calle según OSM. Azul: dónde viven los clientes de ese CALID. Si
-              la nube azul abraza los puntos rojos, el match es bueno.
+              Rojo: la calle actual del match. Azul: dónde viven los clientes de ese
+              CALID. Naranja: la candidata que estás por elegir al corregir. Si la nube
+              azul abraza la naranja, es esa.
             </p>
           </>
         ) : (

@@ -146,6 +146,13 @@ export class CallesController {
     return this.calles.mapaDeMatch(id);
   }
 
+  @Get('osm/:id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard)
+  calleOsm(@Param('id', ParseIntPipe) id: number) {
+    return this.calles.calleOsmDetalle(id);
+  }
+
   @Patch('matches/:id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)

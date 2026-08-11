@@ -57,6 +57,16 @@ export interface MapaMatch {
   clientes: [number, number][];
 }
 
+export interface CalleOsmDetalle {
+  id: number;
+  nombre: string;
+  localidad: string | null;
+  departamento: string;
+  lat: number;
+  lng: number;
+  puntos: [number, number][];
+}
+
 export interface CalleSugerida {
   fuente: "osm" | "nomenclator";
   nombre: string;

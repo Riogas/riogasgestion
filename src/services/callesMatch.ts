@@ -4,6 +4,7 @@
 import { api } from "@/lib/axios";
 import { getAuthToken } from "@/lib/authToken";
 import type {
+  CalleOsmDetalle,
   CalleSugerida,
   EstadoMatch,
   MapaMatch,
@@ -41,6 +42,14 @@ export async function revisarMatch(
     usuario: usuarioActual(),
     ...(calleOsmId ? { calleOsmId } : {}),
   });
+}
+
+/** Los puntos de una calle OSM: para pintar la candidata en el mapa. */
+export async function getCalleOsm(id: number): Promise<CalleOsmDetalle> {
+  const { data } = await api.get<CalleOsmDetalle>(`/calles/osm/${id}`, {
+    ...sinOverlay,
+  });
+  return data;
 }
 
 /** Candidatas OSM para "corregir" — el mismo suggest que usa el VB6. */

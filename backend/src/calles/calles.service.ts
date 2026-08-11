@@ -293,6 +293,22 @@ export class CallesService implements OnModuleInit {
     };
   }
 
+  /** Una calle OSM suelta, con sus puntos: para previsualizar la candidata
+   *  en el mapa antes de confirmar una corrección. */
+  async calleOsmDetalle(id: number) {
+    const o = await this.prisma.calleOsm.findUnique({ where: { id } });
+    if (!o) throw new NotFoundException(`calle_osm ${id} no existe`);
+    return {
+      id: o.id,
+      nombre: o.nombre,
+      localidad: o.localidad,
+      departamento: o.departamento,
+      lat: Number(o.latCentro),
+      lng: Number(o.lngCentro),
+      puntos: o.puntos ?? [],
+    };
+  }
+
   /** Detalle para el mapa: puntos de la calle OSM + nube de clientes del CALID. */
   async mapaDeMatch(id: number) {
     const m = await this.prisma.calleMatch.findUnique({ where: { id } });

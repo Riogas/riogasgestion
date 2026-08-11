@@ -20,16 +20,43 @@ import json
 import subprocess
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding='utf-8')
 
 import psycopg2
+import requests
 
 from _creds import pg_conn_args
 
 PG = pg_conn_args()
 AQUI = Path(__file__).resolve().parent
+
+# Guardas aprendidas del incidente Roberto Berro (2026-08-11): la extracción
+# corrió mientras Overpass aplicaba 4 meses de diffs y ~60 ways quedaron
+# afuera — entre ellas "Doctor Roberto Berro" (2.114 usos de clientes), y la
+# pasada geométrica eligió la calle paralela.
+MAX_ATRASO_DIAS = 8          # réplica más vieja que esto = está trancada de nuevo
+MIN_RATIO_CATALOGO = 0.90    # el catálogo nuevo no puede encoger más de 10%
+
+
+def verificar_replica_overpass() -> None:
+    r = requests.get(
+        'http://overpass.riogas.uy/api/interpreter',
+        params={'data': '[out:json];node(1);out;'}, timeout=30,
+    )
+    r.raise_for_status()
+    base = r.json()['osm3s']['timestamp_osm_base']
+    fecha = datetime.fromisoformat(base.replace('Z', '+00:00'))
+    atraso = datetime.now(timezone.utc) - fecha
+    print(f'replica overpass: {base} (atraso {atraso.days}d)')
+    if atraso > timedelta(days=MAX_ATRASO_DIAS):
+        print(f'ABORTADO: la replica de Overpass esta trancada '
+              f'(>{MAX_ATRASO_DIAS} dias). Revisar el contenedor en la VM osm '
+              f'(gotchas en el registro de infra) antes de refrescar, o el '
+              f'catalogo nuevo naceria viejo.')
+        sys.exit(2)
 
 
 def snapshot(pc) -> dict[str, dict]:
@@ -50,6 +77,8 @@ def main():
     args = ap.parse_args()
     t0 = time.time()
 
+    verificar_replica_overpass()
+
     p = psycopg2.connect(**PG)
     pc = p.cursor()
     antes = snapshot(pc)
@@ -67,6 +96,13 @@ def main():
     despues = snapshot(pc)
     pc.close()
     p.close()
+
+    if antes and len(despues) < len(antes) * MIN_RATIO_CATALOGO:
+        print(f'OJO: el catálogo encogió {len(antes)} → {len(despues)} '
+              f'(más del {int((1-MIN_RATIO_CATALOGO)*100)}%). Huele a extracción '
+              f'incompleta; NO se corre el matching para no romper matches sanos. '
+              f'Revisar y correr matching_calles.py a mano si el encogimiento es real.')
+        args.sin_matching = True
 
     claves_antes = set(antes)
     claves_despues = set(despues)

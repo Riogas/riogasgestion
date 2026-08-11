@@ -25,7 +25,14 @@ from psycopg2.extras import execute_values
 from rapidfuzz import fuzz, process
 
 from _creds import pg_conn_args
-from _normcalle import es_calle_real, normalizar_calle, normalizar_lugar, sin_tipo_via
+from _normcalle import (
+    clave_esencial,
+    es_calle_real,
+    es_nombre_generico,
+    normalizar_calle,
+    normalizar_lugar,
+    sin_tipo_via,
+)
 
 PG = pg_conn_args()
 
@@ -84,6 +91,7 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
     idx_exacto = defaultdict(list)      # (deptoNorm, norm) -> [osmId]
     idx_sintipo = defaultdict(list)
     idx_variante = defaultdict(list)    # variantes old/alt/short normalizadas
+    idx_esencial = defaultdict(list)    # sin tipo/honoríficos/iniciales
     formas_por_depto = defaultdict(list)  # deptoNorm -> [(forma, osmId)]
     osm_por_id = {}
     for oid, nombre, norm, depto, locn, variantes, lat, lng, puntos in osm:
@@ -97,10 +105,14 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
         st = sin_tipo_via(norm)
         if st != norm:
             idx_sintipo[(dn, st)].append(oid)
-        formas_por_depto[dn].append((norm, oid))
+        # Los nombres genéricos (CALLE 1, PASAJE A) no participan de los
+        # índices por esencia ni del fuzzy: no identifican nada por nombre.
+        if not es_nombre_generico(norm):
+            idx_esencial[(dn, clave_esencial(norm))].append(oid)
+            formas_por_depto[dn].append((norm, oid))
         for v in (variantes or []):
             vn = normalizar_calle(v.get('nombre', ''))
-            if vn:
+            if vn and not es_nombre_generico(vn):
                 idx_variante[(dn, vn)].append(oid)
 
     # ---------- pasada geometrica: preparar grilla ----------
@@ -165,12 +177,17 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
         if ciuid in ciudad_nom:
             ciudad_n = normalizar_lugar(ciudad_nom[ciuid][1] or '')
 
+        # Las formas con nombre genérico (el exNombre 'CALLE 1(COLON NORTE)'
+        # de Bonmesadri) no nominan candidatos: una CALLE 1 cualquiera del
+        # departamento no tiene nada que ver. Esas calles solo pueden
+        # enlazarse por geometría.
         formas_nom = []
         for orig, etiqueta in ((nombre, 'nombre'), (exnombre, 'exNombre'),
                                (nombreica, 'nombreIca')):
             if orig:
                 nn = normalizar_calle(orig)
-                if nn and (nn, etiqueta) not in [(f, e) for f, e, _ in formas_nom]:
+                if nn and not es_nombre_generico(nn) and \
+                        (nn, etiqueta) not in [(f, e) for f, e, _ in formas_nom]:
                     formas_nom.append((nn, etiqueta, orig))
 
         # -- exactos --
@@ -186,9 +203,13 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
                     candidatos.setdefault(oid, (0.97, 'EXACTO', f'{etiqueta} sin tipo de via'))
             for oid in idx_variante.get((dn, nn), []):
                 candidatos.setdefault(oid, (0.95, 'EXACTO', f'{etiqueta} = variante OSM'))
+            # Clave esencial: sin títulos civiles ni iniciales sueltas.
+            # 'DOCTOR JOSE TERRA' ↔ 'José L. Terra' (caso José Terra).
+            for oid in idx_esencial.get((dn, clave_esencial(nn)), []):
+                candidatos.setdefault(oid, (0.90, 'EXACTO', f'{etiqueta} por clave esencial'))
 
-        # -- fuzzy (solo si no hay exacto) --
-        if not candidatos:
+        # -- fuzzy (solo si no hay exacto; sin formas útiles va directo a geometría) --
+        if not candidatos and formas_nom:
             formas = formas_por_depto[dn]
             base = formas_nom[0][0]
             res = process.extract(

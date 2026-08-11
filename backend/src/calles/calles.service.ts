@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { normalizarCalle, normalizarLugar, sinTipoVia } from './normalizar';
+import { claveEsencial, normalizarCalle, normalizarLugar, sinTipoVia } from './normalizar';
 
 /** Un ítem del suggest: una calle, venga de donde venga. */
 export interface CalleSugerida {
@@ -90,12 +90,17 @@ export class CallesService implements OnModuleInit {
       const variantes = Array.isArray(o.variantes)
         ? (o.variantes as { nombre?: string }[]).map((v) => v.nombre ?? '').filter(Boolean)
         : [];
-      const claves = new Set<string>([o.nombreNorm, sinTipoVia(o.nombreNorm)]);
+      const claves = new Set<string>([
+        o.nombreNorm,
+        sinTipoVia(o.nombreNorm),
+        claveEsencial(o.nombreNorm),
+      ]);
       for (const v of variantes) {
         const n = normalizarCalle(v);
         if (n) {
           claves.add(n);
           claves.add(sinTipoVia(n));
+          claves.add(claveEsencial(n));
         }
       }
       indice.push({
@@ -123,7 +128,7 @@ export class CallesService implements OnModuleInit {
       if (!norm || norm === 'SIN NOMBRE') continue;
       const ciudad = c.ciudadId ? ciudadPorId.get(c.ciudadId) : undefined;
       const depto = c.deptoId ? deptoPorId.get(c.deptoId) : undefined;
-      const claves = new Set<string>([norm, sinTipoVia(norm)]);
+      const claves = new Set<string>([norm, sinTipoVia(norm), claveEsencial(norm)]);
       if (c.exNombre) {
         const ex = normalizarCalle(c.exNombre);
         if (ex) claves.add(ex);

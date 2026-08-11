@@ -1,4 +1,4 @@
-import { normalizarCalle, normalizarLugar, sinTipoVia } from './normalizar';
+import { claveEsencial, normalizarCalle, normalizarLugar, sinTipoVia } from './normalizar';
 
 /**
  * Paridad con `prisma/_normcalle.py` (_normcalle_test.py corre los mismos
@@ -38,5 +38,14 @@ describe('normalizarCalle — casos reales de los dos mundos', () => {
 
   it('normalizarLugar iguala Paysandú con PAYSANDU', () => {
     expect(normalizarLugar('Paysandú')).toBe(normalizarLugar('PAYSANDU'));
+  });
+
+  it('clave esencial: DOCTOR JOSE TERRA ↔ José L. Terra (paridad con _normcalle.py)', () => {
+    expect(claveEsencial(normalizarCalle('DOCTOR JOSE TERRA'))).toBe(
+      claveEsencial(normalizarCalle('José L. Terra')),
+    );
+    expect(claveEsencial(normalizarCalle('DOCTOR JOSE TERRA'))).toBe('JOSE TERRA');
+    // rangos militares NO se descartan
+    expect(claveEsencial(normalizarCalle('AVENIDA GENERAL FLORES'))).toBe('GENERAL FLORES');
   });
 });

@@ -126,11 +126,61 @@ TIPOS_VIA = {
     'SENDA', 'DIAGONAL', 'CIRCUNVALACION', 'COSTANERA', 'PEATONAL', 'RUTA',
 }
 
+# Títulos honoríficos civiles: presentación, no identidad. El nomenclator
+# escribe "DOCTOR JOSE TERRA" y OSM "José L. Terra" — mismo señor. Los rangos
+# militares (GENERAL, CORONEL...) NO se descartan a propósito: "General
+# Flores" no puede colapsar con "Flores".
+HONORIFICOS = {
+    'DOCTOR', 'DOCTORA', 'INGENIERO', 'INGENIERA', 'ARQUITECTO', 'ARQUITECTA',
+    'PROFESOR', 'PROFESORA', 'PRESBITERO', 'MAESTRO', 'MAESTRA', 'ESCRIBANO',
+    'LICENCIADO', 'DON', 'DONA',
+}
+
 
 def sin_tipo_via(nombre_normalizado: str) -> str:
     """Clave secundaria: la forma canónica SIN los tokens de tipo de vía."""
     tokens = [t for t in nombre_normalizado.split() if t not in TIPOS_VIA]
     return ' '.join(tokens) if tokens else nombre_normalizado
+
+
+def clave_esencial(nombre_normalizado: str) -> str:
+    """Clave terciaria: sin tipo de vía, sin honoríficos civiles y sin
+    iniciales sueltas. 'DOCTOR JOSE TERRA' y 'JOSE L TERRA' -> 'JOSE TERRA'.
+    Es la que empareja cuando cada mundo decoró el nombre a su manera."""
+    tokens = [
+        t for t in nombre_normalizado.split()
+        if t not in TIPOS_VIA and t not in HONORIFICOS
+        and not (len(t) == 1 and t.isalpha())
+    ]
+    return ' '.join(tokens) if tokens else sin_tipo_via(nombre_normalizado)
+
+
+# Tokens que no identifican una calle: aparecen en nombres provisorios de
+# asentamientos, fraccionamientos o calles internas.
+_TOKENS_GENERICOS = {
+    'CALLE', 'PASAJE', 'CAMINO', 'SENDA', 'CALLEJON', 'VIA', 'ACCESO',
+    'SERVIDUMBRE', 'PEATONAL', 'VEHICULAR', 'PUBLICA', 'PUBLICO',
+    'PROYECTADA', 'PROYECTADO', 'DIAGONAL', 'TRANSVERSAL', 'CONTINUACION',
+    'PROLONGACION', 'VECINAL', 'INTERNA', 'INTERNO', 'ANONIMA', 'APENDICE',
+    'METROS', 'BIS', 'NORTE', 'SUR', 'ESTE', 'OESTE', 'NUEVA', 'NUEVO',
+    'PARALELA', 'PARALELO', 'AL', 'LA', 'EL', 'DE', 'DEL',
+}
+
+
+def es_nombre_generico(nombre_normalizado: str) -> bool:
+    """'CALLE 1', 'CALLE A', 'PASAJE PEATONAL 3', 'CALLE 17 METROS',
+    'VEHICULAR PEATONAL': nombres provisorios que NO identifican una calle.
+    Una 'CALLE 1' de Colón Norte no tiene nada que ver con la 'Calle 1' de
+    otro barrio — estos nombres no pueden matchear por nombre, solo la
+    geometría (la nube de clientes) puede enlazarlos."""
+    tokens = nombre_normalizado.split()
+    if not tokens:
+        return True
+    for t in tokens:
+        if t in _TOKENS_GENERICOS or t.isdigit() or len(t) == 1:
+            continue
+        return False
+    return True
 
 
 def normalizar_lugar(nombre: str) -> str:

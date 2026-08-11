@@ -106,6 +106,29 @@ export function sinTipoVia(nombreNormalizado: string): string {
   return tokens.length ? tokens.join(' ') : nombreNormalizado;
 }
 
+// Títulos honoríficos civiles: presentación, no identidad. Los rangos
+// militares NO se descartan ("General Flores" ≠ "Flores").
+const HONORIFICOS = new Set([
+  'DOCTOR', 'DOCTORA', 'INGENIERO', 'INGENIERA', 'ARQUITECTO', 'ARQUITECTA',
+  'PROFESOR', 'PROFESORA', 'PRESBITERO', 'MAESTRO', 'MAESTRA', 'ESCRIBANO',
+  'LICENCIADO', 'DON', 'DONA',
+]);
+
+/**
+ * Clave terciaria: sin tipo de vía, sin honoríficos civiles y sin iniciales
+ * sueltas. 'DOCTOR JOSE TERRA' y 'JOSE L TERRA' → 'JOSE TERRA'. Espejo de
+ * `clave_esencial` en `prisma/_normcalle.py`.
+ */
+export function claveEsencial(nombreNormalizado: string): string {
+  const tokens = nombreNormalizado
+    .split(' ')
+    .filter(
+      (t) =>
+        !TIPOS_VIA.has(t) && !HONORIFICOS.has(t) && !(t.length === 1 && /[A-Z]/.test(t)),
+    );
+  return tokens.length ? tokens.join(' ') : sinTipoVia(nombreNormalizado);
+}
+
 export function normalizarLugar(nombre: string): string {
   if (!nombre) return '';
   return quitarTildes(nombre.toUpperCase().trim())

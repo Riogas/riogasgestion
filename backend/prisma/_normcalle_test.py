@@ -4,7 +4,9 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 from _normcalle import (
+    clave_esencial,
     es_calle_real,
+    es_nombre_generico,
     extraer_parentesis,
     normalizar_calle,
     normalizar_lugar,
@@ -59,6 +61,23 @@ def correr():
         sin_tipo_via(normalizar_calle('18 de Julio'))
     assert sin_tipo_via(normalizar_calle('BOULEVARD GENERAL ARTIGAS')) == \
         sin_tipo_via(normalizar_calle('Bulevar Gral. Artigas'))
+
+    # Clave esencial: títulos civiles e iniciales sueltas afuera (caso José Terra)
+    assert clave_esencial(normalizar_calle('DOCTOR JOSE TERRA')) == \
+        clave_esencial(normalizar_calle('José L. Terra')) == 'JOSE TERRA'
+    assert clave_esencial(normalizar_calle('AVENIDA DOCTOR LUIS ALBERTO DE HERRERA')) == \
+        clave_esencial(normalizar_calle('Dr. Luis Alberto de Herrera'))
+    # Los rangos militares NO se descartan: General Flores ≠ Flores
+    assert clave_esencial(normalizar_calle('AVENIDA GENERAL FLORES')) == 'GENERAL FLORES'
+
+    # Nombres genéricos: no identifican calle (caso Padre Juan Bonmesadri,
+    # cuyo exNombre 'CALLE 1(COLON NORTE)' matcheaba una Calle 1 cualquiera)
+    for generico in ('CALLE 1', 'Calle A', 'PASAJE PEATONAL 3',
+                     'CALLE 17 METROS', 'Vehicular/ Peatonal', 'CAMINO VECINAL'):
+        assert es_nombre_generico(normalizar_calle(generico)), generico
+    for real in ('CUFRE', '18 DE JULIO', 'CALLE LARGA', 'JOSE L TERRA',
+                 'CAMINO A LAS PIEDRAS', 'PADRE JUAN BONMESADRI'):
+        assert not es_nombre_generico(normalizar_calle(real)), real
 
     print(f'\n{"TODO OK" if fallos == 0 else f"{fallos} FALLOS"}')
     return fallos

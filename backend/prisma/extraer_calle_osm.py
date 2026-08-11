@@ -14,6 +14,7 @@ import json
 import math
 import sys
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -25,8 +26,15 @@ from psycopg2.extras import execute_values
 from _creds import pg_conn_args
 from _normcalle import normalizar_calle, normalizar_lugar
 
-OVERPASS = 'http://overpass.riogas.uy/api/interpreter'
-NOMINATIM = 'http://nominatim.riogas.uy'
+import os as _os
+
+# Config por env (backend/.env, que _creds carga al importarse). En los
+# servers conviene la IP directa (192.168.7.111): el nginx público bloquea
+# con 403 cualquier query string que contenga "Francisco" (regla WAF
+# desconocida, detectada 2026-08-11) y las búsquedas llevan nombres de calle.
+OVERPASS = _os.environ.get('OVERPASS_URL', 'http://overpass.riogas.uy').rstrip('/') \
+    + '/api/interpreter'
+NOMINATIM = _os.environ.get('NOMINATIM_URL', 'http://nominatim.riogas.uy').rstrip('/')
 PG = pg_conn_args()
 
 DEPARTAMENTOS = [
@@ -293,21 +301,76 @@ def main():
 
     p = psycopg2.connect(**PG)
     pc = p.cursor()
-    pc.execute('TRUNCATE TABLE calle_osm RESTART IDENTITY CASCADE')
-    execute_values(
-        pc,
-        'INSERT INTO calle_osm (nombre, "nombreNorm", departamento, localidad, '
-        '"localidadNorm", variantes, "latCentro", "lngCentro", puntos, "wayIds", '
-        '"tipoVia") VALUES %s',
-        [(
+
+    # ── UPSERT ESTABLE, JAMAS TRUNCATE ──────────────────────────────────────
+    # calle_match referencia calle_osm.id: las decisiones humanas de la
+    # pantalla apuntan a estos ids. Un TRUNCATE RESTART IDENTITY los
+    # reasigna y corrompe silenciosamente lo revisado (incidente Pedro
+    # Francisco Berro, 2026-08-11). Identidad = (depto, nombreNorm) + el
+    # cluster existente MAS CERCANO por centroide; lo que desaparece se
+    # marca activo=false (nunca se borra).
+    pc.execute('''SELECT id, departamento, "nombreNorm",
+                         "latCentro"::float, "lngCentro"::float
+                  FROM calle_osm''')
+    existentes = defaultdict(list)  # (depto, norm) -> [(id, lat, lng)]
+    for eid, dep, norm, la, lo in pc.fetchall():
+        existentes[(dep, norm)].append((eid, la, lo))
+
+    usados: set[int] = set()
+    actualizar, insertar = [], []
+    for c in todos:
+        clave = (c['departamento'], c['nombreNorm'])
+        candidatos = [(hav_km((c['lat'], c['lng']), (la, lo)), eid)
+                      for eid, la, lo in existentes.get(clave, [])
+                      if eid not in usados]
+        candidatos.sort()
+        fila = (
             c['nombre'], c['nombreNorm'], c['departamento'], c.get('localidad'),
             normalizar_lugar(c['localidad']) if c.get('localidad') else None,
             json.dumps(c['variantes'], ensure_ascii=False) if c['variantes'] else None,
             c['lat'], c['lng'], json.dumps(c['puntos']), json.dumps(c['wayIds']),
             c['tipoVia'],
-        ) for c in todos],
-        page_size=1000,
+        )
+        # 5 km de tolerancia: el centroide se mueve si la calle creció, pero
+        # un homónimo de otro pueblo no puede "robarse" el id.
+        if candidatos and candidatos[0][0] <= 5.0:
+            eid = candidatos[0][1]
+            usados.add(eid)
+            actualizar.append((eid,) + fila)
+        else:
+            insertar.append(fila)
+
+    # Desactivar ANTES de insertar: lo que no apareó con ningún cluster nuevo
+    # desapareció de OSM (o cambió de clave). Nunca se borra.
+    pc.execute(
+        'UPDATE calle_osm SET activo=false, "actualizadoAt"=NOW() '
+        'WHERE activo AND NOT (id = ANY(%s))',
+        (list(usados) if usados else [-1],),
     )
+    desactivadas = pc.rowcount
+    if actualizar:
+        execute_values(
+            pc,
+            'UPDATE calle_osm AS t SET nombre=d.nombre, "nombreNorm"=d.norm, '
+            'departamento=d.dep, localidad=d.loc, "localidadNorm"=d.locn, '
+            'variantes=d.var::jsonb, "latCentro"=d.lat::numeric, '
+            '"lngCentro"=d.lng::numeric, puntos=d.pts::jsonb, '
+            '"wayIds"=d.wids::jsonb, "tipoVia"=d.tipo, activo=true, '
+            '"actualizadoAt"=NOW() '
+            'FROM (VALUES %s) AS d(id, nombre, norm, dep, loc, locn, var, lat, lng, pts, wids, tipo) '
+            'WHERE t.id = d.id',
+            actualizar, page_size=500,
+        )
+    if insertar:
+        execute_values(
+            pc,
+            'INSERT INTO calle_osm (nombre, "nombreNorm", departamento, localidad, '
+            '"localidadNorm", variantes, "latCentro", "lngCentro", puntos, "wayIds", '
+            '"tipoVia") VALUES %s',
+            insertar, page_size=1000,
+        )
+    print(f'upsert: {len(actualizar)} actualizadas, {len(insertar)} nuevas, '
+          f'{desactivadas} desactivadas')
     pc.execute(
         "INSERT INTO calle_osm_sync_log (tipo, resumen) VALUES ('EXTRACCION', %s)",
         (json.dumps({

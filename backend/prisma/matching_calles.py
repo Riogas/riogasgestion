@@ -158,6 +158,16 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
         n = len(puntos_cliente)
         return {oid: h / n for oid, h in hits.items()}
 
+    # Filas protegidas (decisiones humanas): no se pisan, pero su evidencia
+    # geométrica SÍ se recalcula — si no, una confirmada arrastra un "3%
+    # contradice" de una corrida vieja para siempre.
+    pc.execute('''SELECT id, "calleId", "calleOsmId" FROM calle_match
+                  WHERE estado IN ('CONFIRMADO_MANUAL','RECHAZADO')''')
+    protegidos_por_calle = defaultdict(list)
+    for mid, cid, oid in pc.fetchall():
+        protegidos_por_calle[cid].append((mid, oid))
+    refresco_protegidos = []
+
     # ---------- matching ----------
     filas = []
     stats = defaultdict(int)
@@ -243,6 +253,10 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
         nube = nubes.get(calid, [])
         ratios = ratios_geometricos(nube) if len(nube) >= GEO_MIN_CLIENTES else {}
         geo_orden = sorted(ratios.items(), key=lambda kv: -kv[1])
+
+        for mid, oid_prot in protegidos_por_calle.get(calid, []):
+            refresco_protegidos.append(
+                (mid, round(ratios.get(oid_prot, 0.0), 2), len(nube)))
 
         elegido = None
         if puntuados:
@@ -381,6 +395,21 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
             stats['sin_match'] += 1
 
     # ---------- persistir (respetando lo revisado a mano) ----------
+    if refresco_protegidos:
+        execute_values(
+            pc,
+            '''UPDATE calle_match AS m
+               SET detalle = COALESCE(m.detalle, '{}'::jsonb) ||
+                   jsonb_build_object('geo', jsonb_build_object(
+                       'ratio', d.ratio::numeric, 'clientes', d.clientes,
+                       'coincide', d.ratio::numeric >= 0.5,
+                       'contradice', false, 'recalculado', true))
+               FROM (VALUES %s) AS d(id, ratio, clientes)
+               WHERE m.id = d.id''',
+            refresco_protegidos, page_size=500,
+        )
+        print(f'evidencia geo recalculada en {len(refresco_protegidos)} filas protegidas')
+
     pc.execute('''DELETE FROM calle_match
                   WHERE estado NOT IN ('CONFIRMADO_MANUAL','RECHAZADO')''')
     pc.execute('''SELECT "calleId" FROM calle_match''')

@@ -42,8 +42,10 @@ MIN_RATIO_CATALOGO = 0.90    # el catálogo nuevo no puede encoger más de 10%
 
 
 def verificar_replica_overpass() -> None:
+    import os
+    base = os.environ.get('OVERPASS_URL', 'http://overpass.riogas.uy').rstrip('/')
     r = requests.get(
-        'http://overpass.riogas.uy/api/interpreter',
+        base + '/api/interpreter',
         params={'data': '[out:json];node(1);out;'}, timeout=30,
     )
     r.raise_for_status()

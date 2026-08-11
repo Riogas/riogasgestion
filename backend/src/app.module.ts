@@ -14,6 +14,7 @@ import { WorkbenchModule } from './workbench/workbench.module';
 import { CoberturaModule } from './cobertura/cobertura.module';
 import { IdentificacionModule } from './identificacion/identificacion.module';
 import { SorteosModule } from './sorteos/sorteos.module';
+import { CallesModule } from './calles/calles.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { SorteosModule } from './sorteos/sorteos.module';
     CoberturaModule,
     IdentificacionModule,
     SorteosModule,
+    CallesModule,
     // TODO: Agregar módulos a medida que se migran las APIs
     // UsuariosModule,
     // AsignacionesModule,

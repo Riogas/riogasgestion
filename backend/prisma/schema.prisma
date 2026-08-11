@@ -96,13 +96,112 @@ model Cliente {
 
 // Catálogo de calles (espejo de GXCALDTA.CALLE del AS400). Para resolver
 // callePrincipalId / calleEsquinaNId → nombre, y reconstruir la dirección.
+// Ampliada 2026-08-11 para el puente nomenclator↔OSM (spec 2026-08-11).
 model Calle {
   id        Int      @id // CALID
   nombre    String?  @db.VarChar(150) // CALNOM
   nombreIca String?  @db.VarChar(150) // CALNOMICA
   createdAt DateTime @default(now())
 
+  // — Ampliación puente nomenclator↔OSM —
+  exNombre          String?   @db.VarChar(150) // EXCALNOM (nombre anterior)
+  ciudadId          Int? // CIUID
+  deptoId           Int? // vía CIUDAD.DEPID
+  visible           String?   @db.VarChar(1) // CALVISIBLE (S/V/J/P/N)
+  cantClientesAs400 Int? // CALCANTCLI (frescura dudosa, informativo)
+  cantClientesReal  Int? // COUNT local: cliente prin + esq1 + esq2
+  codIca            BigInt? // CALCODICA (segmentación vieja)
+  tramoIca          BigInt? // CALTRAMICA
+  cordX             Decimal?  @db.Decimal(13, 5) // CALCORDX (UTM 21S)
+  cordY             Decimal?  @db.Decimal(13, 5) // CALCORDY
+  actualizadoAt     DateTime?
+
+  @@index([ciudadId])
   @@map("calle")
+}
+
+// =====================================================================
+// PUENTE NOMENCLATOR ↔ OSM (spec 2026-08-11). El AS400 no se toca:
+// estas tablas son espejo + correlación, viven solo en goya.
+// =====================================================================
+
+// Espejo de GXCALDTA.CIUDAD (81 filas). Distinto de `Localidad` (puestos).
+model CiudadNomenclator {
+  id         Int      @id // CIUID
+  deptoId    Int? // DEPID
+  nombre     String?  @db.VarChar(80) // CIUNOM
+  nombreAbre String?  @db.VarChar(40) // CIUNOMABRE
+  estado     String?  @db.VarChar(10) // CIUESTADO
+  cordX      Decimal? @db.Decimal(13, 5) // CIUCORDX (UTM 21S)
+  cordY      Decimal? @db.Decimal(13, 5) // CIUCORDY
+
+  @@index([deptoId])
+  @@map("ciudad_nomenclator")
+}
+
+// Espejo de GXCALDTA.DEPTO (20 filas).
+model DeptoNomenclator {
+  id     Int     @id // DEPID
+  nombre String? @db.VarChar(30) // DEPNOM
+
+  @@map("depto_nomenclator")
+}
+
+// Catálogo deduplicado extraído de OSM propio (Overpass). Una fila por
+// calle real: los tramos de una misma calle se clusterizan por
+// (nombre, proximidad) dentro del departamento.
+model CalleOsm {
+  id            Int       @id @default(autoincrement())
+  nombre        String    @db.VarChar(200) // nombre canónico OSM
+  nombreNorm    String    @db.VarChar(200)
+  departamento  String    @db.VarChar(40) // nombre del depto (admin_level 4)
+  localidad     String?   @db.VarChar(120) // geoinversa del centroide
+  localidadNorm String?   @db.VarChar(120)
+  variantes     Json? // [{tipo:'old'|'alt'|'short'|'official', nombre}]
+  latCentro     Decimal   @db.Decimal(10, 7)
+  lngCentro     Decimal   @db.Decimal(10, 7)
+  puntos        Json? // muestras [[lat,lng],…] (centros de los ways del cluster)
+  wayIds        Json? // ids de ways OSM del cluster
+  tipoVia       String?   @db.VarChar(30) // highway= dominante del cluster
+  activo        Boolean   @default(true) // false si desapareció en un refresh
+  extraidoAt    DateTime  @default(now())
+  actualizadoAt DateTime?
+
+  @@index([departamento, nombreNorm])
+  @@index([nombreNorm])
+  @@map("calle_osm")
+}
+
+// La tabla puente. M:N a propósito: una calle OSM puede corresponder a
+// dos CALID (duplicados históricos) y viceversa. Sin fila = sin match.
+model CalleMatch {
+  id            Int       @id @default(autoincrement())
+  calleId       Int // CALID → calle.id
+  calleOsmId    Int // → calle_osm.id
+  score         Decimal   @db.Decimal(5, 4)
+  metodo        String    @db.VarChar(12) // EXACTO|FUZZY|GEOMETRICO|MANUAL
+  estado        String    @db.VarChar(20) // AUTO_CONFIRMADO|A_REVISAR|RECHAZADO|CONFIRMADO_MANUAL
+  clientesCant  Int       @default(0) // para priorizar la revisión
+  detalle       Json? // evidencia: scores, distancias, nombres comparados
+  revisadoPor   String?   @db.VarChar(60)
+  revisadoAt    DateTime?
+  createdAt     DateTime  @default(now())
+  actualizadoAt DateTime?
+
+  @@unique([calleId, calleOsmId])
+  @@index([estado, clientesCant])
+  @@index([calleOsmId])
+  @@map("calle_match")
+}
+
+// Log de corridas de extracción/diff del catálogo OSM.
+model CalleOsmSyncLog {
+  id        Int      @id @default(autoincrement())
+  corridaAt DateTime @default(now())
+  tipo      String   @db.VarChar(20) // EXTRACCION|DIFF|MATCHING
+  resumen   Json?
+
+  @@map("calle_osm_sync_log")
 }
 
 // =====================================================================

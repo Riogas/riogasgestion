@@ -166,6 +166,10 @@ export class CallesService implements OnModuleInit {
   buscar(q: string, depto?: string, ciudad?: string, limite = 15): CalleSugerida[] {
     const qn = normalizarCalle(q);
     if (qn.length < 2) return [];
+    // La consulta también se reduce a su esencia: quien tipea
+    // "doctor jose terra" tiene que encontrar "José L. Terra".
+    const qe = claveEsencial(qn);
+    const formasQ = qe !== qn ? [qn, qe] : [qn];
     const deptoN = depto ? normalizarLugar(depto) : null;
     const ciudadN = ciudad ? normalizarLugar(ciudad) : null;
 
@@ -175,9 +179,11 @@ export class CallesService implements OnModuleInit {
       if (ciudadN && item.locNorm && item.locNorm !== ciudadN) continue;
       let rango = 0;
       for (const clave of item.claves) {
-        if (clave === qn) rango = Math.max(rango, 3);
-        else if (clave.startsWith(qn)) rango = Math.max(rango, 2);
-        else if (clave.includes(qn)) rango = Math.max(rango, 1);
+        for (const fq of formasQ) {
+          if (clave === fq) rango = Math.max(rango, 3);
+          else if (clave.startsWith(fq)) rango = Math.max(rango, 2);
+          else if (clave.includes(fq)) rango = Math.max(rango, 1);
+        }
         if (rango === 3) break;
       }
       if (rango > 0) puntuados.push({ item, rango });

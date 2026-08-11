@@ -67,3 +67,6 @@ uploads/
 # Python cache (scripts ETL en backend/prisma)
 __pycache__/
 *.pyc
+
+# Generado por matching_calles.py en cada corrida (tambien por el cron en el server)
+backend/prisma/reporte_matching.md

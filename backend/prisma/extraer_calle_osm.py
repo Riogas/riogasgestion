@@ -57,18 +57,52 @@ def hav_km(a, b):
     return 2 * 6371 * math.asin(math.sqrt(h))
 
 
+PASO_MUESTREO_KM = 0.12  # un punto cada ~120 m a lo largo de la geometría
+
+
+def _muestrear(geom: list[dict]) -> list[tuple[float, float]]:
+    """Puntos cada ~120 m A LO LARGO del way, extremos incluidos.
+
+    Muestrear solo el centro del way (out center) rompe con las calles
+    largas: 'Doctor Roberto Berro' son 2 ways de ~500 m -> 2 puntos, y los
+    clientes a lo largo quedaban a >150 m de ambos, con lo que la nube 'caía'
+    sobre la paralela cortada en tramos cortos (incidente 2026-08-11)."""
+    puntos = [(g['lat'], g['lon']) for g in geom if g]
+    if len(puntos) < 2:
+        return puntos
+    salida = [puntos[0]]
+    acumulado = 0.0
+    for a, b in zip(puntos, puntos[1:]):
+        d = hav_km(a, b)
+        acumulado += d
+        if acumulado >= PASO_MUESTREO_KM:
+            salida.append(b)
+            acumulado = 0.0
+    if salida[-1] != puntos[-1]:
+        salida.append(puntos[-1])
+    return salida
+
+
 def ways_del_pais() -> list[dict]:
-    """Todos los ways con highway+name del país (la base ES Uruguay)."""
-    q = '[out:json][timeout:300];way["highway"]["name"];out tags center;'
-    r = requests.post(OVERPASS, data={'data': q}, timeout=360)
+    """Todos los ways con highway+name del país, con su geometría (la base
+    ES Uruguay). `out geom` pesa más que `out center` pero es lo que permite
+    el muestreo denso; el Overpass es propio y local."""
+    q = '[out:json][timeout:600];way["highway"]["name"];out tags geom;'
+    r = requests.post(OVERPASS, data={'data': q}, timeout=900)
     r.raise_for_status()
     out = []
     for e in r.json().get('elements', []):
-        c = e.get('center')
+        geom = e.get('geometry')
         tags = e.get('tags', {})
-        if not c or not tags.get('name'):
+        if not geom or not tags.get('name'):
             continue
-        out.append({'id': e['id'], 'lat': c['lat'], 'lng': c['lon'], 'tags': tags})
+        muestras = _muestrear(geom)
+        if not muestras:
+            continue
+        lat = sum(p[0] for p in muestras) / len(muestras)
+        lng = sum(p[1] for p in muestras) / len(muestras)
+        out.append({'id': e['id'], 'lat': lat, 'lng': lng,
+                    'muestras': muestras, 'tags': tags})
     return out
 
 
@@ -121,7 +155,12 @@ def clusterizar(ways: list[dict]) -> list[dict]:
             canonico = max(nombres, key=nombres.get)
             lats = [w['lat'] for w in miembros]
             lngs = [w['lng'] for w in miembros]
-            puntos = [[round(w['lat'], 6), round(w['lng'], 6)] for w in miembros[:40]]
+            # Muestras densas de TODOS los ways del cluster (tope 250: una
+            # avenida de 20 km no necesita más para la pasada geométrica).
+            puntos = [
+                [round(la, 6), round(lo, 6)]
+                for w in miembros for la, lo in w.get('muestras', [(w['lat'], w['lng'])])
+            ][:250]
             clusters.append({
                 'nombre': canonico,
                 'nombreNorm': norm,

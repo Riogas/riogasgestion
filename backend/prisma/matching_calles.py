@@ -193,7 +193,7 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
             base = formas_nom[0][0]
             res = process.extract(
                 base, [f for f, _ in formas], scorer=fuzz.token_sort_ratio,
-                score_cutoff=68, limit=6,
+                score_cutoff=68, limit=10,
             )
             for forma, score, idx in res:
                 # "DOCTOR JUAN PAULLIER" vs "JUAN PAULLIER" da token_sort 79:
@@ -226,6 +226,22 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
         elegido = None
         if puntuados:
             total, score, oid, metodo, evid = puntuados[0]
+
+            # La geometría decide ENTRE candidatos con nombre plausible: si la
+            # nube domina sobre otro candidato y al elegido ni lo toca, ese
+            # otro es la calle. Caso ROBERTO BERRO: "Roberto Barry" fuzzy 85
+            # con 0% de nube vs "Doctor Roberto Berro" subconjunto 79 con la
+            # nube encima — gana Berro.
+            if len(puntuados) > 1 and ratios.get(oid, 0.0) < 0.3:
+                mejor_geo = max(
+                    (p for p in puntuados[1:] if ratios.get(p[2], 0.0) >= 0.6),
+                    key=lambda p: ratios[p[2]],
+                    default=None,
+                )
+                if mejor_geo:
+                    total, score, oid, metodo, evid = mejor_geo
+                    evid += ' + la nube de clientes decide entre candidatos'
+
             # Ambigüedad sobre el score CRUDO: que el nombre vigente (1.0)
             # empate contra el old_name de otra calle (0.95) no es ambiguo —
             # el nombre actual gana. Solo empatan pares del mismo nivel.

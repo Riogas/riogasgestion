@@ -226,7 +226,10 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
         elegido = None
         if puntuados:
             total, score, oid, metodo, evid = puntuados[0]
-            ambiguo = len(puntuados) > 1 and (total - puntuados[1][0]) * 100 < AMBIGUO_DELTA
+            # Ambigüedad sobre el score CRUDO: que el nombre vigente (1.0)
+            # empate contra el old_name de otra calle (0.95) no es ambiguo —
+            # el nombre actual gana. Solo empatan pares del mismo nivel.
+            ambiguo = len(puntuados) > 1 and (score - puntuados[1][1]) * 100 < AMBIGUO_DELTA
             ratio_cand = ratios.get(oid, 0.0)
 
             # Una calle larga puede venir partida en varios clusters del MISMO
@@ -248,6 +251,26 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
             if geo_confirma:
                 ambiguo = False
 
+            # Empate entre "homónimos equivalentes": todos los casi-empatados
+            # son la MISMA calle real (mismo nombre sin tipo de vía, misma
+            # localidad) partida en clusters, o la variante con/sin "Bulevar".
+            # Elegir cualquiera enlaza el mismo CALID a la misma calle: no
+            # hay nada que revisar.
+            if ambiguo:
+                clave_elegido = (sin_tipo_via(osm_por_id[oid]['norm']),
+                                 osm_por_id[oid]['loc'])
+                casi_empatados = [
+                    o for _, s, o, _, _ in puntuados[1:]
+                    if (score - s) * 100 < AMBIGUO_DELTA
+                ]
+                if casi_empatados and all(
+                    (sin_tipo_via(osm_por_id[o]['norm']), osm_por_id[o]['loc'])
+                    == clave_elegido
+                    for o in casi_empatados
+                ):
+                    ambiguo = False
+                    evid += ' (homónimos equivalentes)'
+
             # Contradicción REAL: el candidato casi no toca la nube y otra
             # calle de nombre distinto la domina con claridad.
             geo_top = next(
@@ -260,9 +283,14 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
                 and ratio_cand < 0.3 and geo_top[1] >= 0.7
             )
 
+            # Subconjunto de nombre (DOCTOR JUAN PAULLIER ↔ Juan Paullier)
+            # CON los clientes viviendo sobre la calle: dos señales
+            # independientes que coinciden — no necesita ojo humano.
+            fuzzy_fuerte = score * 100 >= FUZZY_AUTO or 'subconjunto' in evid
+
             if metodo == 'EXACTO' and not ambiguo and not geo_contradice:
                 estado = 'AUTO_CONFIRMADO'
-            elif metodo == 'FUZZY' and score * 100 >= FUZZY_AUTO and geo_confirma:
+            elif metodo == 'FUZZY' and fuzzy_fuerte and geo_confirma:
                 estado = 'AUTO_CONFIRMADO'
             else:
                 estado = 'A_REVISAR'

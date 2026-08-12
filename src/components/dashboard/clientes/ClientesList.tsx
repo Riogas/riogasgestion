@@ -219,6 +219,7 @@ export default function ClientesList() {
           <ListHeader
             search={searchInput}
             onSearch={handleSearch}
+            placeholder="Nombre, teléfono, dirección, RUC o cédula…"
             rightExtra={
               <div className="flex items-center gap-2">
                 {isFetching && !isLoading && (

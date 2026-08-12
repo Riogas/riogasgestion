@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { busquedaNorm } from '../common/direccion/normalize-direccion';
 import { DireccionInputDto } from './dto/direccion-input.dto';
 
 @Injectable()
@@ -77,8 +78,18 @@ export class DireccionesService {
       lat: d.lat !== undefined ? new Prisma.Decimal(d.lat) : undefined,
       lng: d.lng !== undefined ? new Prisma.Decimal(d.lng) : undefined,
       direccion: d.direccion,
+      // undefined (update parcial sin direccion) no debe pisar la clave.
+      direccionBusq:
+        d.direccion === undefined
+          ? undefined
+          : d.direccion
+            ? busquedaNorm(d.direccion)
+            : null,
       principal: d.principal,
       estado: d.estado,
+      // Marca "el operador tocó esta fila": el sync semanal deja de pisarla
+      // con el espejo AS400.
+      editadoPanelAt: new Date(),
     };
   }
 

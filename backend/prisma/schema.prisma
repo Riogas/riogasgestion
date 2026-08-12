@@ -235,6 +235,10 @@ model ClienteUni {
   operadorModificacion String?   @db.VarChar(15)
   dedupGrupo           Int?
   dedupRevisar         Boolean?
+  // Última edición hecha por un operador desde el panel. Si está seteada,
+  // sync_cliente_uni.py NO vuelve a pisar los scalars con el espejo AS400:
+  // lo que tocó un operador, manda.
+  editadoPanelAt       DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -275,6 +279,9 @@ model ClienteTelefono {
 
   @@index([clienteId])
   @@index([numero])
+  // Búsqueda del panel por fragmento de número (contains). Requiere la
+  // extensión pg_trgm creada en la base ANTES del db push.
+  @@index([numero(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_cliente_telefono_numero_trgm")
   @@map("cliente_telefono")
 }
 
@@ -311,6 +318,10 @@ model ClienteDireccion {
   ultFecha           DateTime? // NUEVO: último pedido a esta dirección
   territorioPuestoId Int? // NUEVO opcional: puesto resuelto por geo (señal secundaria)
   direccionTextoNorm String?    @db.VarChar(300) // clave normalizada calle+nº (hogar)
+  direccionBusq      String?    @db.VarChar(300) // direccion sin tildes en MAYUS — solo para búsqueda del panel
+  // Última edición de un operador desde el panel: si está seteada, el sync
+  // semanal deja de pisar esta fila con el espejo AS400 (el operador manda).
+  editadoPanelAt     DateTime?
   cliente            ClienteUni @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
   personaPrincipalDe Persona[] @relation("PersonaDirPrincipal")
@@ -320,6 +331,9 @@ model ClienteDireccion {
   @@index([departamentoId, localidadId])
   @@index([calleMatch])
   @@index([direccionTextoNorm])
+  // Búsqueda del panel por fragmento de dirección (contains, sin tildes).
+  // Requiere pg_trgm creada en la base ANTES del db push.
+  @@index([direccionBusq(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_cliente_direccion_busq_trgm")
   @@map("cliente_direccion")
 }
 

@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { busquedaNorm } from '../common/direccion/normalize-direccion';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { QueryClientesDto } from './dto/query-clientes.dto';
@@ -25,12 +26,29 @@ export class ClientesService {
 
     if (q.search) {
       const s = q.search.trim();
-      where.OR = [
+      const or: Prisma.ClienteUniWhereInput[] = [
         { nombre: { contains: s, mode: 'insensitive' } },
         { email: { contains: s, mode: 'insensitive' } },
         { ruc: { contains: s, mode: 'insensitive' } },
         { cedula: { contains: s, mode: 'insensitive' } },
       ];
+      // Dirección y teléfono se resuelven APARTE, directo contra el índice
+      // trigram de cada tabla hija, y entran al OR como `id IN (...)`. Un
+      // EXISTS correlacionado dentro del OR obliga a evaluar el subplan por
+      // cada una de las 1,13M filas de cliente_uni (medido: 10s con un
+      // término frecuente); así queda igual de rápido que el buscador viejo.
+      const busq = busquedaNorm(s);
+      const digitos = s.replace(/\D/g, '').replace(/^0+/, '');
+      const [idsDir, idsTel] = await Promise.all([
+        // trigram necesita ≥3 caracteres para discriminar.
+        busq.length >= 3 ? this.idsPorDireccion(busq) : null,
+        // TELFNRO es numérico en el AS400: se guarda sin el 0 inicial y sin
+        // separadores ("097 479 212" está como "97479212").
+        digitos.length >= 5 ? this.idsPorTelefono(digitos) : null,
+      ]);
+      if (idsDir?.length) or.push({ id: { in: idsDir } });
+      if (idsTel?.length) or.push({ id: { in: idsTel } });
+      where.OR = or;
     }
 
     const [data, total] = await this.prisma.$transaction([
@@ -50,6 +68,30 @@ export class ClientesService {
     ]);
 
     return { data, total, page, pageSize };
+  }
+
+  // Tope de ids por eje de búsqueda: si un término matchea más que esto
+  // (p.ej. "montevideo" por dirección → ~900k), no discrimina nada y el eje
+  // se descarta — los otros ejes del OR (nombre, etc.) siguen aplicando.
+  private static readonly MAX_IDS_BUSQ = 2000;
+
+  private async idsPorDireccion(busq: string): Promise<number[] | null> {
+    const like = `%${busq.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+    const filas = await this.prisma.$queryRaw<{ clienteId: number }[]>`
+      SELECT DISTINCT "clienteId" FROM cliente_direccion
+      WHERE "direccionBusq" LIKE ${like}
+      LIMIT ${ClientesService.MAX_IDS_BUSQ + 1}`;
+    if (filas.length > ClientesService.MAX_IDS_BUSQ) return null;
+    return filas.map((f) => f.clienteId);
+  }
+
+  private async idsPorTelefono(digitos: string): Promise<number[] | null> {
+    const filas = await this.prisma.$queryRaw<{ clienteId: number }[]>`
+      SELECT DISTINCT "clienteId" FROM cliente_telefono
+      WHERE numero LIKE ${`%${digitos}%`}
+      LIMIT ${ClientesService.MAX_IDS_BUSQ + 1}`;
+    if (filas.length > ClientesService.MAX_IDS_BUSQ) return null;
+    return filas.map((f) => f.clienteId);
   }
 
   async findOne(id: number) {
@@ -84,6 +126,7 @@ export class ClientesService {
           observacionesComerc: dto.observacionesComerc,
           operadorAlta: username,
           fechaAlta: new Date(),
+          editadoPanelAt: new Date(),
           telefonos: {
             create: dto.telefonos.map((t) => this.mapTelefono(t)),
           },
@@ -121,6 +164,7 @@ export class ClientesService {
         observaciones: dto.observaciones,
         observacionesComerc: dto.observacionesComerc,
         operadorModificacion: username,
+        editadoPanelAt: new Date(),
       },
     });
     return this.findOne(id);
@@ -130,7 +174,7 @@ export class ClientesService {
     await this.findOne(id);
     await this.prisma.clienteUni.update({
       where: { id },
-      data: { estado: 'I' },
+      data: { estado: 'I', editadoPanelAt: new Date() },
     });
     return { id, estado: 'I' };
   }
@@ -158,8 +202,10 @@ export class ClientesService {
       lat: d.lat !== undefined ? new Prisma.Decimal(d.lat) : null,
       lng: d.lng !== undefined ? new Prisma.Decimal(d.lng) : null,
       direccion: d.direccion,
+      direccionBusq: d.direccion ? busquedaNorm(d.direccion) : null,
       principal: d.principal,
       estado: d.estado ?? 'A',
+      editadoPanelAt: new Date(),
     };
   }
 

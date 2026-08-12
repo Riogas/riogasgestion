@@ -63,6 +63,16 @@ function canonApto(raw: string): string {
   return tokens.filter((t) => !APTO_PREFIXES.includes(t)).join(' ');
 }
 
+/**
+ * Normalización para búsqueda visible (`cliente_direccion.direccionBusq`):
+ * la dirección completa sin tildes y en MAYÚSCULAS, sin tocar espacios ni
+ * puntuación. Espejo SQL en sync_cliente_uni.py: upper(translate(...)) —
+ * ambos DEBEN producir la misma salida para que el `contains` matchee.
+ */
+export function busquedaNorm(s: string): string {
+  return stripAccents(s).toUpperCase();
+}
+
 export interface DireccionInput {
   departamentoId?: string | number | null;
   localidadId?: string | number | null;

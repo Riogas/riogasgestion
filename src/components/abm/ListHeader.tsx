@@ -19,6 +19,7 @@ export function ListHeader({
   onSearch,
   onCreate,
   createLabel = "Nuevo",
+  placeholder = "Buscar...",
   rightExtra,
 }: {
   title?: string;
@@ -26,6 +27,7 @@ export function ListHeader({
   onSearch: (v: string) => void;
   onCreate?: () => void;
   createLabel?: string;
+  placeholder?: string;
   rightExtra?: ReactNode;
 }) {
   return (
@@ -46,7 +48,7 @@ export function ListHeader({
           <Input
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Buscar..."
+            placeholder={placeholder}
             className="pl-9"
           />
         </div>

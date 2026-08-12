@@ -172,12 +172,18 @@ def es_nombre_generico(nombre_normalizado: str) -> bool:
     'VEHICULAR PEATONAL': nombres provisorios que NO identifican una calle.
     Una 'CALLE 1' de Colón Norte no tiene nada que ver con la 'Calle 1' de
     otro barrio — estos nombres no pueden matchear por nombre, solo la
-    geometría (la nube de clientes) puede enlazarlos."""
+    geometría (la nube de clientes) puede enlazarlos.
+
+    Los números EN PALABRAS también cuentan: la conversión a cifras solo
+    aplica al inicio del nombre o antes de mes, así que 'CALLE DOS' queda
+    tal cual y sin esto matcheaba cualquier 'Calle 2' del departamento
+    (CALID 47437 auto-confirmado a 9,7 km de sus clientes)."""
     tokens = nombre_normalizado.split()
     if not tokens:
         return True
     for t in tokens:
-        if t in _TOKENS_GENERICOS or t.isdigit() or len(t) == 1:
+        if t in _TOKENS_GENERICOS or t.isdigit() or len(t) == 1 \
+                or t in _UNIDADES or t == 'Y':
             continue
         return False
     return True

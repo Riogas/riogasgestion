@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
+  AlertTriangle,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -49,6 +50,32 @@ const MatchMap = dynamic(() => import("./MatchMap"), {
 });
 
 const PAGINA = 25;
+
+function havKm(a1: number, o1: number, a2: number, o2: number): number {
+  const rad = Math.PI / 180;
+  const x =
+    Math.sin(((a2 - a1) * rad) / 2) ** 2 +
+    Math.cos(a1 * rad) * Math.cos(a2 * rad) * Math.sin(((o2 - o1) * rad) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(x));
+}
+
+/** Distancia de la mediana de la nube de clientes al punto más cercano de la
+ * candidata. Es el freno contra el mal clic: una corrección a 10 km de los
+ * clientes (caso Sebastián Elcano → "San Sebastián") se anuncia en rojo. */
+function kmNubeACandidata(
+  clientes: [number, number][],
+  candidata: CalleOsmDetalle,
+): number | null {
+  if (clientes.length < 5) return null;
+  const lats = clientes.map((p) => p[0]).sort((a, b) => a - b);
+  const lngs = clientes.map((p) => p[1]).sort((a, b) => a - b);
+  const mLat = lats[Math.floor(lats.length / 2)];
+  const mLng = lngs[Math.floor(lngs.length / 2)];
+  const puntos = candidata.puntos.length
+    ? candidata.puntos
+    : [[candidata.lat, candidata.lng] as [number, number]];
+  return Math.min(...puntos.map((p) => havKm(mLat, mLng, p[0], p[1])));
+}
 
 const COLOR_ESTADO: Record<EstadoMatch, string> = {
   AUTO_CONFIRMADO: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
@@ -112,6 +139,15 @@ export default function CallesMatch() {
     }, 300);
     return () => clearTimeout(t);
   }, [busqueda, corrigiendo, seleccion]);
+
+  const kmCandidata = useMemo(
+    () =>
+      mapa && candidataPreview
+        ? kmNubeACandidata(mapa.clientes, candidataPreview)
+        : null,
+    [mapa, candidataPreview],
+  );
+  const candidataLejos = kmCandidata !== null && kmCandidata > 2;
 
   const ejecutar = async (
     accion: "aprobar" | "rechazar" | "corregir",
@@ -358,29 +394,54 @@ export default function CallesMatch() {
                     </div>
                   )}
                   {candidataPreview && (
-                    <div className="flex items-center gap-2 rounded-md border border-orange-300 bg-orange-50 p-2 dark:border-orange-800 dark:bg-orange-950/30">
-                      <span className="h-3 w-3 flex-none rounded-full bg-orange-500" />
-                      <span className="flex-1 text-sm">
-                        <b>{candidataPreview.nombre}</b>
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          {candidataPreview.localidad ?? ""} — mirala en naranja en el
-                          mapa: si la nube azul la abraza, es esa.
+                    <div
+                      className={`space-y-1.5 rounded-md border p-2 ${
+                        candidataLejos
+                          ? "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
+                          : "border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="h-3 w-3 flex-none rounded-full bg-orange-500" />
+                        <span className="flex-1 text-sm">
+                          <b>{candidataPreview.nombre}</b>
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            {candidataPreview.localidad ?? ""} — mirala en naranja en el
+                            mapa: si la nube azul la abraza, es esa.
+                          </span>
                         </span>
-                      </span>
-                      <Button
-                        size="sm"
-                        disabled={accionEnCurso}
-                        onClick={() => void ejecutar("corregir", candidataPreview.id)}
-                      >
-                        <Check className="mr-1 h-4 w-4" /> Corregir a esta
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setCandidataPreview(null)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant={candidataLejos ? "destructive" : "default"}
+                          disabled={accionEnCurso}
+                          onClick={() => void ejecutar("corregir", candidataPreview.id)}
+                        >
+                          <Check className="mr-1 h-4 w-4" /> Corregir a esta
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setCandidataPreview(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {kmCandidata !== null &&
+                        (candidataLejos ? (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-300">
+                            <AlertTriangle className="h-3.5 w-3.5 flex-none" />
+                            Esta calle queda a {kmCandidata.toFixed(1)} km de donde viven
+                            los clientes del CALID — casi seguro no es esta.
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">
+                            La nube de clientes queda a{" "}
+                            {kmCandidata < 0.1
+                              ? `${Math.round(kmCandidata * 1000)} m`
+                              : `${kmCandidata.toFixed(1)} km`}{" "}
+                            de esta calle.
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>

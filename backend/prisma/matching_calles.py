@@ -345,6 +345,16 @@ def main():  # noqa: C901 - batch largo y lineal, mas claro asi
                 estado = 'AUTO_CONFIRMADO'
             else:
                 estado = 'A_REVISAR'
+
+            # geo_contradice solo salta cuando OTRA calle domina la nube, pero
+            # un homónimo en otra localidad (GENERAL ARTIGAS de Pando con los
+            # clientes en otro pueblo) o un camino a medio mapear dejan la
+            # nube sin tocar a NADIE. Un exacto con 20+ clientes geolocalizados
+            # que ni rozan la calle elegida no se auto-confirma.
+            if estado == 'AUTO_CONFIRMADO' and len(nube) >= 20 \
+                    and ratio_cand < 0.05:
+                estado = 'A_REVISAR'
+                evid += ' | la nube de clientes no toca la calle elegida'
             detalle = {
                 'evidencia': evid, 'scoreNombre': score,
                 'bonusLocalidad': round(total - score, 2),

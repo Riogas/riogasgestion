@@ -73,10 +73,14 @@ def correr():
     # Nombres genéricos: no identifican calle (caso Padre Juan Bonmesadri,
     # cuyo exNombre 'CALLE 1(COLON NORTE)' matcheaba una Calle 1 cualquiera)
     for generico in ('CALLE 1', 'Calle A', 'PASAJE PEATONAL 3',
-                     'CALLE 17 METROS', 'Vehicular/ Peatonal', 'CAMINO VECINAL'):
+                     'CALLE 17 METROS', 'Vehicular/ Peatonal', 'CAMINO VECINAL',
+                     # números en palabras: la conversión a cifras no aplica
+                     # fuera del inicio y 'CALLE DOS' debe ser genérico igual
+                     'CALLE DOS', 'Calle Uno', 'PASAJE TREINTA Y TRES'):
         assert es_nombre_generico(normalizar_calle(generico)), generico
     for real in ('CUFRE', '18 DE JULIO', 'CALLE LARGA', 'JOSE L TERRA',
-                 'CAMINO A LAS PIEDRAS', 'PADRE JUAN BONMESADRI'):
+                 'CAMINO A LAS PIEDRAS', 'PADRE JUAN BONMESADRI',
+                 'DOS DE MAYO', 'TRES CRUCES'):
         assert not es_nombre_generico(normalizar_calle(real)), real
 
     print(f'\n{"TODO OK" if fallos == 0 else f"{fallos} FALLOS"}')

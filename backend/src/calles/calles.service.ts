@@ -309,7 +309,9 @@ export class CallesService implements OnModuleInit {
     };
   }
 
-  /** Detalle para el mapa: puntos de la calle OSM + nube de clientes del CALID. */
+  /** Detalle para el mapa: puntos de la calle OSM + nube de clientes del CALID.
+   * Cada punto de la nube lleva CLIID y nombre: el hover del mapa identifica
+   * al cliente para poder rastrearlo después en la base. */
   async mapaDeMatch(id: number) {
     const m = await this.prisma.calleMatch.findUnique({ where: { id } });
     if (!m) throw new NotFoundException(`Match ${id} no existe`);
@@ -317,16 +319,22 @@ export class CallesService implements OnModuleInit {
       this.prisma.calleOsm.findUnique({ where: { id: m.calleOsmId } }),
       this.prisma.cliente.findMany({
         where: { callePrincipalId: m.calleId, geoLat: { not: null } },
-        select: { geoLat: true, geoLng: true },
+        select: { id: true, nombre: true, geoLat: true, geoLng: true },
         take: 300,
       }),
     ]);
     return {
       matchId: id,
+      calid: m.calleId,
       calleOsm: osm
         ? { nombre: osm.nombre, puntos: osm.puntos ?? [], lat: Number(osm.latCentro), lng: Number(osm.lngCentro) }
         : null,
-      clientes: clientes.map((c) => [Number(c.geoLat), Number(c.geoLng)]),
+      clientes: clientes.map((c) => ({
+        id: c.id,
+        nombre: c.nombre,
+        lat: Number(c.geoLat),
+        lng: Number(c.geoLng),
+      })),
     };
   }
 

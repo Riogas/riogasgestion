@@ -46,15 +46,25 @@ export interface MatchFila {
   } | null;
 }
 
+/** Un cliente de la nube del mapa. `id` es el CLIID del AS400. */
+export interface ClientePunto {
+  id: number;
+  nombre: string | null;
+  lat: number;
+  lng: number;
+}
+
 export interface MapaMatch {
   matchId: number;
+  /** CALID del nomenclator al que pertenece la nube. */
+  calid: number;
   calleOsm: {
     nombre: string;
     puntos: [number, number][];
     lat: number;
     lng: number;
   } | null;
-  clientes: [number, number][];
+  clientes: ClientePunto[];
 }
 
 export interface CalleOsmDetalle {

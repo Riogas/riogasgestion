@@ -23,7 +23,7 @@ function Encuadre({
   useEffect(() => {
     const puntos: [number, number][] = [
       ...(datos.calleOsm?.puntos ?? []),
-      ...datos.clientes,
+      ...datos.clientes.map((c) => [c.lat, c.lng] as [number, number]),
       ...(candidata?.puntos ?? []),
     ];
     if (puntos.length === 0 && datos.calleOsm) {
@@ -58,7 +58,9 @@ export default function MatchMap({
     () =>
       datos.calleOsm
         ? [datos.calleOsm.lat, datos.calleOsm.lng]
-        : (datos.clientes[0] ?? [-34.88, -56.17]),
+        : datos.clientes[0]
+          ? [datos.clientes[0].lat, datos.clientes[0].lng]
+          : [-34.88, -56.17],
     [datos],
   );
 
@@ -101,18 +103,28 @@ export default function MatchMap({
           )}
         </CircleMarker>
       ))}
-      {datos.clientes.map(([lat, lng], i) => (
+      {datos.clientes.map((c) => (
         <CircleMarker
-          key={`cli-${i}`}
-          center={[lat, lng]}
-          radius={3}
+          key={`cli-${c.id}`}
+          center={[c.lat, c.lng]}
+          radius={4}
           pathOptions={{
             color: "#2563eb",
             fillColor: "#3b82f6",
             fillOpacity: 0.5,
             weight: 1,
           }}
-        />
+        >
+          {/* Identidad del punto: con CLIID + CALID se rastrea en la base. */}
+          <Tooltip direction="top" offset={[0, -6]}>
+            <div className="text-xs">
+              <div className="font-semibold">{c.nombre ?? "(sin nombre)"}</div>
+              <div>
+                CLIID {c.id} · CALID {datos.calid}
+              </div>
+            </div>
+          </Tooltip>
+        </CircleMarker>
       ))}
     </MapContainer>
   );

@@ -35,6 +35,7 @@ import {
 import type {
   CalleOsmDetalle,
   CalleSugerida,
+  ClientePunto,
   EstadoMatch,
   MapaMatch,
   MatchFila,
@@ -63,12 +64,12 @@ function havKm(a1: number, o1: number, a2: number, o2: number): number {
  * candidata. Es el freno contra el mal clic: una corrección a 10 km de los
  * clientes (caso Sebastián Elcano → "San Sebastián") se anuncia en rojo. */
 function kmNubeACandidata(
-  clientes: [number, number][],
+  clientes: ClientePunto[],
   candidata: CalleOsmDetalle,
 ): number | null {
   if (clientes.length < 5) return null;
-  const lats = clientes.map((p) => p[0]).sort((a, b) => a - b);
-  const lngs = clientes.map((p) => p[1]).sort((a, b) => a - b);
+  const lats = clientes.map((p) => p.lat).sort((a, b) => a - b);
+  const lngs = clientes.map((p) => p.lng).sort((a, b) => a - b);
   const mLat = lats[Math.floor(lats.length / 2)];
   const mLng = lngs[Math.floor(lngs.length / 2)];
   const puntos = candidata.puntos.length

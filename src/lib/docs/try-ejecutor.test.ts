@@ -9,11 +9,22 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import jwt from "jsonwebtoken";
 import { limpiarCacheDocs } from "./root-guard";
-import { LIMITE_RESPUESTA_BYTES, filtrarHeaders, manejarTry, validarPath } from "./try-ejecutor";
+import {
+  ENV_ORIGEN,
+  LIMITE_RESPUESTA_BYTES,
+  PUERTO_POR_DEFECTO,
+  filtrarHeaders,
+  manejarTry,
+  resolverOrigenConfiable,
+  validarPath,
+} from "./try-ejecutor";
 
 const SECRETO = "secreto-de-test-no-el-de-produccion";
 const SECAPI = "https://secapi.test";
 const ORIGEN = "https://goya-dev.glp.riogas.com.uy";
+const HOST_DE_ENTRADA = new URL(ORIGEN).host;
+/** Entorno por defecto de los tests: el destino sale de la env, nunca de un header. */
+const ENV = { [ENV_ORIGEN]: ORIGEN } as Record<string, string | undefined>;
 
 const fetchReal = globalThis.fetch;
 const envOriginal = { JWT_SECRET: process.env.JWT_SECRET, SECAPI_URL: process.env.SECAPI_URL };
@@ -52,8 +63,12 @@ async function ejecutar(pedido: Record<string, unknown>, opciones: Record<string
   const salida = await manejarTry({
     solicitud: (opciones.solicitud as ReturnType<typeof solicitud>) ?? solicitud(),
     cuerpo: { payload: payload(pedido), ...((opciones.extra as object) ?? {}) },
-    origen: ORIGEN,
+    env: (opciones.env as Record<string, string | undefined> | undefined) ?? ENV,
     origenDelNavegador: (opciones.origenNavegador as string | null) ?? null,
+    // `?? ` no sirve: hay un caso que necesita pasar null explícito.
+    hostDelRequest: "hostDelRequest" in opciones
+      ? (opciones.hostDelRequest as string | null)
+      : HOST_DE_ENTRADA,
     fetchImpl: espia.impl,
     verificarRoot: (opciones.verificarRoot as typeof rootOk) ?? rootOk,
   });
@@ -95,6 +110,57 @@ describe("validarPath", () => {
     assert.equal(validarPath("/api/clientes?id=1").ok, false);
     assert.equal(validarPath("/api/clientes 1").ok, false);
     assert.equal(validarPath("/api/docs/try").ok, false);
+  });
+});
+
+describe("resolverOrigenConfiable", () => {
+  it("usa DOCS_TRY_ORIGEN tal cual cuando está", () => {
+    const r = resolverOrigenConfiable({ [ENV_ORIGEN]: ORIGEN, PORT: "3000" });
+    assert.equal(r.ok, true);
+    if (r.ok) {
+      assert.equal(r.origen.origin, ORIGEN);
+      assert.equal(r.fuente, "env");
+    }
+  });
+
+  it("normaliza DOCS_TRY_ORIGEN a esquema+host+puerto (sin path ni credenciales)", () => {
+    const r = resolverOrigenConfiable({ [ENV_ORIGEN]: "http://usuario:clave@127.0.0.1:4000/api/?x=1" });
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.origen.origin, "http://127.0.0.1:4000");
+  });
+
+  it("sin la env cae al loopback del PORT del proceso", () => {
+    const r = resolverOrigenConfiable({ PORT: "4000" });
+    assert.equal(r.ok, true);
+    if (r.ok) {
+      assert.equal(r.origen.origin, "http://127.0.0.1:4000");
+      assert.equal(r.fuente, "loopback");
+    }
+  });
+
+  it("sin env y sin PORT usa el puerto por defecto de Next", () => {
+    const r = resolverOrigenConfiable({});
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.origen.origin, `http://127.0.0.1:${PUERTO_POR_DEFECTO}`);
+  });
+
+  it("no acepta un origen que no sea http(s) ni una env basura", () => {
+    for (const malo of ["no-es-una-url", "file:///etc/passwd", "ftp://host", "//evil.example", "javascript:alert(1)"]) {
+      const r = resolverOrigenConfiable({ [ENV_ORIGEN]: malo });
+      assert.equal(r.ok, false, `debería rechazar ${malo}`);
+      if (!r.ok) {
+        assert.equal(r.status, 503);
+        assert.equal(r.code, "ORIGEN_NO_CONFIGURADO");
+      }
+    }
+  });
+
+  it("no adivina si PORT no es un puerto", () => {
+    for (const malo of ["abc", "0", "70000", "3000; rm -rf /"]) {
+      const r = resolverOrigenConfiable({ PORT: malo });
+      assert.equal(r.ok, false, `debería rechazar PORT=${malo}`);
+      if (!r.ok) assert.equal(r.code, "ORIGEN_NO_CONFIGURADO");
+    }
   });
 });
 
@@ -147,7 +213,7 @@ describe("manejarTry", () => {
     const salida = await manejarTry({
       solicitud: solicitud(),
       cuerpo: { payload: payload({ metodo: "GET", path: "/api/clientes" }) },
-      origen: ORIGEN,
+      env: ENV,
       fetchImpl: espia.impl,
     });
 
@@ -161,7 +227,7 @@ describe("manejarTry", () => {
     const salida = await manejarTry({
       solicitud: { headers: { get: () => null }, cookies: { get: () => undefined } },
       cuerpo: { payload: payload({ metodo: "GET", path: "/api/clientes" }) },
-      origen: ORIGEN,
+      env: ENV,
       fetchImpl: espia.impl,
     });
     assert.equal(salida.status, 401);
@@ -206,6 +272,118 @@ describe("manejarTry", () => {
     );
     assert.equal(salida.status, 403);
     assert.equal(salida.cuerpo.error, "ORIGEN_INVALIDO");
+    assert.equal(llamadas.length, 0);
+  });
+
+  it("acepta el Origin que coincide con el host por el que entró el request", async () => {
+    const { salida, llamadas } = await ejecutar(
+      { metodo: "GET", path: "/api/clientes" },
+      { origenNavegador: ORIGEN, hostDelRequest: HOST_DE_ENTRADA },
+    );
+    assert.equal(salida.status, 200);
+    assert.equal(llamadas.length, 1);
+  });
+
+  it("con Origin pero sin poder saber el host de entrada, no ejecuta", async () => {
+    const { salida, llamadas } = await ejecutar(
+      { metodo: "GET", path: "/api/clientes" },
+      { origenNavegador: ORIGEN, hostDelRequest: null },
+    );
+    assert.equal(salida.status, 403);
+    assert.equal(salida.cuerpo.error, "ORIGEN_INVALIDO");
+    assert.equal(llamadas.length, 0);
+  });
+
+  // ── El destino NO sale de ningún header (SSRF) ───────────────────────────
+  // Host / x-forwarded-host los elige quien manda el request, y la llamada sale
+  // con el Authorization y la Cookie del root: si el destino saliera de ahí,
+  // esto sería un SSRF que además exfiltra el JWT.
+
+  it("ningún host del request cambia el destino del fetch", async () => {
+    for (const hostAtacante of [
+      "evil.example.com",
+      "169.254.169.254",
+      "localhost:5432",
+      "127.0.0.1:22",
+      "goya-prod.glp.riogas.com.uy",
+    ]) {
+      const { salida, llamadas } = await ejecutar(
+        { metodo: "GET", path: "/api/clientes" },
+        // El navegador manda un Origin coherente con el host falsificado: ni
+        // así el fetch se mueve del origen de confianza.
+        { hostDelRequest: hostAtacante, origenNavegador: `https://${hostAtacante}` },
+      );
+      assert.equal(salida.status, 200, `con host ${hostAtacante}`);
+      assert.equal(llamadas.length, 1, `con host ${hostAtacante}`);
+      assert.equal(llamadas[0].url, `${ORIGEN}/api/clientes`, `con host ${hostAtacante}`);
+    }
+  });
+
+  it("sin DOCS_TRY_ORIGEN el destino es el loopback de este proceso, no el host del request", async () => {
+    const { salida, llamadas } = await ejecutar(
+      { metodo: "GET", path: "/api/clientes" },
+      {
+        env: { PORT: "3000" },
+        hostDelRequest: "evil.example.com",
+        origenNavegador: "https://evil.example.com",
+      },
+    );
+    assert.equal(salida.status, 200);
+    assert.equal(llamadas.length, 1);
+    assert.equal(llamadas[0].url, "http://127.0.0.1:3000/api/clientes");
+  });
+
+  it("con DOCS_TRY_ORIGEN el destino es ese y sólo ese", async () => {
+    const { llamadas } = await ejecutar(
+      { metodo: "GET", path: "/api/clientes", query: { q: "x" } },
+      {
+        env: { [ENV_ORIGEN]: "http://127.0.0.1:4000", PORT: "9999" },
+        hostDelRequest: "goya-prod.glp.riogas.com.uy",
+      },
+    );
+    assert.equal(llamadas.length, 1);
+    assert.equal(llamadas[0].url, "http://127.0.0.1:4000/api/clientes?q=x");
+  });
+
+  it("con el origen mal configurado devuelve 503 y no ejecuta nada", async () => {
+    const { salida, llamadas } = await ejecutar(
+      { metodo: "GET", path: "/api/clientes" },
+      { env: { [ENV_ORIGEN]: "no-es-una-url" }, hostDelRequest: HOST_DE_ENTRADA },
+    );
+    assert.equal(salida.status, 503);
+    assert.equal(salida.cuerpo.error, "ORIGEN_NO_CONFIGURADO");
+    assert.equal(llamadas.length, 0);
+  });
+
+  it("revalida contra el entorno y no contra la base con la que armó la URL", async () => {
+    // Entorno que devuelve un origen distinto en la segunda lectura. Es la
+    // única forma de probar que la revalidación final NO es autorreferencial:
+    // si comparara la URL armada contra la misma base que la armó, este caso
+    // pasaría igual.
+    let lecturas = 0;
+    const envQueCambia = new Proxy({} as Record<string, string | undefined>, {
+      get(_objetivo, propiedad) {
+        if (propiedad === ENV_ORIGEN) {
+          lecturas += 1;
+          return lecturas === 1 ? ORIGEN : "https://evil.example";
+        }
+        return undefined;
+      },
+    });
+
+    const { salida, llamadas } = await ejecutar(
+      { metodo: "GET", path: "/api/clientes" },
+      { env: envQueCambia },
+    );
+    assert.equal(salida.status, 400);
+    assert.equal(salida.cuerpo.error, "DESTINO_NO_PERMITIDO");
+    assert.equal(llamadas.length, 0);
+  });
+
+  it("rechaza un path con barra invertida sin llamar al destino", async () => {
+    const { salida, llamadas } = await ejecutar({ metodo: "GET", path: "/api/\\evil.example/x" });
+    assert.equal(salida.status, 400);
+    assert.equal(salida.cuerpo.error, "PATH_INVALIDO");
     assert.equal(llamadas.length, 0);
   });
 
@@ -330,7 +508,7 @@ describe("manejarTry", () => {
       const salida = await manejarTry({
         solicitud: solicitud(),
         cuerpo,
-        origen: ORIGEN,
+        env: ENV,
         fetchImpl: espia.impl,
         verificarRoot: rootOk,
       });

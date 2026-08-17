@@ -7,9 +7,17 @@
 // Reglas NO negociables (§5.3 del diseño):
 //
 //   · Pasa por requireRoot, igual que /api/docs/spec.
+//   · El DESTINO no sale nunca de un header del request. Ver
+//     `resolverOrigenConfiable()`: env `DOCS_TRY_ORIGEN`, si no el loopback de
+//     este mismo proceso, y si no se puede resolver, 503. Host,
+//     x-forwarded-host, Origin y Referer los elige quien llama: usarlos para
+//     decidir a dónde sale el fetch convierte esto en un SSRF que además
+//     exfiltra el JWT del root (la llamada sale con su Authorization y su
+//     Cookie).
 //   · SOLO contra el propio host. Nada de URL absolutas, nada de `//host`, nada
 //     de `..` ni `%2e`: esto NUNCA es un proxy abierto. El path tiene que
-//     empezar con /api/ y punto.
+//     empezar con /api/ y punto. Y después de armar la URL final se revalida
+//     que el origen siga siendo el de confianza.
 //   · GET/HEAD directo. POST/PUT/PATCH/DELETE exigen `confirmacion` igual al
 //     path exacto → si no, 428 CONFIRMACION_REQUERIDA. Es root y el ambiente
 //     puede ser producción: la escritura accidental se paga cara.
@@ -89,6 +97,81 @@ function rechazo(status: number, code: string, detalle: string): Rechazo {
   return { ok: false, status, code, detalle };
 }
 
+// ── Origen de confianza ─────────────────────────────────────────────────────
+
+/**
+ * Única variable de entorno que fija a dónde sale el "probar". Documentada en
+ * `docs/api/README.md`.
+ */
+export const ENV_ORIGEN = "DOCS_TRY_ORIGEN";
+
+/** Puerto por defecto de Next cuando el proceso no expone `PORT`. */
+export const PUERTO_POR_DEFECTO = 3000;
+
+export type Entorno = Record<string, string | undefined>;
+
+export type OrigenConfiable =
+  | { ok: true; origen: URL; fuente: "env" | "loopback" }
+  | Rechazo;
+
+/**
+ * Resuelve el origen contra el que se ejecuta el "probar". **Nunca** mira un
+ * header: `Host`, `x-forwarded-host`, `Origin` y `Referer` los controla quien
+ * manda el request, y el fetch sale con el `Authorization`/`Cookie` del root.
+ * Confiar en ellos era un SSRF con exfiltración del JWT.
+ *
+ * Orden:
+ *   1. `DOCS_TRY_ORIGEN` — si está, se usa tal cual (normalizada a su origen:
+ *      se descartan path, query y credenciales embebidas).
+ *   2. Si no está: `http://127.0.0.1:<PORT>`, el loopback de ESTE proceso.
+ *      Next setea `process.env.PORT` al puerto real en el que escucha (tanto
+ *      `next dev -p` como `next start`), así que el default 3000 sólo aplica si
+ *      la variable no existe.
+ *   3. Si nada de eso da un origen usable → 503 `ORIGEN_NO_CONFIGURADO`. No se
+ *      adivina: fail-closed, igual que el resto del portal.
+ */
+export function resolverOrigenConfiable(env: Entorno = process.env): OrigenConfiable {
+  const declarado = (env[ENV_ORIGEN] ?? "").trim();
+
+  if (declarado) {
+    let url: URL;
+    try {
+      url = new URL(declarado);
+    } catch {
+      return rechazo(
+        503,
+        "ORIGEN_NO_CONFIGURADO",
+        `${ENV_ORIGEN} no es una URL absoluta válida (llegó "${declarado}").`,
+      );
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return rechazo(
+        503,
+        "ORIGEN_NO_CONFIGURADO",
+        `${ENV_ORIGEN} tiene que ser http:// o https:// (llegó "${url.protocol}").`,
+      );
+    }
+    // `.origin` deja sólo esquema + host + puerto: si alguien puso
+    // "https://host/api/" o credenciales en la URL, se descartan.
+    return { ok: true, origen: new URL(url.origin), fuente: "env" };
+  }
+
+  const puertoBruto = (env.PORT ?? "").trim();
+  let puerto = PUERTO_POR_DEFECTO;
+  if (puertoBruto) {
+    const n = Number(puertoBruto);
+    if (!Number.isInteger(n) || n < 1 || n > 65535) {
+      return rechazo(
+        503,
+        "ORIGEN_NO_CONFIGURADO",
+        `PORT="${puertoBruto}" no es un puerto válido; seteá ${ENV_ORIGEN} con el origen de esta app.`,
+      );
+    }
+    puerto = n;
+  }
+  return { ok: true, origen: new URL(`http://127.0.0.1:${puerto}`), fuente: "loopback" };
+}
+
 // ── Validación ──────────────────────────────────────────────────────────────
 
 /**
@@ -119,6 +202,11 @@ export function validarPath(valor: unknown): { ok: true; path: string } | Rechaz
   }
   if (path.includes("//")) {
     return rechazo(400, "PATH_INVALIDO", "No se aceptan rutas con `//` (apuntarían a otro host).");
+  }
+  // El parser de URL trata `\` como `/` en los esquemas especiales: `/api/\evil`
+  // no puede llegar a la etapa de armado.
+  if (path.includes("\\")) {
+    return rechazo(400, "PATH_INVALIDO", "El path no puede tener barras invertidas.");
   }
   if (path.includes("..") || /%2e/i.test(path)) {
     return rechazo(400, "PATH_INVALIDO", "El path no puede contener `..` ni `%2e` (traversal).");
@@ -301,10 +389,20 @@ export interface EntradaTry {
   solicitud: SolicitudConCredenciales;
   /** El cuerpo ya parseado de POST /api/docs/try. */
   cuerpo: unknown;
-  /** Origen de ESTA app (https://host), derivado por el route handler. */
-  origen: string;
-  /** Header `Origin` del navegador, si vino: se exige mismo host (anti-CSRF). */
+  /**
+   * Header `Origin` del navegador, si vino: se exige que sea el mismo host por
+   * el que entró el request (anti-CSRF). NO decide el destino del fetch.
+   */
   origenDelNavegador?: string | null;
+  /**
+   * Host por el que ENTRÓ el request (`x-forwarded-host` ?? `host`). Se usa
+   * sólo para la comparación anti-CSRF de arriba: un atacante no puede fijar el
+   * `Origin` que manda el navegador de la víctima, así que compararlo contra el
+   * host de entrada sirve. Para el DESTINO del fetch no se usa nunca.
+   */
+  hostDelRequest?: string | null;
+  /** Entorno del proceso. Parametrizado para los tests; en runtime, `process.env`. */
+  env?: Entorno;
   fetchImpl?: typeof fetch;
   verificarRoot?: (solicitud: SolicitudConCredenciales) => Promise<ResultadoRoot>;
   ahora?: () => number;
@@ -315,11 +413,12 @@ export interface SalidaTry {
   cuerpo: Record<string, unknown>;
 }
 
-function mismoHost(a: string, b: string): boolean {
+/** Host de una URL absoluta, en minúsculas; "" si no parsea. */
+function hostDeUrl(valor: string): string {
   try {
-    return new URL(a).host.toLowerCase() === new URL(b).host.toLowerCase();
+    return new URL(valor).host.toLowerCase();
   } catch {
-    return false;
+    return "";
   }
 }
 
@@ -334,15 +433,30 @@ export async function manejarTry(entrada: EntradaTry): Promise<SalidaTry> {
     return { status: guard.status, cuerpo: { error: guard.code } };
   }
 
-  // Anti-CSRF: si el navegador mandó Origin, tiene que ser el de esta app. Sin
-  // esto, una página de otro dominio podría disparar escrituras usando la
-  // cookie de sesión del root que la tenga abierta.
+  // Anti-CSRF: si el navegador mandó Origin, tiene que coincidir con el host por
+  // el que entró el request. Sin esto, una página de otro dominio podría
+  // disparar escrituras usando la cookie de sesión del root que la tenga
+  // abierta. Los dos valores vienen del cliente y está bien que así sea: el
+  // atacante NO puede fijar el `Origin` que manda el navegador de la víctima.
+  // Esta comparación no elige el destino del fetch — eso lo hace
+  // `resolverOrigenConfiable()` unas líneas más abajo.
   const origenNavegador = entrada.origenDelNavegador;
-  if (origenNavegador && !mismoHost(origenNavegador, entrada.origen)) {
-    return {
-      status: 403,
-      cuerpo: { error: "ORIGEN_INVALIDO", detalle: "El request no viene de esta aplicación." },
-    };
+  if (origenNavegador) {
+    const hostEntrada = (entrada.hostDelRequest ?? "").trim().toLowerCase();
+    const hostNavegador = hostDeUrl(origenNavegador);
+    if (!hostEntrada || !hostNavegador || hostEntrada !== hostNavegador) {
+      return {
+        status: 403,
+        cuerpo: { error: "ORIGEN_INVALIDO", detalle: "El request no viene de esta aplicación." },
+      };
+    }
+  }
+
+  // El destino, resuelto SÓLO desde el entorno del proceso.
+  const confiable = resolverOrigenConfiable(entrada.env);
+  if (!confiable.ok) {
+    console.error(`[docs/try] ${confiable.code}: ${confiable.detalle}`);
+    return { status: confiable.status, cuerpo: { error: confiable.code, detalle: confiable.detalle } };
   }
 
   const decodificado = decodificarPedido(entrada.cuerpo);
@@ -379,7 +493,36 @@ export async function manejarTry(entrada: EntradaTry): Promise<SalidaTry> {
   }
 
   const query = new URLSearchParams(pedido.query).toString();
-  const url = `${entrada.origen}${pedido.path}${query ? `?${query}` : ""}`;
+
+  let destino: URL;
+  try {
+    destino = new URL(`${pedido.path}${query ? `?${query}` : ""}`, confiable.origen);
+  } catch {
+    return {
+      status: 400,
+      cuerpo: { error: "PATH_INVALIDO", detalle: "El path no forma una URL válida." },
+    };
+  }
+
+  // Revalidación final: la URL que se va a pedir tiene que seguir apuntando al
+  // origen de CONFIANZA. La referencia se vuelve a derivar del entorno —no se
+  // reusa el objeto que se acaba de usar como base, ni nada que haya tocado el
+  // pedido— para que la comparación no sea autorreferencial: si algo entre la
+  // resolución y el armado moviera el destino, acá se corta.
+  const referencia = resolverOrigenConfiable(entrada.env);
+  const esperado = referencia.ok ? referencia.origen.origin : "";
+  if (!esperado || destino.origin !== esperado || destino.username || destino.password) {
+    console.error(`[docs/try] destino fuera del origen de confianza: ${destino.origin} ≠ ${esperado}`);
+    return {
+      status: 400,
+      cuerpo: {
+        error: "DESTINO_NO_PERMITIDO",
+        detalle: "El destino resuelto no es esta aplicación.",
+      },
+    };
+  }
+
+  const url = destino.toString();
 
   const ejecutar = entrada.fetchImpl ?? fetch;
   const reloj = entrada.ahora ?? (() => Date.now());

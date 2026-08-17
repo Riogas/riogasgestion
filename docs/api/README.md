@@ -41,6 +41,52 @@ está configurado, no abre y devuelve 503. Son dos variables:
 puede ser el default público del código de secapi (`security-suite-secret-key`):
 el guard trata ese valor como "no configurada" y devuelve 503 igual.
 
+### `DOCS_TRY_ORIGEN` — a dónde sale el "probar" (opcional)
+
+| Variable | Sin ella | Para qué |
+|---|---|---|
+| `DOCS_TRY_ORIGEN` | se usa `http://127.0.0.1:<PORT>` (loopback de este mismo proceso; `PORT` lo setea Next, y si no existe, 3000) | Origen contra el que `POST /api/docs/try` ejecuta la llamada. Es **la única** variable que decide el destino. |
+
+Se resuelve en `resolverOrigenConfiable()` (`src/lib/docs/try-ejecutor.ts`), en
+este orden y sin ninguna otra fuente:
+
+1. `DOCS_TRY_ORIGEN`, si está: se usa tal cual, normalizada a esquema + host +
+   puerto (se descartan path, query y credenciales embebidas). Tiene que ser
+   `http://` o `https://`.
+2. Si no está: `http://127.0.0.1:<PORT>`. Next setea `process.env.PORT` al
+   puerto real en el que escucha (`next start` y `next dev -p` por igual), así
+   que el default `3000` sólo aplica si la variable no existe.
+3. Si no se puede resolver un origen de confianza —`DOCS_TRY_ORIGEN` que no
+   parsea, esquema que no es http(s), o `PORT` que no es un puerto— el "probar"
+   responde **503 `ORIGEN_NO_CONFIGURADO`** y no ejecuta nada. No se adivina.
+
+**Nunca sale de un header.** `Host`, `x-forwarded-host`, `Origin` y `Referer`
+los elige quien manda el request. Como la llamada del "probar" sale con el
+`Authorization: Bearer <JWT del root>` y la `Cookie: token=<JWT>` puestos por el
+servidor, derivar el destino de un header convertía el endpoint en un SSRF con
+exfiltración de la sesión del root: un `x-forwarded-host: evil.example.com`
+alcanzaba para que el JWT saliera al host del atacante y volviera hasta 1 MB de
+la respuesta al navegador. Después de armar la URL final se **revalida** que su
+origen siga siendo el de confianza (el de la env/loopback, no la base con la que
+se armó); si no coincide, 400 `DESTINO_NO_PERMITIDO`.
+
+Cuándo hace falta setearla:
+
+- **Nunca, en el caso normal.** El loopback es el destino correcto: el "probar"
+  tiene que pegarle a *esta* app, y hacerlo por `127.0.0.1` además evita la
+  vuelta por nginx (y su WAF) y el hairpin de DNS.
+- Sí hay que setearla si el request tiene que pasar por el proxy —por ejemplo
+  para probar un endpoint cuyo comportamiento depende de headers que agrega
+  nginx— o si la app corre detrás de un path base. En ese caso poné el origen
+  público **de ese ambiente**: `DOCS_TRY_ORIGEN=https://goya-dev.glp.riogas.com.uy`
+  en dev y el de prod en prod. Un valor copiado del ambiente equivocado manda la
+  llamada al ambiente equivocado, y el portal es solo-root: puede escribir.
+- En local con `pnpm dev` (puerto 4000) no hace falta: `PORT` ya vale 4000.
+
+El header `Origin` del navegador se sigue mirando, pero **sólo** para el chequeo
+anti-CSRF (tiene que coincidir con el host por el que entró el request). No
+elige destino.
+
 ### Por qué el portal verifica la firma y el resto de la app no
 
 Hoy, en las tres aplicaciones, el JWT **no se verifica**: `decodeJwtPayload()` es
@@ -311,13 +357,14 @@ con la sesión del root que está mirando la pantalla. El motor está en
 
 | Regla | Por qué |
 |---|---|
-| Pasa por `requireRoot`, igual que `/api/docs/spec` | Es la misma información sensible. |
+| `requireRoot` **antes de leer el cuerpo**, en el route handler | El gate es lo primero que corre en el `POST`: un anónimo no tiene por qué hacernos parsear un JSON arbitrario (memoria gastada pre-auth). `manejarTry` lo vuelve a verificar porque es el módulo dueño de la regla; la segunda pasada sale gratis por la caché del guard. |
+| El destino sale de `DOCS_TRY_ORIGEN` / loopback, **nunca de un header** | Ver la sección de la variable más arriba. El fetch lleva el JWT del root: si el destino saliera del `Host` o del `x-forwarded-host`, sería un SSRF con exfiltración de la sesión. |
 | El pedido viaja en base64 (`{ payload }`) | Un cuerpo con sintaxis de shell no atraviesa el WAF de nginx si va en claro. Mismo contrato que en las otras dos apps. |
-| Sólo paths que empiecen con `/api/` | **Nunca** es un proxy abierto. Se rechaza la URL absoluta, `//host`, `..`, `%2e`, `%2f`, la query pegada al path y el propio `/api/docs/try`. |
+| Sólo paths que empiecen con `/api/` | **Nunca** es un proxy abierto. Se rechaza la URL absoluta, `//host`, `\`, `..`, `%2e`, `%2f`, la query pegada al path y el propio `/api/docs/try`. Y la URL ya armada se revalida contra el origen de confianza → 400 `DESTINO_NO_PERMITIDO`. |
 | `GET`/`HEAD` directo; el resto exige `confirmacion` = el path exacto | Es root y el ambiente puede ser producción. Sin coincidencia → **428 `CONFIRMACION_REQUERIDA`**. |
 | `authorization` y `cookie` los pone el servidor | Si los pudiera elegir el cliente, esto sería una máquina de firmar requests con credenciales ajenas. El resto de los headers (incluida una `x-api-key` para probar los endpoints del VB6) pasa. |
 | Timeout 30 s, respuesta truncada a 1 MB | El ZIP de un lote de QRs son cientos de MB: se lee con tope y se corta el stream. |
-| Se exige `Origin` del mismo host, si vino | Anti-CSRF: sin esto, una página de otro dominio podría disparar escrituras con la cookie del root. |
+| Se exige `Origin` = el host por el que entró el request, si vino | Anti-CSRF: sin esto, una página de otro dominio podría disparar escrituras con la cookie del root. Es lo único para lo que se miran esos headers; el destino del fetch no depende de ellos. |
 
 Devuelve `{ status, statusText, headers, body, duracionMs, truncado }`. El
 status del endpoint probado va **adentro** del cuerpo: un 401 del destino sigue

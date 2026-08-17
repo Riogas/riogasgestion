@@ -10,10 +10,13 @@ function conCodigo(texto: string, clave: string) {
     i % 2 === 1 ? (
       <code
         key={`${clave}-${i}`}
-        // `break-all`: las notas traen cosas como
+        // `overflow-wrap: anywhere` y no `break-all`: las notas traen cosas como
         // `calid|nombre|localidad|departamento|fuente|matchEstado`, que sin esto
-        // empujan el ancho del documento en un teléfono.
-        className="break-all rounded bg-muted px-1 py-0.5 font-mono text-[0.9em] text-foreground"
+        // empujan el ancho del documento en un teléfono. `break-all` corta
+        // igual en el desktop, donde entra de sobra, y parte palabras al medio
+        // dejando el fondo del chip cortado; `anywhere` sólo parte cuando el
+        // token no entra de ninguna forma.
+        className="[overflow-wrap:anywhere] rounded bg-muted px-1 py-0.5 font-mono text-[0.9em] text-foreground"
       >
         {parte}
       </code>

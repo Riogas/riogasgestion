@@ -84,10 +84,22 @@ export function Probador({ endpoint, origen, valores, onCambio }: Props) {
   const [dialogoAbierto, setDialogoAbierto] = useState(false);
   const [confirmacion, setConfirmacion] = useState("");
 
-  const ambiente = useMemo(
-    () => ambienteDeHost(typeof window === "undefined" ? "" : window.location.host),
-    [],
-  );
+  // El ambiente sale de `origen`, NO de window.location: en el servidor no hay
+  // window, así que ambienteDeHost("") devolvía DESCONOCIDO/esProd (con su
+  // triángulo de alerta) mientras el cliente renderizaba LOCAL — un mismatch de
+  // hidratación que React reportaba en cada visita. `origen` lo calcula el
+  // servidor con los headers del request y el visor lo confirma al montar, así
+  // que ambos renders arrancan del mismo valor. Con `origen` en las deps, además,
+  // el badge se actualiza si ese valor cambia (el useMemo vacío nunca lo hacía).
+  const ambiente = useMemo(() => {
+    let host = "";
+    try {
+      host = new URL(origen).host;
+    } catch {
+      host = "";
+    }
+    return ambienteDeHost(host);
+  }, [origen]);
 
   const pathResuelto = rutaConParams(endpoint.ruta, valores.params);
   const faltanParams = /\{[^}]+\}/.test(pathResuelto);

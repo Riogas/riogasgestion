@@ -22,9 +22,27 @@ export interface Anotacion {
   resumen?: string;
   descripcion?: string;
   auth?: string;
+  /** Override de la categoría de auth: la heurística de texto se equivoca. */
+  categoria?: string;
   consumidores?: string[];
   notas?: string;
+  /** Descripción por nombre de parámetro (query o path). */
+  parametros?: Record<string, string>;
+  /** Descripción del cuerpo del request. */
+  cuerpo?: string;
+  /** Descripción y ejemplo por código de respuesta. */
+  respuestas?: Record<string, { descripcion?: string; ejemplo?: string }>;
+  /** Errores conocidos que el generador no puede inferir. */
+  errores?: Array<{ codigo?: string; cuando?: string; cuerpo?: string }>;
   ejemplos?: Array<{ titulo?: string; lenguaje?: string; codigo?: string }>;
+}
+
+/** Riesgo transversal de autenticación: no cuelga de un endpoint, cuelga de la app. */
+export interface Advertencia {
+  titulo?: string;
+  severidad?: string;
+  afecta?: string;
+  detalle?: string;
 }
 
 /** Entrada plana para la lista de la página. */
@@ -46,13 +64,18 @@ export interface CatalogoDocs {
   huerfanas: string[];
 }
 
-function leerAnotaciones(): Record<string, Anotacion> {
+interface ArchivoAnotaciones {
+  endpoints?: Record<string, Anotacion>;
+  advertencias?: Advertencia[];
+}
+
+function leerAnotaciones(): ArchivoAnotaciones {
   if (!fs.existsSync(ARCHIVO_ANOTACIONES)) return {};
   const crudo = parsearYaml(fs.readFileSync(ARCHIVO_ANOTACIONES, "utf8")) as
-    | { endpoints?: Record<string, Anotacion> }
+    | ArchivoAnotaciones
     | null
     | undefined;
-  return crudo?.endpoints ?? {};
+  return crudo ?? {};
 }
 
 /** La key de anotación es "MÉTODO /path", p.ej. "GET /api/calles/buscar". */
@@ -73,7 +96,10 @@ export function cargarCatalogo(): CatalogoDocs {
   }
 
   const documento = JSON.parse(fs.readFileSync(ARCHIVO_OPENAPI, "utf8")) as Record<string, any>;
-  const anotaciones = leerAnotaciones();
+  const archivo = leerAnotaciones();
+  const anotaciones = archivo.endpoints ?? {};
+  const advertencias = Array.isArray(archivo.advertencias) ? archivo.advertencias : [];
+  documento["x-goya-advertencias"] = advertencias;
   const usadas = new Set<string>();
   const endpoints: EndpointDoc[] = [];
 
@@ -89,8 +115,13 @@ export function cargarCatalogo(): CatalogoDocs {
         if (anot.resumen) op.summary = anot.resumen;
         if (anot.descripcion) op.description = anot.descripcion;
         if (anot.auth) op["x-goya-auth"] = anot.auth;
+        if (anot.categoria) op["x-goya-categoria-auth"] = anot.categoria;
         if (anot.consumidores) op["x-goya-consumidores"] = anot.consumidores;
         if (anot.notas) op["x-goya-notas"] = anot.notas;
+        if (anot.parametros) op["x-goya-parametros"] = anot.parametros;
+        if (anot.cuerpo) op["x-goya-cuerpo"] = anot.cuerpo;
+        if (anot.respuestas) op["x-goya-respuestas"] = anot.respuestas;
+        if (anot.errores) op["x-goya-errores"] = anot.errores;
         if (anot.ejemplos) op["x-goya-ejemplos"] = anot.ejemplos;
         op["x-goya-anotado"] = true;
       }

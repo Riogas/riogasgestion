@@ -128,7 +128,13 @@ export function limpiarCacheDocs(): void {
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
 
-function extraerToken(request: SolicitudConCredenciales): string | null {
+/**
+ * Token de la sesión: header `Authorization: Bearer …` o, si no vino, la
+ * cookie `token`. Se exporta porque el ejecutor del "probar"
+ * (try-ejecutor.ts) reenvía ESE token al endpoint que se está probando: la
+ * llamada sale con la sesión del root, nunca con credenciales del cliente.
+ */
+export function extraerToken(request: SolicitudConCredenciales): string | null {
   const auth = request.headers.get("authorization") ?? "";
   if (auth.startsWith("Bearer ")) return auth.slice(7).trim() || null;
   return request.cookies?.get("token")?.value ?? null;

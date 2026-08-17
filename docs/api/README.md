@@ -1,17 +1,29 @@
 # Catálogo de APIs de GOYA
 
-Fuente del portal `/dashboard/docs` (fase 1–3 de
-[`docs/superpowers/specs/2026-08-17-portal-docs-apis-design.md`](../superpowers/specs/2026-08-17-portal-docs-apis-design.md)).
+Fuente del portal `/dashboard/docs`
+([`docs/superpowers/specs/2026-08-17-portal-docs-apis-design.md`](../superpowers/specs/2026-08-17-portal-docs-apis-design.md)).
 
 | Archivo | Qué es |
 |---|---|
-| `openapi.json` | **Generado.** OpenAPI 3.1 con los 107 endpoints de la app. No editar a mano. |
-| `anotaciones.yaml` | **A mano.** Resumen, auth real, consumidores, notas y ejemplos. Gana siempre sobre lo generado. |
+| `openapi.json` | **Generado.** OpenAPI 3.1 con los 108 endpoints de la app. No editar a mano. |
+| `anotaciones.yaml` | **A mano.** Resumen, auth real, consumidores, parámetros, respuestas, errores y ejemplos. Gana siempre sobre lo generado. |
 | `README.md` | Este archivo. |
 
-El merge de los dos lo hace `src/lib/docs/spec.ts`, y lo sirven
-`GET /api/docs/spec` y la página `/dashboard/docs`, ambos detrás del gate root
-de `src/lib/docs/root-guard.ts`.
+El merge de los dos lo hace `src/lib/docs/spec.ts`, `src/lib/docs/vista.ts` lo
+aplana en el modelo que dibuja la pantalla, y lo sirven `GET /api/docs/spec` y
+la página `/dashboard/docs`, ambos detrás del gate root de
+`src/lib/docs/root-guard.ts`.
+
+| Pieza | Archivo |
+|---|---|
+| Gate root (firma HS256 + `exp` + `docs:view` contra secapi) | `src/lib/docs/root-guard.ts` |
+| Merge generado + anotaciones | `src/lib/docs/spec.ts` |
+| Modelo de vista (categorías de auth, errores del guard, esqueleto del cuerpo) | `src/lib/docs/vista.ts` |
+| Ejemplos copiables (curl / fetch / VB6) | `src/lib/docs/ejemplos.ts` |
+| Motor del "probar" | `src/lib/docs/try-ejecutor.ts` + `src/app/api/docs/try/route.ts` |
+| Visor | `src/components/docs/` |
+| Página | `src/app/dashboard/docs/page.tsx` |
+| Tests | `pnpm test:docs` (6 archivos en `src/lib/docs/*.test.ts`) |
 
 ---
 
@@ -155,7 +167,7 @@ Cadena de fallback, de mayor a menor prioridad:
    `// ── CRUD ──────`, para no robarse el comentario que agrupa varios métodos)
 3. para el front, el comentario de cabecera del `route.ts`
 
-Hoy: **103 de 107 operaciones con summary** (antes eran 14 de 102). Las 4 que
+Hoy: **104 de 108 operaciones con summary** (antes eran 14 de 102). Las 4 que
 faltan son las de `backend/src/mostrador/`, que se commitearon mientras se hacía
 este cambio; se arreglan con una línea de JSDoc, igual que el resto.
 
@@ -193,53 +205,160 @@ endpoints:
   "GET /api/clientes/{id}":
     resumen: Ficha completa del cliente unificado
     descripcion: |
-      Texto largo, markdown.
+      Texto largo. Se renderiza con párrafos y `código` entre backticks.
     auth: JWT (Bearer)
+    categoria: jwt          # jwt | api-key | sesion | root | publica | delegada | ninguna
     consumidores:
       - Pantalla /dashboard/clientes
-      - VB6
+      - VB6                 # si dice VB6, el visor agrega el ejemplo en VB6
+    parametros:
+      id: Id de cliente_uni (no es el CLIID del AS400).
+    cuerpo: |
+      Qué se manda en el body, en criollo.
+    respuestas:
+      "200":
+        descripcion: La ficha con direcciones y teléfonos.
+        ejemplo: |
+          { "id": 123, "nombre": "…" }
+    errores:
+      - codigo: "404"
+        cuando: El id no existe
+        cuerpo: '{ "message": "Cliente no encontrado" }'
     notas: |
       Lo que el generador no puede saber.
     ejemplos:
-      - titulo: curl
+      - titulo: curl con la key
         lenguaje: bash
         codigo: |
-          curl -H "Authorization: Bearer $TOKEN" https://goya-dev.glp.riogas.com.uy/api/clientes/123
+          curl -H "Authorization: Bearer $TOKEN" {origen}/api/clientes/123
 ```
 
 Todos los campos son opcionales. La anotación pisa `summary`, `description` y
-`x-goya-auth` de lo generado, y agrega `x-goya-consumidores`, `x-goya-notas` y
-`x-goya-ejemplos`.
+`x-goya-auth` de lo generado, y agrega el resto como extensiones `x-goya-*`.
+
+Dos detalles que importan:
+
+- **`{origen}`** en el código de un ejemplo se reemplaza en runtime por el host
+  del ambiente en el que está parado el navegador. Nunca escribas un host ni una
+  IP a mano: un ejemplo con `goya-dev` pegado adentro es un ejemplo que alguien
+  va a copiar y correr contra el ambiente equivocado. Lo mismo vale para los
+  ejemplos **generados** (curl / fetch / VB6): salen de
+  `src/lib/docs/ejemplos.ts` con `window.location.origin`.
+- **`categoria`** existe porque la heurística del generador se equivoca y hay
+  que poder corregirla. El caso testigo es
+  `POST /api/sorteo-publico/participar`: el archivo menciona `x-api-key` porque
+  la key la agrega ESE handler hacia el backend, pero para el navegador el
+  endpoint es público. Sin el override, el panel de autenticación contaría un
+  endpoint protegido que en realidad está abierto.
 
 Si una key del yaml no matchea ningún endpoint del `openapi.json`, aparece
 listada como "anotación sin endpoint" arriba de todo en `/dashboard/docs` (el
-yaml quedó desactualizado). El test que **falla** ante endpoints sin anotar es
-la fase 7 del diseño; todavía no está.
+yaml quedó desactualizado) y el test antienvejecimiento falla.
+
+### Advertencias transversales
+
+Arriba de `endpoints:` el yaml tiene una lista `advertencias:` con lo que **no**
+se puede inferir de ningún endpoint: que el `AuthGuard` no distingue rol, que
+sin `JWT_SECRET` la firma no se verifica, que `CallesApiKeyGuard` deja pasar
+cualquier JWT decodificable, etc. Cada una lleva `titulo`, `severidad`
+(`alta`/`media`), `afecta` y `detalle`, y se muestran en la pestaña "Estado de
+la autenticación". Un endpoint puede declarar autenticación y no proteger nada:
+esa lista es la que lo dice.
+
+---
+
+## Test antienvejecimiento
+
+```bash
+pnpm test:docs
+```
+
+`src/lib/docs/cobertura-anotaciones.test.ts` **falla si aparece un endpoint sin
+entrada en `anotaciones.yaml`**. Chequea cinco cosas:
+
+1. Todo endpoint del `openapi.json` está anotado **o** figura en la lista de
+   excepciones.
+2. La lista de excepciones no tiene entradas que sobren (un endpoint que ya se
+   anotó o que se borró del código).
+3. No hay anotaciones huérfanas (keys que no matchean ningún endpoint).
+4. Los endpoints con **consumidor externo** (calles/VB6, mostrador, el webhook
+   de TrackMovil, los públicos de sorteos) están anotados sí o sí. Esa lista
+   está escrita a mano en el test: son contratos con código que no vive en este
+   repo.
+5. Todo endpoint anotado declara `auth` y `consumidores` (no se acepta una
+   anotación a medias).
+
+La lista de excepciones es **`src/lib/docs/anotaciones-pendientes.ts`**, un
+array explícito con los 73 endpoints que quedaron sin anotar el 2026-08-17.
+Existe para que el test arranque verde con la deuda de ese día y falle sólo con
+los nuevos.
+
+> **La lista no crece.** Un endpoint nuevo se anota en `anotaciones.yaml`; no se
+> agrega a la lista de excepciones. Y cuando se anota uno viejo, hay que sacarlo
+> de la lista: el punto 2 hace fallar el test si sobra.
+
+Los 73 pendientes son CRUD interno del panel (móviles, puestos, fleteras,
+catálogos, workbench, admin de sorteos): sin consumidor externo, y con el
+contrato ya descripto por el generador a partir de los DTOs de class-validator.
+
+---
+
+## Probar un endpoint desde el portal — `POST /api/docs/try`
+
+El botón "Probar" de cada ficha ejecuta la llamada **del lado del servidor**,
+con la sesión del root que está mirando la pantalla. El motor está en
+`src/lib/docs/try-ejecutor.ts` y las reglas no se negocian:
+
+| Regla | Por qué |
+|---|---|
+| Pasa por `requireRoot`, igual que `/api/docs/spec` | Es la misma información sensible. |
+| El pedido viaja en base64 (`{ payload }`) | Un cuerpo con sintaxis de shell no atraviesa el WAF de nginx si va en claro. Mismo contrato que en las otras dos apps. |
+| Sólo paths que empiecen con `/api/` | **Nunca** es un proxy abierto. Se rechaza la URL absoluta, `//host`, `..`, `%2e`, `%2f`, la query pegada al path y el propio `/api/docs/try`. |
+| `GET`/`HEAD` directo; el resto exige `confirmacion` = el path exacto | Es root y el ambiente puede ser producción. Sin coincidencia → **428 `CONFIRMACION_REQUERIDA`**. |
+| `authorization` y `cookie` los pone el servidor | Si los pudiera elegir el cliente, esto sería una máquina de firmar requests con credenciales ajenas. El resto de los headers (incluida una `x-api-key` para probar los endpoints del VB6) pasa. |
+| Timeout 30 s, respuesta truncada a 1 MB | El ZIP de un lote de QRs son cientos de MB: se lee con tope y se corta el stream. |
+| Se exige `Origin` del mismo host, si vino | Anti-CSRF: sin esto, una página de otro dominio podría disparar escrituras con la cookie del root. |
+
+Devuelve `{ status, statusText, headers, body, duracionMs, truncado }`. El
+status del endpoint probado va **adentro** del cuerpo: un 401 del destino sigue
+siendo un 200 del `try`.
+
+En la UI, las escrituras abren un diálogo que exige **escribir el path exacto** y
+muestra el ambiente derivado del host (si el host dice `dev` es DEV; localhost es
+LOCAL; **cualquier otra cosa se trata como PRODUCCIÓN** y se pinta en rojo — el
+default tiene que ser el que asusta).
+
+`/api/docs/try` es un route handler propio de Next, así que no pasa por el
+catch-all `/api/[...path]` ni lo alcanza el bloqueo de
+`src/lib/docs/paths-bloqueados.ts` (que sí bloquearía cualquier `/api/docs*` que
+llegara al proxy).
 
 ---
 
 ## Qué quedó fuera (y por qué)
 
-- **Los consumidores, las keys reales y los ejemplos de la mayoría de los
-  endpoints.** El generador saca el contrato del código, pero no sabe quién
-  llama ni con qué key. Eso es `anotaciones.yaml` (fase 6): hoy hay 4 endpoints
-  anotados.
+- **Las notas a mano de los 73 endpoints de CRUD interno.** Están anotados los
+  35 que tienen consumidor externo o que son camino crítico; el resto vive en la
+  lista de excepciones del test antienvejecimiento. El generador ya describe su
+  contrato a partir de los DTOs.
 - **El `summary` de los 4 endpoints de `/api/mostrador/*`.** Es código de otra
   tanda, commiteado mientras se hacía este cambio; se resuelve con una línea de
   JSDoc arriba de cada método de `backend/src/mostrador/mostrador.controller.ts`.
-- **`POST /api/docs/try`** (ejecutar la llamada desde el portal) y el visor con
-  búsqueda, parámetros y ejemplos: fases 4 y 5.
+  (La anotación a mano ya les puso resumen, auth y consumidores en el portal.)
 - **Los endpoints legacy de GeneXus** que se alcanzan por el catch-all
   `/api/[...path]`. Se documenta que el proxy existe y a dónde apunta, no cada
   endpoint del otro lado.
 - **Los códigos de respuesta reales.** Sin `@ApiResponse` el generador pone el
   código por defecto de Nest (201 en POST, 200 en el resto) con descripción
-  vacía. Los 4xx/5xx concretos se anotan a mano.
+  vacía. Los 4xx/5xx concretos se anotan a mano en `respuestas` y `errores`.
+  Los 401 del guard **sí** salen solos: los deriva `erroresDelGuard()` en
+  `vista.ts` a partir de la categoría de autenticación, con los textos de los
+  guards reales.
 - **La autenticación inferida del front es una heurística de texto** (busca
   `x-api-key`, `cookies.get("token")`, `authorization` en el archivo). Se
-  equivoca, y a propósito: es un piso, no la verdad. Dos casos ya corregidos por
-  anotación viven en `anotaciones.yaml` (`POST /api/sorteo-publico/participar`
-  y `GET /api/docs/spec`).
+  equivoca, y a propósito: es un piso, no la verdad. Se corrige con `categoria`
+  en la anotación (ver `POST /api/sorteo-publico/participar`, `GET /api/docs/spec`
+  y los cinco `/api/{path}` del proxy).
 - **`GET /api/health` existe dos veces** — en el backend Nest y como healthcheck
   del contenedor Next. OpenAPI no admite dos operaciones con el mismo método y
   path: queda la del backend, y la del front va anotada dentro de ella en

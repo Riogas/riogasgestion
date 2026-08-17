@@ -6,15 +6,89 @@
 #
 # La key de cada entrada es exactamente "MÉTODO /path", con el path tal cual
 # aparece en openapi.json (parámetros entre llaves: /api/clientes/{id}).
-# Campos: resumen, descripcion, auth, consumidores, notas, ejemplos.
 #
-# Estado: sólo están anotados los endpoints que ya se documentaron a mano; el
-# resto se anota en la fase 6 del diseño
-# (docs/superpowers/specs/2026-08-17-portal-docs-apis-design.md).
+# Campos por endpoint (todos opcionales):
+#   resumen        una línea; pisa el summary generado
+#   descripcion    markdown largo; pisa el description generado
+#   auth           texto libre que se muestra tal cual
+#   categoria      jwt | api-key | sesion | root | publica | delegada | ninguna
+#                  Es lo que colorea el badge y cuenta el panel "Estado de la
+#                  autenticación". Sin este campo se infiere del texto de `auth`,
+#                  y la inferencia se equivoca (ver POST /api/sorteo-publico/participar).
+#   consumidores   lista de quién llama. Si dice "VB6", el visor agrega el ejemplo VB6.
+#   notas          lo que el generador no puede saber
+#   parametros     { nombre: descripción } para los query/path params
+#   cuerpo         descripción del request body
+#   respuestas     { "200": { descripcion, ejemplo } }
+#   errores        [ { codigo, cuando, cuerpo } ] — los del guard se agregan solos
+#   ejemplos       [ { titulo, lenguaje, codigo } ]. En el código, {origen} se
+#                  reemplaza por el host real del ambiente en runtime.
+#
+# El test src/lib/docs/cobertura-anotaciones.test.ts falla si aparece un
+# endpoint nuevo sin entrada acá. Ver docs/api/README.md.
 
 version: 1
 
+# ── Estado real de la autenticación ─────────────────────────────────────────
+# Lo que ninguna herramienta puede inferir: no es qué declara cada endpoint,
+# sino qué NO valida el que sí declara algo. Se muestra arriba de todo en el
+# portal, que por esto mismo es solo-root.
+advertencias:
+  - titulo: El JWT no distingue rol — cualquier usuario logueado entra a toda la API
+    severidad: alta
+    afecta: los 82 endpoints con JWT (Bearer)
+    detalle: |
+      `AuthGuard` (backend/src/common/guards/auth.guard.ts) verifica que el token
+      esté firmado y vigente, y nada más. No mira roles, ni funcionalidades, ni
+      la aplicación que emitió el token. Un usuario de cualquier app del
+      ecosistema con sesión válida puede llamar a `DELETE /api/clientes/{id}`
+      con curl. El control de acceso hoy vive en la UI (el menú y el gate de
+      páginas de src/proxy.ts contra secapi), o sea del lado del cliente.
+
+  - titulo: Sin JWT_SECRET, la firma del token no se verifica
+    severidad: alta
+    afecta: los 82 endpoints con JWT (Bearer)
+    detalle: |
+      Si `JWT_SECRET` no está seteada en el backend, `AuthGuard` saltea la
+      verificación HMAC y se queda con `decodeJwtPayload()`, que es
+      `JSON.parse(base64)`. Con eso, un `Bearer xxx.<base64 de {"username":"quien-sea"}>.yyy`
+      fabricado a mano pasa. `AUTH_REQUIRE_JWT_SECRET=1` hace que la API falle
+      cerrada cuando falta el secreto, pero es opt-in y hay que prenderla.
+      El portal /docs no depende de esto: verifica la firma por su cuenta.
+
+  - titulo: CallesApiKeyGuard deja pasar cualquier JWT decodificable
+    severidad: alta
+    afecta: GET /api/calles/buscar · esquinas · resolver · estado
+    detalle: |
+      El guard de los endpoints del VB6 acepta la `x-api-key` correcta O
+      cualquier `Authorization: Bearer` cuyo payload sea base64 de un JSON —
+      sin verificar la firma (`decodeJwtPayload`). Es lo que le permite a la
+      pantalla de revisión usar el buscador sin la key, y también lo que hace
+      que el padrón de calles quede alcanzable con un token inventado.
+
+  - titulo: "El catch-all /api/{path} no valida: reenvía y confía en el destino"
+    severidad: media
+    afecta: GET/POST/PUT/PATCH/DELETE /api/{path}
+    detalle: |
+      `src/app/api/[...path]/route.ts` republica cualquier `/api/*` que no
+      matchee un handler propio hacia GeneXus (modo legacy) o NestJS, copiando
+      los headers del cliente. No autentica: la validación queda del lado del
+      destino. Único bloqueo de código: `docs`, `docs-json` y `docs-yaml`, que
+      nunca se republican (src/lib/docs/paths-bloqueados.ts).
+
+  - titulo: El proceso corre con NODE_TLS_REJECT_UNAUTHORIZED=0
+    severidad: media
+    afecta: todas las llamadas HTTPS que salen del server de Next
+    detalle: |
+      `pm2.config.js` lo necesita para el proxy legacy hacia GeneXus, que tiene
+      certificado autofirmado. Efecto colateral: ninguna llamada saliente valida
+      el certificado, incluida la que el gate de /docs le hace a secapi para
+      preguntar si sos root. La mitigación real es arreglar la cadena de
+      certificados del proxy legacy y sacar la variable.
+
 endpoints:
+  # ══ Puente nomenclátor ↔ OSM (consumidor: VB6) ════════════════════════════
+
   "GET /api/calles/buscar":
     resumen: Busca calles del nomenclátor por texto y devuelve el CALID
     descripcion: |
@@ -26,39 +100,145 @@ endpoints:
       `formato=texto` devuelve líneas separadas por pipe en vez de JSON: es lo
       que consume el VB6, que no parsea JSON.
     auth: x-api-key (CALLES_API_KEY) — o JWT del panel, para el picker de la pantalla de revisión
+    categoria: api-key
     consumidores:
       - VB6 (alta y edición de direcciones de cliente)
       - Pantalla /dashboard/calles-match del propio Goya
+    parametros:
+      q: Texto a buscar; mínimo 2 caracteres. Tolera acentos, abreviaturas y errores de tipeo.
+      depto: Departamento para acotar la búsqueda (nombre, como viene del AS400).
+      ciudad: Localidad para acotar todavía más. Es el filtro que evita traer una calle homónima de otro pueblo.
+      formato: "`json` (default) o `texto` (líneas `campo|campo|…` para el Split() del VB6)."
     notas: |
       La key va en el .env del server, no en el repo. El guard
       (CallesApiKeyGuard) compara con timingSafeEqual y deja pasar también a
       cualquier request con un JWT decodificable, así la pantalla de revisión
       no necesita la key.
-    ejemplos:
-      - titulo: curl (JSON)
-        lenguaje: bash
-        codigo: |
-          curl -H "x-api-key: $CALLES_API_KEY" \
-            "https://goya-dev.glp.riogas.com.uy/api/calles/buscar?q=rivera&depto=Montevideo"
-      - titulo: curl (formato texto para VB6)
-        lenguaje: bash
-        codigo: |
-          curl -H "x-api-key: $CALLES_API_KEY" \
-            "https://goya-dev.glp.riogas.com.uy/api/calles/buscar?q=rivera&depto=Montevideo&formato=texto"
 
-  "GET /api/docs/spec":
-    resumen: Catálogo de APIs mergeado (openapi.json + estas anotaciones)
+      Orden de las columnas en `formato=texto`:
+      `calid|nombre|localidad|departamento|fuente|matchEstado`.
+    respuestas:
+      "200":
+        descripcion: Lista de candidatas ordenadas por puntaje. Vacía si no hay match, no 404.
+        ejemplo: |
+          [
+            {
+              "calid": 4821,
+              "nombre": "RIVERA",
+              "localidad": "MONTEVIDEO",
+              "departamento": "MONTEVIDEO",
+              "fuente": "OSM",
+              "matchEstado": "CONFIRMADO"
+            }
+          ]
+    ejemplos:
+      - titulo: curl (formato texto, el del VB6)
+        lenguaje: bash
+        codigo: |
+          curl -H "x-api-key: $CALLES_API_KEY" \
+            "{origen}/api/calles/buscar?q=rivera&depto=Montevideo&formato=texto"
+          # 4821|RIVERA|MONTEVIDEO|MONTEVIDEO|OSM|CONFIRMADO
+
+  "GET /api/calles/esquinas":
+    resumen: Dirección → sus dos esquinas, el CALID y las coordenadas
     descripcion: |
-      El endpoint que alimenta este mismo portal. Devuelve el documento OpenAPI
-      3.1 versionado en el repo con las notas a mano aplicadas encima.
-    auth: JWT + permiso docs:view en GOYA (verificado contra secapi en cada request)
+      Dada una calle y un número, devuelve las dos esquinas que lo encierran
+      (con su CALID cada una, que es lo que el AS400 guarda en CALESQ1ID /
+      CALESQ2ID), el barrio, la localidad y el punto lat/lng.
+
+      Es el endpoint que usa el VB6 al dar de alta una dirección: el operador
+      escribe calle y número, y las esquinas salen solas.
+    auth: x-api-key (CALLES_API_KEY) — o JWT del panel
+    categoria: api-key
     consumidores:
-      - La página /dashboard/docs
+      - VB6 (alta y edición de direcciones de cliente)
+      - Ficha de mostrador (por /api/mostrador/esquinas, que proxea a este mismo servicio)
+    parametros:
+      calle: Nombre de la calle; mínimo 2 caracteres.
+      numero: Número de puerta. Sin número se resuelve el eje de la calle y la precisión baja.
+      depto: Departamento.
+      ciudad: Localidad.
+      formato: "`json` (default) o `texto` (una sola línea pipe-delimited)."
     notas: |
-      La heurística del generador lo marca como "ninguna" porque el archivo del
-      handler no menciona ningún header de auth — el gate vive en
-      src/lib/docs/root-guard.ts. Otro caso donde la anotación corrige lo
-      inferido. Es fail-closed: si secapi no contesta responde 503.
+      Orden de las columnas en `formato=texto` (una sola línea):
+      `encontrada|precision|calle|calid|esquina1|calid1|esquina2|calid2|barrio|localidad|lat|lng`,
+      con `encontrada` en 1/0 para que el VB6 no tenga que interpretar booleanos.
+
+      La geolocalización sale del Nominatim propio (nominatim.riogas.uy), no de
+      un servicio público: no hay cuota ni límite de rate, pero si el server de
+      Nominatim está caído la precisión cae a la de la calle sola.
+    respuestas:
+      "200":
+        descripcion: "Siempre 200, aun si no encontró: mirá `encontrada` / `precision`."
+        ejemplo: |
+          1|PORTAL|RIVERA|4821|BULEVAR ARTIGAS|1203|JUAN PAULLIER|1544|CORDON|MONTEVIDEO|-34.9011|-56.1645
+
+  "GET /api/calles/resolver":
+    resumen: Nombre OSM de una calle → su CALID
+    descripcion: |
+      El camino inverso al del buscador: se entra con el nombre tal cual lo
+      escribe OSM y se sale con el CALID del nomenclátor. Lo usa quien ya
+      trabaja con datos de OSM (un mapa, una capa importada) y necesita
+      escribir en el AS400.
+    auth: x-api-key (CALLES_API_KEY) — o JWT del panel
+    categoria: api-key
+    consumidores:
+      - VB6
+      - Procesos de importación de direcciones
+    parametros:
+      nombreOsm: Nombre exacto como figura en OSM; mínimo 2 caracteres.
+      depto: Departamento, para desambiguar homónimas.
+      localidad: Localidad, el filtro que de verdad separa homónimas (ver la nota).
+    notas: |
+      Filtrar por LOCALIDAD y no por departamento es lo que evita el caso Aiguá:
+      hay calles con el mismo nombre en pueblos distintos del mismo departamento,
+      y quedarse con la primera devuelve el CALID de otro pueblo.
+
+  "GET /api/calles/estado":
+    resumen: Cobertura del puente nomenclátor ↔ OSM en números
+    descripcion: |
+      Totales del puente: cuántas calles OSM hay cargadas, cuántos matches están
+      confirmados, cuántos esperan revisión humana y qué porcentaje del uso real
+      de clientes cubre lo confirmado. Es el endpoint para monitorear que el
+      cron semanal siga corriendo.
+    auth: x-api-key (CALLES_API_KEY) — o JWT del panel
+    categoria: api-key
+    consumidores:
+      - Monitoreo
+      - Pantalla /dashboard/calles-match
+    notas: |
+      No recibe parámetros y no toca el AS400: sale todo del Postgres de Goya.
+
+  "GET /api/calles/matches":
+    resumen: Cola de revisión humana de los matches calle AS400 ↔ calle OSM
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/calles-match
+    parametros:
+      estado: "PENDIENTE | CONFIRMADO | RECHAZADO. Sin estado trae la cola pendiente."
+      take: Cuántos traer (default 50).
+      skip: Desde cuál (paginado).
+    notas: |
+      Camino crítico del puente: lo que se confirma acá es lo que después
+      devuelve `/api/calles/buscar` con `matchEstado=CONFIRMADO`, que es lo que
+      el VB6 termina escribiendo en el AS400.
+
+  "PATCH /api/calles/matches/{id}":
+    resumen: Resuelve un match de la cola (aprobar, rechazar o corregir)
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/calles-match
+    cuerpo: |
+      `accion` es `aprobar`, `rechazar` o `corregir`. Con `corregir` hay que
+      mandar además `calleOsmId`, la calle OSM correcta elegida a mano.
+      `usuario` queda registrado como quien revisó.
+    notas: |
+      Escribe la decisión humana: es la que le gana al matcher automático. Un
+      rechazo no borra nada, marca el match para que no se publique.
+
+  # ══ Espejo de zonas con TrackMovil ════════════════════════════════════════
 
   "POST /api/zonas/sync/webhook":
     resumen: Entrada del espejo de zonas que empuja TrackMovil
@@ -67,21 +247,102 @@ endpoints:
       en su Supabase, para que el espejo de Goya quede al día sin esperar al
       pull. Acepta una zona suelta o `{ zonas: [...] }`.
     auth: x-api-key (ZONAS_SYNC_API_KEY)
+    categoria: api-key
     consumidores:
       - TrackMovil (RiogasTracking, app 5)
+    cuerpo: |
+      El shape es el de TrackMovil, no el de Goya: se acepta tal cual llega y el
+      service traduce. Se puede mandar una zona sola o un lote en `zonas`.
     notas: |
       El generador lo lista como "sin declarar" porque el guard es propio
       (SyncApiKeyGuard) y no hay decorador de Swagger que lo describa: la
       autenticación real es el header x-api-key. Si ZONAS_SYNC_API_KEY no está
       en el .env del server, el endpoint responde 401 a todo.
     ejemplos:
-      - titulo: curl
+      - titulo: curl (lote de zonas)
         lenguaje: bash
         codigo: |
           curl -X POST -H "x-api-key: $ZONAS_SYNC_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{"zonas":[{"id":107,"nombre":"Centro"}]}' \
-            "https://goya-dev.glp.riogas.com.uy/api/zonas/sync/webhook"
+            "{origen}/api/zonas/sync/webhook"
+
+  "POST /api/zonas/sync/pull":
+    resumen: Trae las zonas desde TrackMovil (carga inicial y re-sync manual)
+    descripcion: |
+      Va a buscar las zonas al Supabase de TrackMovil y las importa/actualiza en
+      el Postgres de Goya. Es la carga inicial del espejo y el botón de
+      "resincronizar" cuando el webhook se perdió algo.
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/zonificacion
+    notas: |
+      El pull es la dirección segura del espejo: pisa lo de Goya con lo de
+      track. La primera corrida trajo 107 zonas reales.
+    errores:
+      - codigo: "502"
+        cuando: El Supabase de track no responde o el certificado no valida
+        cuerpo: "{ \"message\": \"...\" }"
+
+  "POST /api/zonas/sync/push":
+    resumen: Reintenta el espejo de las zonas que quedaron PENDING o ERROR
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/zonificacion
+    notas: |
+      Empuja hacia TrackMovil sólo lo que quedó sin espejar. Gotcha conocido: el
+      DELETE hacia track necesita `Content-Length`, y el certificado del otro
+      lado es autofirmado.
+
+  # ══ Sorteos: formulario público del QR ════════════════════════════════════
+
+  "GET /api/sorteos/publico/estado":
+    resumen: Estado público de un código de sorteo (backend)
+    descripcion: |
+      Dice si el código es válido, si ya participó y si ganó. Es el endpoint del
+      backend NestJS; el navegador nunca le pega directo, pasa por el handler
+      del front que le agrega la key.
+    auth: x-api-key (SORTEOS_PUBLIC_API_KEY) + ThrottlerGuard
+    categoria: api-key
+    consumidores:
+      - "GET /api/sorteo-publico/estado (el handler del front)"
+    parametros:
+      codigo: Código impreso en el QR. Si no matchea CODIGO_REGEX contesta `{estado:'invalido'}` sin tocar la base.
+    notas: |
+      Está detrás de ThrottlerGuard además de la key: es la cara pública del
+      sorteo y se llama desde cualquier teléfono.
+
+  "POST /api/sorteos/publico/participar":
+    resumen: Registra la participación del formulario público (backend)
+    auth: x-api-key (SORTEOS_PUBLIC_API_KEY) + ThrottlerGuard
+    categoria: api-key
+    consumidores:
+      - "POST /api/sorteo-publico/participar (el handler del front)"
+    cuerpo: |
+      El DTO de participación. La IP y el user-agent NO se mandan: los completa
+      el controller con lo que ve del request (el user-agent se recorta a 500
+      caracteres antes de guardarlo).
+    notas: |
+      Los momentos ganadores se resuelven acá adentro: el premio se decide en el
+      instante en que entra la participación, no después.
+
+  "GET /api/sorteo-publico/estado":
+    resumen: Estado del código guardado en la cookie (handler público del front)
+    descripcion: |
+      Lo que llama el navegador desde la página del QR. Lee el código de la
+      cookie httpOnly `sorteo_codigo` —nunca de la query— y de paso siembra las
+      cookies `sorteo_device` (id de dispositivo) y `sorteo_t0` (instante en que
+      se sirvió el formulario, que se usa como honeypot temporal).
+    auth: ninguna del lado del navegador — es público a propósito
+    categoria: publica
+    consumidores:
+      - Público final desde el QR impreso (/sorteo)
+    notas: |
+      La `SORTEOS_PUBLIC_API_KEY` la agrega ESTE handler hacia el backend: la
+      key nunca viaja al navegador. Por eso la heurística del generador dice
+      "x-api-key" y la realidad es "sin auth del lado de afuera".
 
   "POST /api/sorteo-publico/participar":
     resumen: Envío del formulario público de sorteos (sin sesión)
@@ -91,13 +352,19 @@ endpoints:
       tocar el backend aplica dos trampas anti-bot: honeypot de campo (`hp`) y
       honeypot temporal (`sorteo_t0`, envíos demasiado rápidos).
     auth: ninguna del lado del navegador — es público a propósito
+    categoria: publica
     consumidores:
       - Público final desde el QR impreso (/sorteo)
+    cuerpo: |
+      `nombre`, `telefono`, `edad`, `email` y los datos del dispositivo. El
+      campo `hp` es el honeypot: si viene con algo, el envío se descarta con un
+      200 que finge éxito. El cuerpo se corta a 8 KB (`MAX_BODY_BYTES`): un
+      route handler de Next no trae límite propio y sin ese corte cualquiera
+      hace que el server parsee un JSON de 1 GB.
     notas: |
       El generador lo marca como "x-api-key" porque el archivo menciona ese
-      header: la key (SORTEOS_PUBLIC_API_KEY) la agrega ESTE handler hacia el
-      backend NestJS, no la manda el navegador. Es justamente el tipo de dato
-      que la heurística no puede inferir.
+      header: la key la agrega este handler hacia el backend NestJS, no la manda
+      el navegador. Es justamente el tipo de dato que la heurística no infiere.
     ejemplos:
       - titulo: curl (necesita las cookies que setea /sorteo)
         lenguaje: bash
@@ -105,4 +372,383 @@ endpoints:
           curl -X POST -H "Content-Type: application/json" \
             -b "sorteo_codigo=ABC123; sorteo_device=uuid; sorteo_t0=1723900000000" \
             -d '{"nombre":"Juan","telefono":"099123456"}' \
-            "https://goya-dev.glp.riogas.com.uy/api/sorteo-publico/participar"
+            "{origen}/api/sorteo-publico/participar"
+
+  "GET /api/sorteos-descarga/{path}":
+    resumen: Descargas grandes de Sorteos (ZIP de QRs y CSV de participaciones)
+    descripcion: |
+      No pasa por el catch-all `/api/[...path]`: ese proxy junta la respuesta
+      entera en un Buffer antes de contestar, y un lote de 10.000 QRs son
+      cientos de MB en la RAM del proceso. Acá el cuerpo del backend se pipea
+      tal cual y se preserva el backpressure.
+    auth: JWT (Bearer) — el handler exige el header Authorization y lo reenvía
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/sorteos
+    parametros:
+      path: "Sólo dos formas: `{id}/lotes/{loteId}/zip` y `{id}/participaciones/export`. Cualquier otra da 404."
+    notas: |
+      NO es un proxy genérico: la lista blanca de rutas está en el propio
+      handler (`RUTAS_PERMITIDAS`). Armar el ZIP de un lote grande puede llevar
+      varios minutos, por eso `maxDuration = 300`.
+
+  # ══ Ficha de mostrador (shell FichaGoya.exe) ══════════════════════════════
+
+  "POST /api/mostrador/sesion":
+    resumen: El shell pide un token de sesión antes de abrir la ficha
+    descripcion: |
+      FichaGoya.exe (el shell WebView2 que lanza el VB6 del mostrador) llama acá
+      con la api-key y recibe un token corto atado a UN cliente. Después abre la
+      ventana con ese token en la URL (`?t=`), así la key nunca llega al
+      navegador.
+    auth: x-api-key (MOSTRADOR_API_KEY)
+    categoria: api-key
+    consumidores:
+      - Shell FichaGoya.exe (WebView2 / .NET 4.8 x64, lanzado desde el VB6)
+    cuerpo: |
+      `cliid` (entero ≥ 1) y `operador` (2 a 60 caracteres). El operador es el
+      que después queda escrito en CLIOPUPD del AS400: no sale del payload de
+      guardado, sale del token.
+    respuestas:
+      "200":
+        descripcion: Token de sesión con su vencimiento.
+        ejemplo: |
+          {
+            "token": "…",
+            "expiraEn": "2026-08-17T15:42:00.000Z",
+            "cliid": 123456,
+            "operador": "JGOMEZ"
+          }
+    notas: |
+      El token dura 30 minutos y vive en memoria del proceso (Map), no en base:
+      todos los PM2 corren en fork_mode con una instancia sola. Si algún día se
+      escala a cluster, esto pasa a Redis. Tope de 5000 sesiones para que quien
+      tenga la key no infle la memoria pidiendo tokens en loop.
+      Su propia key (MOSTRADOR_API_KEY) y no la del VB6: una key comprometida no
+      arrastra a la otra.
+
+  "GET /api/mostrador/ficha/{cliid}":
+    resumen: Ficha del cliente para la ventana de mostrador
+    auth: Bearer con el token de sesión de mostrador (SesionMostradorGuard)
+    categoria: sesion
+    consumidores:
+      - UI de la ficha de mostrador (goya/ficha/), abierta por FichaGoya.exe
+    parametros:
+      cliid: Id del cliente en el AS400. Tiene que ser EL MISMO cliente del token.
+    notas: |
+      El guard parsea el `:cliid` con el mismo criterio que el ParseIntPipe del
+      handler (`/^\d+$/`). Si lo leyera más suelto (`Number()` acepta "1e3",
+      "0x10", " 7"), el guard validaría un cliente y el handler tocaría otro: el
+      alcance del token quedaría de adorno.
+
+  "POST /api/mostrador/ficha/{cliid}":
+    resumen: Guarda los cambios de la ficha — ESCRIBE EN EL AS400
+    descripcion: |
+      Aplica sobre el AS400 sólo los campos que cambiaron. Es una escritura real
+      sobre el padrón de producción: no es un endpoint para probar a ver qué pasa.
+    auth: Bearer con el token de sesión de mostrador (SesionMostradorGuard)
+    categoria: sesion
+    consumidores:
+      - UI de la ficha de mostrador (goya/ficha/), abierta por FichaGoya.exe
+    cuerpo: |
+      `{ cambios: { … } }` con las claves del DTO de la ficha (`nombre`,
+      `direccion.numero`, …), NUNCA columnas del AS400. Se acepta el objeto
+      anidado o las claves aplanadas con puntos; el service traduce y valida.
+    notas: |
+      El operador que queda en CLIOPUPD sale del TOKEN, nunca del payload. Sin
+      operador en la sesión no se escribe: una fila del AS400 sin quién la tocó
+      es peor que no guardar.
+    errores:
+      - codigo: "401"
+        cuando: La sesión no tiene operador
+        cuerpo: "La sesión no tiene operador: cerrá la ficha y volvé a abrirla desde el mostrador"
+
+  "GET /api/mostrador/calles":
+    resumen: Suggest de calles para la ficha de mostrador
+    auth: Bearer con el token de sesión de mostrador (SesionMostradorGuard)
+    categoria: sesion
+    consumidores:
+      - UI de la ficha de mostrador (goya/ficha/)
+    notas: |
+      Proxy interno a CallesService. Existe porque la UI no puede pegarle a
+      `/api/calles/*`: eso pide la CALLES_API_KEY y la key no puede vivir en el
+      navegador. Acá entra con el token de sesión, que está acotado a un cliente.
+
+  "GET /api/mostrador/esquinas":
+    resumen: Esquinas y coordenadas para la ficha de mostrador
+    auth: Bearer con el token de sesión de mostrador (SesionMostradorGuard)
+    categoria: sesion
+    consumidores:
+      - UI de la ficha de mostrador (goya/ficha/)
+    notas: |
+      Mismo caso que /api/mostrador/calles: proxy a EsquinasService con el token
+      de sesión en vez de la api-key.
+
+  # ══ Sesión y permisos (SecuritySuite) ═════════════════════════════════════
+
+  "POST /api/auth/login":
+    resumen: Login contra SecuritySuite — devuelve el JWT de toda la app
+    descripcion: |
+      El front postea acá y el handler reenvía a
+      `POST {SECAPI_URL}/api/db/login` con `{ UserName, Password, Sistema }`.
+      Devuelve el JSON de secapi tal cual: `{ success, token, user, … }`.
+    auth: ninguna — es el endpoint que crea la sesión
+    categoria: publica
+    consumidores:
+      - Pantalla de login del propio Goya
+    cuerpo: |
+      `{ "UserName": "...", "Password": "..." }`. El `Sistema` lo pone el
+      servidor desde `LOGIN_SISTEMA` (default `GOYA`).
+    notas: |
+      El host de secapi sale de `SECAPI_URL`: dev → secapi-dev.glp.riogas.com.uy,
+      prod → secapi.riogas.com.uy. OJO: secapi-dev y secapi-prod comparten la
+      MISMA instancia de Postgres, así que las credenciales son las mismas en
+      los dos ambientes.
+    errores:
+      - codigo: "400"
+        cuando: Falta UserName o Password, o el cuerpo no es JSON
+        cuerpo: "{ \"success\": false, \"message\": \"Faltan credenciales\" }"
+      - codigo: "502"
+        cuando: SecuritySuite no responde
+        cuerpo: "{ \"success\": false, \"message\": \"Error al conectar con SecuritySuite\" }"
+
+  "POST /api/auth/menuApp":
+    resumen: Menú del usuario para esta aplicación, desde SecuritySuite
+    descripcion: |
+      Consulta `GET {SECAPI_URL}/api/db/menu?aplicacionId=N` con el token de la
+      cookie y devuelve `{ success, menu: [...] }` con la forma que ya entiende
+      `mapMenuItem` (key/label/path/icon/type/order/children).
+    auth: JWT de la cookie `token` (lo agrega el servidor al llamar a secapi)
+    categoria: jwt
+    consumidores:
+      - Sidebar del dashboard
+    notas: |
+      Se usa `/api/db/menu` y no el `POST /api/Menu` de GeneXus porque ese
+      último devuelve vacío para goya. `AplicacionId` default 3.
+
+  "POST /api/solicitar-acceso":
+    resumen: Pide acceso a una pantalla (crea la solicitud en SecuritySuite)
+    descripcion: |
+      Lo postea la pantalla /no-autorizado. Arma el objeto/acción a partir de la
+      ruta a la que el usuario no pudo entrar y crea la solicitud en secapi con
+      el token de la cookie.
+    auth: JWT de la cookie `token` (401 si no hay cookie)
+    categoria: jwt
+    consumidores:
+      - Pantalla /no-autorizado
+    cuerpo: |
+      `{ code, ruta, nombre, motivo }`. El `ObjetoKey` se deriva del último
+      segmento de `ruta`; si `motivo` viene vacío se arma uno automático.
+
+  # ══ Portal de documentación (esta pantalla) ═══════════════════════════════
+
+  "GET /api/docs/spec":
+    resumen: Catálogo de APIs mergeado (openapi.json + estas anotaciones)
+    descripcion: |
+      El endpoint que alimenta este mismo portal. Devuelve el documento OpenAPI
+      3.1 versionado en el repo con las notas a mano aplicadas encima.
+    auth: JWT verificado + permiso docs:view en GOYA (se consulta a secapi en cada request)
+    categoria: root
+    consumidores:
+      - La página /dashboard/docs
+    notas: |
+      La heurística del generador lo marca como "ninguna" porque el archivo del
+      handler no menciona ningún header de auth — el gate vive en
+      src/lib/docs/root-guard.ts. Otro caso donde la anotación corrige lo
+      inferido. Es fail-closed: si secapi no contesta responde 503.
+
+  "POST /api/docs/try":
+    resumen: Ejecuta una llamada contra la propia app con la sesión del root
+    descripcion: |
+      El motor del botón "Probar" de este portal. Recibe `{ payload }`, donde
+      `payload` es el base64 de un JSON `{ metodo, path, query, headers, body }`,
+      ejecuta la llamada **del lado del servidor** contra el propio host y
+      devuelve la respuesta cruda.
+
+      El base64 no es ofuscación: es lo que permite que un cuerpo con sintaxis
+      de shell atraviese el WAF de nginx, que inspecciona el body del request
+      entrante.
+    auth: JWT verificado + permiso docs:view en GOYA (el mismo gate que /api/docs/spec)
+    categoria: root
+    consumidores:
+      - La página /dashboard/docs
+    cuerpo: |
+      `{ "payload": "<base64>", "confirmacion": "<path>" }`. La confirmación
+      puede ir adentro del payload o afuera. Para GET/HEAD no se pide.
+    notas: |
+      Reglas que no se negocian: sólo paths que empiecen con `/api/`, nunca una
+      URL absoluta ni `//host` ni `..`/`%2e`; los headers `authorization` y
+      `cookie` que mande el cliente se descartan y los pone el servidor con la
+      sesión del root; timeout 30 s; respuesta truncada a 1 MB; y las escrituras
+      exigen `confirmacion` igual al path exacto (si no, 428).
+      No se puede probar a sí mismo.
+    respuestas:
+      "200":
+        descripcion: La llamada se ejecutó. El status del destino va adentro del cuerpo.
+        ejemplo: |
+          {
+            "status": 200,
+            "statusText": "OK",
+            "headers": { "content-type": "application/json" },
+            "body": "[…]",
+            "duracionMs": 148,
+            "truncado": false
+          }
+    errores:
+      - codigo: "400"
+        cuando: "El path no empieza con /api/, es una URL absoluta, trae `..`/`%2e` o el método no está permitido"
+        cuerpo: "{ \"error\": \"PATH_INVALIDO\" | \"METODO_NO_PERMITIDO\", \"detalle\": \"…\" }"
+      - codigo: "403"
+        cuando: El header Origin no es el de esta aplicación (anti-CSRF)
+        cuerpo: "{ \"error\": \"ORIGEN_INVALIDO\" }"
+      - codigo: "428"
+        cuando: Es una escritura y falta la confirmación con el path exacto
+        cuerpo: "{ \"error\": \"CONFIRMACION_REQUERIDA\", \"path\": \"/api/zonas\" }"
+      - codigo: "504"
+        cuando: El endpoint probado no contestó en 30 segundos
+        cuerpo: "{ \"error\": \"TIMEOUT\" }"
+
+  # ══ Salud e infraestructura ═══════════════════════════════════════════════
+
+  "GET /api/health":
+    resumen: Health check general
+    auth: ninguna — es el health check
+    categoria: publica
+    consumidores:
+      - Docker / PM2
+      - Monitoreo
+    notas: |
+      Existe dos veces: en el backend NestJS y como healthcheck del contenedor
+      de Next (`src/app/api/health/route.ts`, que devuelve `{status, timestamp,
+      uptime}`). OpenAPI no admite dos operaciones con el mismo método y path:
+      queda la del backend y la del front va anotada adentro en
+      `x-goya-tambien-en-front`. Cuál de las dos contesta depende de si el
+      request llega al front o al backend.
+
+  "GET /api/health/db":
+    resumen: Check de conexión a la base de datos
+    auth: ninguna — es el health check
+    categoria: publica
+    consumidores:
+      - Monitoreo
+    notas: |
+      Sin guard a propósito, para que el monitoreo no necesite credenciales.
+      Devuelve si el Postgres responde; no expone datos.
+
+  # ══ Proxy hacia los backends (GeneXus legacy / NestJS) ════════════════════
+
+  "GET /api/{path}":
+    resumen: Catch-all que republica cualquier /api/* hacia el backend
+    descripcion: |
+      Todo lo que no matchee un route handler propio de Next cae acá y se
+      reenvía a GeneXus (`NEXT_PUBLIC_API_BACKEND=legacy`, prefijo `/gestion`)
+      o a NestJS (`nestjs`, prefijo `/api`), copiando los headers del cliente.
+      Los endpoints del otro lado no se documentan uno por uno: se documenta que
+      el proxy existe y a dónde apunta.
+    auth: ninguna en el proxy — valida el destino
+    categoria: delegada
+    consumidores:
+      - Todo el front de Goya
+    notas: |
+      `docs`, `docs-json` y `docs-yaml` NUNCA se republican: el Swagger vivo de
+      NestJS se registra fuera del pipeline de guards y serviría el catálogo
+      entero sin autenticación (src/lib/docs/paths-bloqueados.ts). El proxy usa
+      un agente HTTPS que acepta certificados autofirmados, que es lo que
+      necesita GeneXus.
+
+  "POST /api/{path}":
+    resumen: Catch-all (POST) hacia el backend
+    auth: ninguna en el proxy — valida el destino
+    categoria: delegada
+    consumidores:
+      - Todo el front de Goya
+    notas: Ver GET /api/{path}. Acepta cuerpos grandes (el GeoJSON de una zona supera 1 MB).
+
+  "PUT /api/{path}":
+    resumen: Catch-all (PUT) hacia el backend
+    auth: ninguna en el proxy — valida el destino
+    categoria: delegada
+    consumidores:
+      - Todo el front de Goya
+    notas: Ver GET /api/{path}.
+
+  "PATCH /api/{path}":
+    resumen: Catch-all (PATCH) hacia el backend
+    auth: ninguna en el proxy — valida el destino
+    categoria: delegada
+    consumidores:
+      - Todo el front de Goya
+    notas: Ver GET /api/{path}.
+
+  "DELETE /api/{path}":
+    resumen: Catch-all (DELETE) hacia el backend
+    auth: ninguna en el proxy — valida el destino
+    categoria: delegada
+    consumidores:
+      - Todo el front de Goya
+    notas: Ver GET /api/{path}.
+
+  # ══ Padrón unificado de clientes (camino crítico) ═════════════════════════
+
+  "GET /api/clientes":
+    resumen: Listado paginado del padrón unificado, con búsqueda libre y filtros
+    descripcion: |
+      El listado sale de `cliente_uni`, el modelo unificado que junta interior
+      (PUESTOS) y capital (GXCALDTA): 1,13 M de clientes, 2,26 M de teléfonos.
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/clientes
+    parametros:
+      search: Búsqueda libre por nombre, email, RUC o cédula.
+      estado: Código de estado, CHAR(1) en el origen.
+      origen: "`interior` o `capital`, según de qué AS400 vino el registro."
+      dedupRevisar: Sólo los que el deduplicador marcó para revisión humana.
+    notas: |
+      Un `pageSize` grande sobre 1,13 M de filas es una consulta cara: el
+      paginado no es decorativo.
+
+  "GET /api/clientes/{id}":
+    resumen: Ficha completa de un cliente unificado
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/clientes
+      - Vista 360 de persona
+    parametros:
+      id: Id de `cliente_uni` (no es el CLIID del AS400).
+    notas: |
+      Trae direcciones y teléfonos. La privacidad por distribuidor se aplica en
+      la capa de identificación, no acá.
+
+  "POST /api/clientes":
+    resumen: Alta de cliente unificado con sus direcciones y teléfonos
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla /dashboard/clientes (alta master-detail con mapa)
+    cuerpo: |
+      Cabecera del cliente más los arrays de direcciones y teléfonos. Las
+      direcciones llevan el CALID que devuelve el puente de calles: si se manda
+      texto libre, la dirección queda sin enlazar al nomenclátor.
+    notas: |
+      Escritura real sobre el padrón. Antes de probarlo desde acá, mirá el
+      ambiente que muestra el diálogo de confirmación.
+
+  "POST /api/identificacion":
+    resumen: Identifica un cliente por documento o teléfono aplicando privacidad
+    descripcion: |
+      Es la entrada de la capa de identidad: dado un documento o un teléfono,
+      devuelve la persona y qué registros suyos puede ver quien pregunta, según
+      la cobertura/afiliación del distribuidor que corresponde al rol del JWT.
+    auth: JWT (Bearer)
+    categoria: jwt
+    consumidores:
+      - Pantalla de identificación
+      - Ficha de mostrador
+    cuerpo: |
+      Documento o teléfono (uno de los dos). El filtro de privacidad no es
+      opcional ni parametrizable desde el cuerpo: sale del token.
+    notas: |
+      La privacidad por distribuidor es el motivo de existir del endpoint: no lo
+      uses como buscador genérico, para eso está /api/clientes.

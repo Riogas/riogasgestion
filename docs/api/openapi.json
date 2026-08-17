@@ -2276,6 +2276,24 @@
         "x-goya-auth": "ninguna"
       }
     },
+    "/api/docs/try": {
+      "post": {
+        "tags": [
+          "front:docs"
+        ],
+        "summary": "POST /api/docs/try — ejecuta UNA llamada contra la propia app (solo root).",
+        "description": "POST /api/docs/try — ejecuta UNA llamada contra la propia app (solo root).\n\nEl gate es el mismo que /api/docs/spec: requireRoot (firma HS256 + exp +\npermiso docs:view contra secapi, fail-closed). Las reglas de qué se puede\nejecutar viven en src/lib/docs/try-ejecutor.ts, que es donde están los tests.\n\nEste archivo hace sólo lo que necesita el runtime de Next:\n  1. parsear el cuerpo,\n  2. derivar el ORIGEN de esta app desde los headers del request,\n  3. delegar en manejarTry.\n\nEl origen sale del request y no de una variable de entorno a propósito: la\nllamada tiene que salir contra el MISMO host por el que entró el root (dev\ncontra dev, prod contra prod), sin que una var mal seteada mande un POST al\nambiente equivocado.",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/docs/try/route.ts",
+        "x-goya-auth": "ninguna"
+      }
+    },
     "/api/fleteras": {
       "get": {
         "operationId": "FleterasController_findAll",

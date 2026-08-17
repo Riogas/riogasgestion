@@ -222,6 +222,41 @@ describe("requireRoot", () => {
     assert.equal(r.status, 503);
   });
 
+  // El status HTTP manda sobre el cuerpo: el body de una respuesta de error no
+  // es una autorización. Sin este chequeo, cualquiera que pueda responder por
+  // secapi con un 403 que diga GRANTED abría el portal.
+  for (const status of [400, 401, 403, 404]) {
+    it(`un ${status} con permitido:GRANTED en el cuerpo NO abre`, async () => {
+      stubSecapi(
+        () =>
+          new Response(
+            JSON.stringify({ resultados: [{ accionKey: "view", permitido: "GRANTED", razon: "ROOT" }] }),
+            { status, headers: { "Content-Type": "application/json" } },
+          ),
+      );
+
+      const r = await requireRoot(solicitud(token("dmedaglia")));
+
+      assert.equal(r.ok, false);
+      if (r.ok) return;
+      assert.equal(r.status, 403);
+    });
+  }
+
+  it("un secreto más corto que el mínimo se trata como no configurado", async () => {
+    process.env.JWT_SECRET = "corto";
+    stubSecapi(() => respuestaSecapi("GRANTED", "ROOT"));
+
+    // Token firmado con ese mismo secreto corto: aun así no debe abrir.
+    const tk = jwt.sign({ username: "dmedaglia" }, "corto", { expiresIn: "1h" });
+    const r = await requireRoot(solicitud(tk));
+
+    assert.equal(r.ok, false);
+    if (r.ok) return;
+    assert.equal(r.status, 503);
+    assert.equal(r.code, "SECRETO_NO_CONFIGURADO");
+  });
+
   it("un GRANTED cacheado no sobrevive a la caída de secapi si nunca hubo respuesta", async () => {
     // El fallo NO se cachea: al request siguiente se vuelve a preguntar.
     const tk = token("dmedaglia");

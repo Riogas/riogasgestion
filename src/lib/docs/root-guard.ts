@@ -36,6 +36,9 @@ import jwt from "jsonwebtoken";
  */
 const SECRETO_DEFAULT = "security-suite-secret-key";
 
+/** Largo mínimo exigido al secreto. Ver el comentario en `secretoJwt()`. */
+const LARGO_MINIMO_SECRETO = 32;
+
 /** secapi firma HS256; fijar el algoritmo evita la confusión de `alg`. */
 const ALGORITMOS: jwt.Algorithm[] = ["HS256"];
 
@@ -84,6 +87,10 @@ export interface SolicitudConCredenciales {
 function secretoJwt(): string | null {
   const bruto = (process.env.JWT_SECRET ?? "").trim();
   if (!bruto || bruto === SECRETO_DEFAULT) return null;
+  // Verificar HS256 contra un secreto corto no prueba nada: se rompe offline a
+  // partir de cualquier token capturado, y con el secreto se firma un token de
+  // root a mano — el ataque que este guard viene a cerrar.
+  if (bruto.length < LARGO_MINIMO_SECRETO) return null;
   return bruto;
 }
 
@@ -199,9 +206,12 @@ async function consultarSecapi(
       cache: "no-store",
     });
 
-    // 401/403 son respuestas legítimas de secapi (token inválido, usuario
-    // inexistente): deniegan. 5xx es "no pude verificar" → fail-closed.
+    // El status HTTP manda sobre el cuerpo. Sin esto, una respuesta 403 (o
+    // cualquier no-2xx) que traiga permitido:"GRANTED" en el body abriría el
+    // portal: el cuerpo de una respuesta de error no es una autorización.
+    // 5xx es "no pude verificar" → fail-closed (503). El resto deniega.
     if (resp.status >= 500) return null;
+    if (!resp.ok) return { permitido: false, razon: `HTTP_${resp.status}` };
 
     const texto = await resp.text();
     let json: Record<string, unknown> = {};

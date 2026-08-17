@@ -13,21 +13,25 @@ import { QueryFleterasDto } from './dto/query-fleteras.dto';
 export class FleterasController {
   constructor(private readonly fleteras: FleterasService) {}
 
+  /** Listado paginado de empresas fleteras, con filtros. */
   @Get()
   findAll(@Query() query: QueryFleterasDto) {
     return this.fleteras.findAll(query);
   }
 
+  /** Totales del panel de fleteras. */
   @Get('kpis')
   kpis() {
     return this.fleteras.kpis();
   }
 
+  /** Valores disponibles para los filtros del listado de fleteras. */
   @Get('filtros')
   filtros() {
     return this.fleteras.filtros();
   }
 
+  /** Ficha de una empresa fletera. */
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.fleteras.findOne(id);

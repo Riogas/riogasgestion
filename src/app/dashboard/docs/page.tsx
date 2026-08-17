@@ -12,7 +12,15 @@ export const dynamic = "force-dynamic";
 
 const MENSAJES: Record<string, string> = {
   NO_TOKEN: "No hay sesión. Entrá de nuevo al panel.",
+  TOKEN_INVALIDO: "La firma del token no es válida. Entrá de nuevo al panel.",
+  TOKEN_VENCIDO: "La sesión venció. Entrá de nuevo al panel.",
   NO_ROOT: "Tu usuario no tiene el permiso docs:view en GOYA. Se otorga con el rol Root de la aplicación.",
+  SECRETO_NO_CONFIGURADO:
+    "El servidor no tiene JWT_SECRET configurada (o quedó con el valor de ejemplo), así que no puede " +
+    "verificar la firma de los tokens. El portal queda cerrado hasta que se configure.",
+  SECAPI_URL_NO_CONFIGURADA:
+    "El servidor no tiene SECAPI_URL configurada y no hay valor por defecto: no hay contra quién " +
+    "verificar el permiso. El portal queda cerrado hasta que se configure.",
   SECAPI_INACCESIBLE:
     "No se pudo verificar el permiso contra SecuritySuite. El portal no se abre sin esa verificación.",
 };

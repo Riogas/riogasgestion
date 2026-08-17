@@ -55,6 +55,7 @@ export class ZonasController {
 
   // ── CRUD (usuarios goya, JWT) ────────────────────────────────────────────
 
+  /** Listado de zonas operativas, con filtros. */
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -62,6 +63,7 @@ export class ZonasController {
     return this.zonas.findAll(query);
   }
 
+  /** Puestos con zonas, para el selector de la pantalla de zonificación. */
   @Get('puestos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -69,6 +71,7 @@ export class ZonasController {
     return this.zonas.puestos();
   }
 
+  /** Alta de zona operativa con su polígono. */
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -76,6 +79,7 @@ export class ZonasController {
     return this.zonas.create(dto);
   }
 
+  /** Modificación parcial de una zona (el puesto no se cambia). */
   @Patch(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -83,6 +87,7 @@ export class ZonasController {
     return this.zonas.update(id, dto);
   }
 
+  /** Elimina una zona operativa. */
   @Delete(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -90,6 +95,7 @@ export class ZonasController {
     return this.zonas.remove(id);
   }
 
+  /** Duplica una zona con su polígono. */
   @Post(':id/duplicar')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)

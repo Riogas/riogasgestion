@@ -4,5 +4,10 @@
     "declaration": false,
     "sourceMap": false
   },
-  "extends": "./tsconfig.json"
+  "extends": "./tsconfig.json",
+  // `scripts/` entra en el typecheck (tsconfig.json) pero NO en el build de
+  // producción: son herramientas de desarrollo — el generador del catálogo de
+  // APIs usa ts-morph, que es devDependency del workspace raíz. Compilarlas
+  // metería basura en dist/ y rompería el build en un install sin devDeps.
+  "exclude": ["node_modules", "dist", "scripts"]
 }

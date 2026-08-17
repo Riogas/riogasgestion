@@ -1,23 +1,43 @@
 // Gate root del portal de documentación (/dashboard/docs y /api/docs/*).
 //
-// El JWT de secapi NO lleva el flag root en el payload ({iss, username, userId,
-// sistema}): decidir "es root" leyendo el token es imposible, hay que
-// preguntarle a secapi en cada request. Se consulta el mismo endpoint que ya
-// usa el gate de páginas en src/proxy.ts (POST {SECAPI_URL}/api/db/permisos)
-// con el mismo shape de body y el token en Authorization.
+// Dos verificaciones, en este orden:
 //
-// Diferencia deliberada con src/proxy.ts: ACÁ EL FALLO ES CERRADO. El proxy,
-// si secapi no responde, sirve el último valor cacheado aunque esté vencido
-// para no trabar la operativa del dashboard. Este portal lista qué endpoints
-// están sin autenticación: si no se puede verificar que quien entra es root,
-// no se abre.
+//   1) LOCAL — firma y vencimiento del JWT (jsonwebtoken, HS256, con el mismo
+//      JWT_SECRET con el que secapi firma). El resto de la app NO verifica la
+//      firma: `decodeJwtPayload` es base64 puro, así que cualquiera fabrica un
+//      "Bearer xxx.<base64 de {"username":"dmedaglia"}>.yyy" y pasa. Para este
+//      portal eso es inaceptable: la pantalla lista qué endpoints están sin
+//      autenticación. Se cierra SOLO acá, sin tocar la autenticación general.
+//      Es local y va primero para no gastar una llamada de red con un token
+//      que ni siquiera está firmado.
+//
+//   2) REMOTA — el permiso docs:view contra secapi. El JWT de secapi NO lleva
+//      el flag root en el payload ({iss, username, userId, sistema}): decidir
+//      "es root" leyendo el token es imposible, hay que preguntar. Se consulta
+//      el mismo endpoint que ya usa el gate de páginas en src/proxy.ts
+//      (POST {SECAPI_URL}/api/db/permisos), con el mismo shape de body.
+//
+// FAIL-CLOSED EN TODO, incluida la mala configuración:
+//   - sin JWT_SECRET (o con el default público del código) → 503, no abre.
+//   - sin SECAPI_URL                                        → 503, no abre.
+//   - secapi caído / timeout                                → 503, no abre.
+// El proxy de páginas (src/proxy.ts), si secapi no responde, sirve el último
+// valor cacheado aunque esté vencido para no trabar la operativa. Acá no: si no
+// se puede verificar que quien entra es root, no se abre.
 //
 // Contrato:  requireRoot(request) → { ok: true, usuario } | { ok: false, status, code }
 import type { NextRequest } from "next/server";
+import jwt from "jsonwebtoken";
 
-const SECAPI_URL = (
-  process.env.SECAPI_URL || "https://secapi-dev.glp.riogas.com.uy"
-).replace(/\/$/, "");
+/**
+ * Default público que trae el código de secapi cuando `JWT_SECRET` no está
+ * seteada. Verificar contra él no verifica nada: está en el repo. Se trata
+ * igual que "no configurada".
+ */
+const SECRETO_DEFAULT = "security-suite-secret-key";
+
+/** secapi firma HS256; fijar el algoritmo evita la confusión de `alg`. */
+const ALGORITMOS: jwt.Algorithm[] = ["HS256"];
 
 // goya = 3; mismo fallback que src/app/api/auth/menuApp/route.ts
 const APLICACION_ID = (() => {
@@ -35,7 +55,7 @@ const TTL_DENY_MS = 30 * 1000; // negativo: reintenta pronto (alta de permisos)
 const TIMEOUT_MS = 3500;
 
 export interface UsuarioDocs {
-  /** username del JWT (sin verificar firma: secapi es quien valida). */
+  /** username del payload YA VERIFICADO (firma y vencimiento). */
   username: string;
   /** razón que devolvió secapi: ROOT, ROL_FUNCIONALIDAD, DIRECT_ACCESO, … */
   razon: string;
@@ -54,9 +74,35 @@ export interface SolicitudConCredenciales {
   cookies?: { get(nombre: string): { value: string } | undefined };
 }
 
+// ── Configuración (se lee en cada request, no al importar el módulo) ─────────
+
+/**
+ * Secreto con el que secapi firma los JWT. Devuelve null —y el guard responde
+ * 503— si falta o si es el default público del código: sin secreto real la
+ * verificación de firma es teatro.
+ */
+function secretoJwt(): string | null {
+  const bruto = (process.env.JWT_SECRET ?? "").trim();
+  if (!bruto || bruto === SECRETO_DEFAULT) return null;
+  return bruto;
+}
+
+/**
+ * Host de secapi. Sin fallback hardcodeado a propósito: un default apuntando a
+ * dev verifica contra el servidor equivocado, y en un ambiente mal configurado
+ * eso abre el portal contra el padrón de otro. Si falta, 503.
+ */
+function urlSecapi(): string | null {
+  const bruto = (process.env.SECAPI_URL ?? "").trim();
+  if (!bruto) return null;
+  return bruto.replace(/\/$/, "");
+}
+
 // ── Caché en memoria ────────────────────────────────────────────────────────
 // Igual que en src/proxy.ts: la key es un hash corto del token (no se retienen
 // JWTs completos) y el TTL evita pegarle a secapi en cada request de la página.
+// Sólo cachea el resultado del PERMISO: la firma y el vencimiento se verifican
+// siempre, así que un token vencido no entra por la caché de cuando era válido.
 type EntradaCache = { permitido: boolean; razon: string; expiraEn: number };
 const cache = new Map<string, EntradaCache>();
 
@@ -81,21 +127,41 @@ function extraerToken(request: SolicitudConCredenciales): string | null {
   return request.cookies?.get("token")?.value ?? null;
 }
 
-/** Payload del JWT sin verificar firma (igual que decodeJwtPayload de proxy.ts). */
-function decodificarJwt(token: string): Record<string, unknown> | null {
+type PayloadJwt = Record<string, unknown>;
+
+type Verificacion =
+  | { ok: true; payload: PayloadJwt }
+  | { ok: false; status: number; code: string };
+
+/**
+ * Verifica firma HS256 + `exp` con el secreto de secapi. NO hace red.
+ *
+ *   TokenExpiredError  → 401 TOKEN_VENCIDO
+ *   JsonWebTokenError  → 401 TOKEN_INVALIDO  (firma que no cierra, token
+ *                        malformado, alg distinto de HS256, `nbf` en el futuro)
+ */
+function verificarToken(token: string, secreto: string): Verificacion {
   try {
-    const partes = token.split(".");
-    if (partes.length < 2) return null;
-    const b64 = partes[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(b64));
-  } catch {
-    return null;
+    const payload = jwt.verify(token, secreto, { algorithms: ALGORITMOS });
+    // Un JWT con payload string (no JSON) no sirve para identificar a nadie.
+    if (typeof payload !== "object" || payload === null) {
+      return { ok: false, status: 401, code: "TOKEN_INVALIDO" };
+    }
+    return { ok: true, payload: payload as PayloadJwt };
+  } catch (err) {
+    // TokenExpiredError extiende JsonWebTokenError: primero el específico.
+    if (err instanceof jwt.TokenExpiredError) {
+      return { ok: false, status: 401, code: "TOKEN_VENCIDO" };
+    }
+    if (err instanceof jwt.JsonWebTokenError) {
+      return { ok: false, status: 401, code: "TOKEN_INVALIDO" };
+    }
+    // `jwt.verify` también tira TypeError si el token no es un string.
+    return { ok: false, status: 401, code: "TOKEN_INVALIDO" };
   }
 }
 
-function usernameDelToken(token: string): string {
-  const payload = decodificarJwt(token);
-  if (!payload) return "";
+function usernameDelPayload(payload: PayloadJwt): string {
   const bruto =
     payload.username ??
     payload.sub ??
@@ -111,6 +177,7 @@ function usernameDelToken(token: string): string {
  */
 async function consultarSecapi(
   token: string,
+  secapi: string,
 ): Promise<{ permitido: boolean; razon: string } | null> {
   try {
     // Mismo contrato que src/proxy.ts:
@@ -118,7 +185,7 @@ async function consultarSecapi(
     //   resp → { resultados: [{ accionKey, permitido: 'GRANTED'|'DENIED', razon }] }
     // secapi acepta tanto `aplicacion` (nombre) como `AplicacionId` (número);
     // acá se usa el id porque el alta del objeto docs se hizo por id de app.
-    const resp = await fetch(`${SECAPI_URL}/api/db/permisos`, {
+    const resp = await fetch(`${secapi}/api/db/permisos`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -170,12 +237,17 @@ async function consultarSecapi(
 // ── API pública ─────────────────────────────────────────────────────────────
 
 /**
- * Verifica contra secapi que el usuario del request tenga docs:view en GOYA.
+ * Verifica que el request traiga un JWT realmente firmado y vigente, y que ese
+ * usuario tenga docs:view en GOYA.
  *
  * Códigos devueltos:
- *   401 NO_TOKEN            → no vino JWT ni por header ni por cookie
- *   403 NO_ROOT             → secapi contestó DENIED
- *   503 SECAPI_INACCESIBLE  → secapi caído/timeout: no se puede verificar → se deniega
+ *   401 NO_TOKEN                  → no vino JWT ni por header ni por cookie
+ *   401 TOKEN_INVALIDO            → firma que no cierra / malformado / alg ≠ HS256
+ *   401 TOKEN_VENCIDO             → `exp` pasado
+ *   403 NO_ROOT                   → secapi contestó DENIED
+ *   503 SECRETO_NO_CONFIGURADO    → falta JWT_SECRET (o es el default del código)
+ *   503 SECAPI_URL_NO_CONFIGURADA → falta SECAPI_URL
+ *   503 SECAPI_INACCESIBLE        → secapi caído/timeout: no se pudo verificar → deniega
  */
 export async function requireRoot(
   request: SolicitudConCredenciales | NextRequest,
@@ -183,17 +255,42 @@ export async function requireRoot(
   const token = extraerToken(request as SolicitudConCredenciales);
   if (!token) return { ok: false, status: 401, code: "NO_TOKEN" };
 
+  // Mala configuración = fail-closed. Sin secreto real no hay nada que verificar.
+  const secreto = secretoJwt();
+  if (!secreto) {
+    console.error(
+      "[docs/root-guard] JWT_SECRET ausente o igual al default del código: el portal /docs " +
+        "queda cerrado (503). Seteála con el mismo valor con el que secapi firma los JWT.",
+    );
+    return { ok: false, status: 503, code: "SECRETO_NO_CONFIGURADO" };
+  }
+
+  // Verificación LOCAL primero: un token sin firma válida no merece una llamada
+  // de red. Y va antes de la caché, así un token vencido nunca entra
+  // aprovechando el GRANTED cacheado de cuando estaba vigente.
+  const verificado = verificarToken(token, secreto);
+  if (!verificado.ok) return verificado;
+
+  const secapi = urlSecapi();
+  if (!secapi) {
+    console.error(
+      "[docs/root-guard] SECAPI_URL no está seteada: el portal /docs queda cerrado (503).",
+    );
+    return { ok: false, status: 503, code: "SECAPI_URL_NO_CONFIGURADA" };
+  }
+
+  const username = usernameDelPayload(verificado.payload);
   const clave = await claveCache(token);
   const ahora = Date.now();
   const cacheado = cache.get(clave);
 
   if (cacheado && cacheado.expiraEn > ahora) {
     return cacheado.permitido
-      ? { ok: true, usuario: { username: usernameDelToken(token), razon: cacheado.razon } }
+      ? { ok: true, usuario: { username, razon: cacheado.razon } }
       : { ok: false, status: 403, code: "NO_ROOT" };
   }
 
-  const respuesta = await consultarSecapi(token);
+  const respuesta = await consultarSecapi(token, secapi);
 
   // FAIL-CLOSED: sin respuesta de secapi no se abre, ni siquiera con caché
   // vencida. Y no se cachea el fallo, para reintentar en el request siguiente.
@@ -213,10 +310,7 @@ export async function requireRoot(
   });
 
   if (!respuesta.permitido) return { ok: false, status: 403, code: "NO_ROOT" };
-  return {
-    ok: true,
-    usuario: { username: usernameDelToken(token), razon: respuesta.razon },
-  };
+  return { ok: true, usuario: { username, razon: respuesta.razon } };
 }
 
 /**

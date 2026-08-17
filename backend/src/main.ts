@@ -43,8 +43,18 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger (solo en desarrollo)
-  if (process.env.NODE_ENV !== 'production') {
+  // Swagger — APAGADO salvo que se pida explícitamente con SWAGGER_ENABLED=1.
+  //
+  // Antes la condición era `NODE_ENV !== 'production'`, y backend/.env fija
+  // NODE_ENV=development: en los hechos /api/docs y /api/docs-json servían el
+  // catálogo COMPLETO sin autenticación ninguna. SwaggerModule.setup() registra
+  // las rutas sobre el http adapter de Express, o sea que queda FUERA del
+  // pipeline de guards de Nest: ningún @UseGuards(AuthGuard) lo cubre.
+  //
+  // La variable propia y explícita evita que un ambiente quede expuesto por
+  // arrastre de NODE_ENV. Para leer el catálogo está el portal /dashboard/docs,
+  // que sí pasa por el gate root (src/lib/docs/root-guard.ts).
+  if (process.env.SWAGGER_ENABLED === '1') {
     const config = new DocumentBuilder()
       .setTitle('Riogas Gestión API')
       .setDescription('API Backend para el sistema de gestión Riogas')

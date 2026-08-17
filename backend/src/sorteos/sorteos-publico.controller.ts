@@ -64,12 +64,14 @@ export class SorteosPublicoController {
     return raw ? raw.slice(0, USER_AGENT_MAX) : undefined;
   }
 
+  /** Estado público de un código de sorteo: si es válido, si ya participó y si ganó. */
   @Get('estado')
   estado(@Query('codigo') codigo?: string) {
     if (!codigo || !CODIGO_REGEX.test(codigo)) return { estado: 'invalido' as const };
     return this.sorteos.estadoPublico(codigo);
   }
 
+  /** Registra la participación desde el formulario público (guarda IP y user-agent). */
   @Post('participar')
   participar(@Body() dto: ParticiparDto, @Req() req: Request) {
     return this.sorteos.participar({

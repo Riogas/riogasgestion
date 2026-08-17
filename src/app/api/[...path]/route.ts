@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import https from "https";
 import http from "http";
+import { esPathDeDocumentacion } from "@/lib/docs/paths-bloqueados";
 
 // Forzar Node.js runtime (no Edge) para usar https.Agent nativo
 export const runtime = "nodejs";
@@ -48,6 +49,18 @@ async function proxyRequest(req: NextRequest) {
   // Extraer el path después de /api/
   const url = new URL(req.url);
   const pathAfterApi = url.pathname.replace(/^\/api/, "");
+
+  // /api/docs, /api/docs-json y /api/docs-yaml NO se republican nunca: el
+  // Swagger vivo de Nest queda fuera del pipeline de guards y serviría el
+  // catálogo entero sin autenticación. Ver src/lib/docs/paths-bloqueados.ts.
+  // Se responde 404 (no 403) a propósito: no confirma que exista nada del otro lado.
+  if (esPathDeDocumentacion(url.pathname)) {
+    console.warn(`[API Proxy] BLOQUEADO ${req.method} ${url.pathname} (documentación: no se proxea)`);
+    return NextResponse.json(
+      { error: "NOT_FOUND" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   // Determinar destino según el modo de backend
   const isNestjs = BACKEND_MODE === "nestjs";

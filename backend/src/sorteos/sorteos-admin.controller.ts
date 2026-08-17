@@ -112,6 +112,7 @@ export class SorteosAdminController {
 
   // ─── Sorteos ────────────────────────────────────────────────────────────────
 
+  /** Listado paginado de sorteos, con filtros. */
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -119,6 +120,7 @@ export class SorteosAdminController {
     return this.sorteos.listar(query);
   }
 
+  /** Alta de sorteo. */
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -126,6 +128,7 @@ export class SorteosAdminController {
     return this.sorteos.crear(dto);
   }
 
+  /** Detalle de un sorteo con sus lotes de códigos. */
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -133,6 +136,7 @@ export class SorteosAdminController {
     return this.sorteos.detalle(id);
   }
 
+  /** Modificación parcial de un sorteo. */
   @Patch(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -140,6 +144,7 @@ export class SorteosAdminController {
     return this.sorteos.actualizar(id, dto);
   }
 
+  /** Pone el sorteo en curso: empieza a aceptar participaciones. */
   @Post(':id/activar')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -147,6 +152,7 @@ export class SorteosAdminController {
     return this.sorteos.activar(id);
   }
 
+  /** Cierra el sorteo: deja de aceptar participaciones. */
   @Post(':id/finalizar')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -154,6 +160,7 @@ export class SorteosAdminController {
     return this.sorteos.finalizar(id);
   }
 
+  /** Cancela el sorteo. */
   @Post(':id/cancelar')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -163,6 +170,7 @@ export class SorteosAdminController {
 
   // ─── Lotes de códigos ───────────────────────────────────────────────────────
 
+  /** Genera un lote de códigos de participación para el sorteo. */
   @Post(':id/lotes')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -174,6 +182,7 @@ export class SorteosAdminController {
     return this.sorteos.crearLote(id, dto.cantidad, this.usuario(req));
   }
 
+  /** Lotes de códigos generados para el sorteo. */
   @Get(':id/lotes')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -181,6 +190,7 @@ export class SorteosAdminController {
     return this.sorteos.listarLotes(id);
   }
 
+  /** Descarga en streaming un ZIP con los PNG de los QR del lote. */
   @Get(':id/lotes/:loteId/zip')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -261,6 +271,7 @@ export class SorteosAdminController {
 
   // ─── Participaciones ────────────────────────────────────────────────────────
 
+  /** Listado paginado de participaciones del sorteo. */
   @Get(':id/participaciones')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -271,6 +282,7 @@ export class SorteosAdminController {
     return this.sorteos.listarParticipaciones(id, query);
   }
 
+  /** Exporta en streaming las participaciones del sorteo a CSV. */
   @Get(':id/participaciones/export')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -307,6 +319,7 @@ export class SorteosAdminController {
     }
   }
 
+  /** Marca la participación ganadora como premio entregado. */
   @Post('participaciones/:id/entregar')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)

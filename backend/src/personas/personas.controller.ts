@@ -18,11 +18,13 @@ interface AuthedRequest {
 export class PersonasController {
   constructor(private readonly personas: PersonasService) {}
 
+  /** Vista 360 de una persona: sus registros, teléfonos, direcciones y hogares. */
   @Get(':id')
   find360(@Param('id', ParseIntPipe) id: number) {
     return this.personas.find360(id);
   }
 
+  /** Marca cuál de los registros de la persona es el canónico. */
   @Patch(':id/canonical')
   setCanonical(
     @Param('id', ParseIntPipe) id: number,
@@ -31,11 +33,13 @@ export class PersonasController {
     return this.personas.setCanonical(id, dto);
   }
 
+  /** Unifica varios registros bajo una misma persona. */
   @Post('unify')
   unify(@Body() dto: RegistroIdsDto, @Req() req: AuthedRequest) {
     return this.personas.unify(dto.registroIds, req.user?.username);
   }
 
+  /** Separa registros de una persona previamente unificada. */
   @Post('split')
   split(@Body() dto: RegistroIdsDto) {
     return this.personas.split(dto.registroIds);

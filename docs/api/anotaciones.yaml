@@ -8,8 +8,9 @@
 # aparece en openapi.json (parámetros entre llaves: /api/clientes/{id}).
 # Campos: resumen, descripcion, auth, consumidores, notas, ejemplos.
 #
-# Estado: arranca con 3 endpoints de ejemplo, los 3 reales. El resto se anota
-# en la fase 6 del diseño (docs/superpowers/specs/2026-08-17-portal-docs-apis-design.md).
+# Estado: sólo están anotados los endpoints que ya se documentaron a mano; el
+# resto se anota en la fase 6 del diseño
+# (docs/superpowers/specs/2026-08-17-portal-docs-apis-design.md).
 
 version: 1
 

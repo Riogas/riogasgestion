@@ -14,11 +14,13 @@ import { UpdateTelefonoDto } from './dto/update-telefono.dto';
 export class TelefonosController {
   constructor(private readonly telefonos: TelefonosService) {}
 
+  /** Agrega un teléfono al cliente. */
   @Post()
   add(@Param('id', ParseIntPipe) id: number, @Body() dto: TelefonoInputDto) {
     return this.telefonos.add(id, dto);
   }
 
+  /** Modifica un teléfono del cliente. */
   @Patch(':telId')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -28,6 +30,7 @@ export class TelefonosController {
     return this.telefonos.update(id, telId, dto);
   }
 
+  /** Elimina un teléfono del cliente. */
   @Delete(':telId')
   remove(
     @Param('id', ParseIntPipe) id: number,

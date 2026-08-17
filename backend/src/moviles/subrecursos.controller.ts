@@ -19,11 +19,13 @@ import { EscenarioInputDto } from './dto/escenario-input.dto';
 export class ProductosController {
   constructor(private readonly productos: ProductosService) {}
 
+  /** Agrega un producto al móvil. */
   @Post()
   add(@Param('id', ParseIntPipe) id: number, @Body() dto: ProductoInputDto) {
     return this.productos.add(id, dto);
   }
 
+  /** Modifica un producto del móvil. */
   @Patch(':subId')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -33,6 +35,7 @@ export class ProductosController {
     return this.productos.update(id, subId, dto);
   }
 
+  /** Quita un producto del móvil. */
   @Delete(':subId')
   remove(
     @Param('id', ParseIntPipe) id: number,
@@ -49,11 +52,13 @@ export class ProductosController {
 export class PuntosController {
   constructor(private readonly puntos: PuntosService) {}
 
+  /** Agrega un punto al móvil. */
   @Post()
   add(@Param('id', ParseIntPipe) id: number, @Body() dto: PuntoInputDto) {
     return this.puntos.add(id, dto);
   }
 
+  /** Modifica un punto del móvil. */
   @Patch(':subId')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -63,6 +68,7 @@ export class PuntosController {
     return this.puntos.update(id, subId, dto);
   }
 
+  /** Quita un punto del móvil. */
   @Delete(':subId')
   remove(
     @Param('id', ParseIntPipe) id: number,
@@ -79,11 +85,13 @@ export class PuntosController {
 export class ServiciosController {
   constructor(private readonly servicios: ServiciosMovilService) {}
 
+  /** Agrega un servicio al móvil. */
   @Post()
   add(@Param('id', ParseIntPipe) id: number, @Body() dto: ServicioInputDto) {
     return this.servicios.add(id, dto);
   }
 
+  /** Modifica un servicio del móvil. */
   @Patch(':subId')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -93,6 +101,7 @@ export class ServiciosController {
     return this.servicios.update(id, subId, dto);
   }
 
+  /** Quita un servicio del móvil. */
   @Delete(':subId')
   remove(
     @Param('id', ParseIntPipe) id: number,
@@ -109,11 +118,13 @@ export class ServiciosController {
 export class EscenariosController {
   constructor(private readonly escenarios: EscenariosService) {}
 
+  /** Agrega un escenario al móvil. */
   @Post()
   add(@Param('id', ParseIntPipe) id: number, @Body() dto: EscenarioInputDto) {
     return this.escenarios.add(id, dto);
   }
 
+  /** Modifica un escenario del móvil. */
   @Patch(':subId')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -123,6 +134,7 @@ export class EscenariosController {
     return this.escenarios.update(id, subId, dto);
   }
 
+  /** Quita un escenario del móvil. */
   @Delete(':subId')
   remove(
     @Param('id', ParseIntPipe) id: number,

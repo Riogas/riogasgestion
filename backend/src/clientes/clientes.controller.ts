@@ -19,21 +19,25 @@ interface AuthedRequest {
 export class ClientesController {
   constructor(private readonly clientes: ClientesService) {}
 
+  /** Listado paginado de clientes unificados, con búsqueda libre y filtros. */
   @Get()
   findAll(@Query() query: QueryClientesDto) {
     return this.clientes.findAll(query);
   }
 
+  /** Ficha completa de un cliente unificado. */
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.clientes.findOne(id);
   }
 
+  /** Alta de cliente unificado con sus direcciones y teléfonos. */
   @Post()
   create(@Body() dto: CreateClienteDto, @Req() req: AuthedRequest) {
     return this.clientes.create(dto, req.user?.username);
   }
 
+  /** Modificación parcial de la cabecera del cliente. */
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -43,6 +47,7 @@ export class ClientesController {
     return this.clientes.update(id, dto, req.user?.username);
   }
 
+  /** Baja lógica del cliente (soft delete). */
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.clientes.softDelete(id);

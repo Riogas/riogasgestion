@@ -14,11 +14,13 @@ import { UpdateDireccionDto } from './dto/update-direccion.dto';
 export class DireccionesController {
   constructor(private readonly direcciones: DireccionesService) {}
 
+  /** Agrega una dirección al cliente. */
   @Post()
   add(@Param('id', ParseIntPipe) id: number, @Body() dto: DireccionInputDto) {
     return this.direcciones.add(id, dto);
   }
 
+  /** Modifica una dirección del cliente. */
   @Patch(':dirId')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -28,6 +30,7 @@ export class DireccionesController {
     return this.direcciones.update(id, dirId, dto);
   }
 
+  /** Elimina una dirección del cliente. */
   @Delete(':dirId')
   remove(
     @Param('id', ParseIntPipe) id: number,

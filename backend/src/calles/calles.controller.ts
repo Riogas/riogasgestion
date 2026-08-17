@@ -76,6 +76,7 @@ export class CallesController {
 
   // ── Para el VB6 y cualquier sistema (x-api-key) ──────────────────────────
 
+  /** Busca calles del nomenclátor por texto y devuelve el CALID; `formato=texto` sale pipe-delimited para el VB6. */
   @Get('buscar')
   @UseGuards(CallesApiKeyGuard)
   buscar(@Query() q: BuscarCallesDto): CalleSugerida[] | string {
@@ -95,6 +96,7 @@ export class CallesController {
     return resultados;
   }
 
+  /** Resuelve una dirección a sus dos esquinas y a coordenadas; `formato=texto` para el VB6. */
   @Get('esquinas')
   @UseGuards(CallesApiKeyGuard)
   async esquinasDe(@Query() q: EsquinasDto): Promise<ResultadoEsquinas | string> {
@@ -118,12 +120,14 @@ export class CallesController {
     return r;
   }
 
+  /** Devuelve el CALID a partir del nombre OSM de la calle. */
   @Get('resolver')
   @UseGuards(CallesApiKeyGuard)
   resolver(@Query() q: ResolverDto): CalleSugerida[] {
     return this.calles.resolver(q.nombreOsm, q.depto, q.localidad);
   }
 
+  /** Estado del puente nomenclátor ↔ OSM: totales y cobertura de los matches. */
   @Get('estado')
   @UseGuards(CallesApiKeyGuard)
   estado() {
@@ -132,6 +136,7 @@ export class CallesController {
 
   // ── Para la pantalla de revisión del panel (JWT) ─────────────────────────
 
+  /** Cola de revisión: matches calle AS400 ↔ calle OSM, filtrados por estado. */
   @Get('matches')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -139,6 +144,7 @@ export class CallesController {
     return this.calles.listarMatches(q.estado, q.take ?? 50, q.skip ?? 0);
   }
 
+  /** Datos de mapa de un match, para dibujarlo en la pantalla de revisión. */
   @Get('matches/:id/mapa')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -146,6 +152,7 @@ export class CallesController {
     return this.calles.mapaDeMatch(id);
   }
 
+  /** Detalle de una calle OSM. */
   @Get('osm/:id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -153,6 +160,7 @@ export class CallesController {
     return this.calles.calleOsmDetalle(id);
   }
 
+  /** Resuelve un match de la cola: aprobar, rechazar o corregir a otra calle OSM. */
   @Patch('matches/:id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
@@ -160,6 +168,7 @@ export class CallesController {
     return this.calles.revisarMatch(id, body.accion, body.usuario, body.calleOsmId);
   }
 
+  /** Recarga en memoria el índice de calles del nomenclátor. */
   @Post('recargar')
   @ApiBearerAuth()
   @UseGuards(AuthGuard)

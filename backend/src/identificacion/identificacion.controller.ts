@@ -22,6 +22,7 @@ interface AuthedRequest {
 export class IdentificacionController {
   constructor(private readonly identificacion: IdentificacionService) {}
 
+  /** Identifica a un cliente por documento o teléfono, aplicando la privacidad que corresponde al rol del JWT. */
   @Post()
   identificar(@Body() dto: IdentificarBodyDto, @Req() req: AuthedRequest) {
     // req.user es el payload crudo del JWT: un rol ausente/desconocido NUNCA

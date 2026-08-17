@@ -113,6 +113,21 @@ describe("validarPath", () => {
   });
 });
 
+describe("recursión", () => {
+  // `validarPath` bloquea el self-path por TEXTO, pero `new URL` resuelve los
+  // segmentos punto (RFC 3986): "/api/docs/./try" pasa el filtro textual y
+  // aterriza igual en "/api/docs/try". Quien decide es el chequeo posterior,
+  // sobre el pathname ya resuelto — el mismo criterio que se usa con el origen.
+  for (const path of ["/api/docs/./try", "/api/./docs/try", "/api/docs/./try/"]) {
+    it(`no se llama a sí mismo con ${path}`, async () => {
+      const { salida, llamadas } = await ejecutar({ metodo: "GET", path });
+      assert.equal(salida.status, 400);
+      assert.equal((salida.cuerpo as { error: string }).error, "PATH_INVALIDO");
+      assert.equal(llamadas.length, 0);
+    });
+  }
+});
+
 describe("resolverOrigenConfiable", () => {
   it("usa DOCS_TRY_ORIGEN tal cual cuando está", () => {
     const r = resolverOrigenConfiable({ [ENV_ORIGEN]: ORIGEN, PORT: "3000" });

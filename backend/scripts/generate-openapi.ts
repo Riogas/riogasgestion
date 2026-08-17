@@ -938,8 +938,25 @@ function main(): void {
     }
   }
 
+  const json = JSON.stringify(documento, null, 2) + '\n';
+
+  // `--check` no escribe: compara. Existe porque el test antienvejecimiento
+  // lee el openapi.json que está en disco, así que solo detectaba drift si
+  // alguien había corrido el generador antes — y no lo corría nadie. Con esto
+  // la suite falla cuando el catálogo commiteado dejó de describir al código.
+  if (process.argv.includes('--check')) {
+    const enDisco = fs.existsSync(ARCHIVO_SALIDA) ? fs.readFileSync(ARCHIVO_SALIDA, 'utf8') : '';
+    if (enDisco !== json) {
+      console.error('docs/api/openapi.json quedó viejo respecto del código. Corré: npm run docs:api');
+      process.exitCode = 1;
+      return;
+    }
+    console.log('docs/api/openapi.json está al día.');
+    return;
+  }
+
   fs.mkdirSync(DIR_SALIDA, { recursive: true });
-  fs.writeFileSync(ARCHIVO_SALIDA, JSON.stringify(documento, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(ARCHIVO_SALIDA, json, 'utf8');
 
   console.log('openapi.json escrito en docs/api/openapi.json');
   console.log(`  rutas:        ${Object.keys(paths).length}`);

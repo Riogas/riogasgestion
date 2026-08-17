@@ -37,6 +37,9 @@ import { extraerToken, requireRoot, type ResultadoRoot, type SolicitudConCredenc
 export const TIMEOUT_TRY_MS = 30_000;
 export const LIMITE_RESPUESTA_BYTES = 1024 * 1024;
 
+/** Cabeceras de la respuesta probada que NO vuelven al navegador. */
+const HEADERS_RESPUESTA_OCULTOS = new Set(["set-cookie", "set-cookie2"]);
+
 const METODOS_PERMITIDOS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
 const METODOS_ESCRITURA = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -522,6 +525,20 @@ export async function manejarTry(entrada: EntradaTry): Promise<SalidaTry> {
     };
   }
 
+  // Mismo criterio para la recursión: `validarPath` la bloquea sobre el TEXTO
+  // que mandó el cliente, pero `new URL` resuelve los segmentos punto (RFC
+  // 3986), así que `/api/docs/./try` pasa el filtro textual y aterriza igual en
+  // `/api/docs/try`. Lo que vale es el path que se va a pedir.
+  if (destino.pathname.replace(/\/+$/u, "").toLowerCase() === "/api/docs/try") {
+    return {
+      status: 400,
+      cuerpo: {
+        error: "PATH_INVALIDO",
+        detalle: "No se puede probar el propio /api/docs/try.",
+      },
+    };
+  }
+
   const url = destino.toString();
 
   const ejecutar = entrada.fetchImpl ?? fetch;
@@ -542,8 +559,11 @@ export async function manejarTry(entrada: EntradaTry): Promise<SalidaTry> {
 
     const headersRespuesta: Record<string, string> = {};
     respuesta.headers.forEach((valor, clave) => {
-      // set-cookie no se devuelve: no tiene valor documental y puede traer sesión.
-      if (clave.toLowerCase() !== "set-cookie") headersRespuesta[clave] = valor;
+      // Las cabeceras que sientan sesión no vuelven al navegador: no tienen
+      // valor documental y pueden traer credenciales. `set-cookie2` (RFC 2965)
+      // está muerto en la práctica, pero secapi y trackmovil ya lo filtran y
+      // las tres apps tienen que decir lo mismo.
+      if (!HEADERS_RESPUESTA_OCULTOS.has(clave.toLowerCase())) headersRespuesta[clave] = valor;
     });
 
     const resultado: RespuestaTry = {

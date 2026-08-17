@@ -1,0 +1,107 @@
+# Capa de notas a mano del catálogo de APIs de GOYA.
+#
+# Lo que el generador saca del código no envejece, pero tampoco sabe QUIÉN
+# consume cada endpoint, con qué key, ni por qué existe. Eso va acá y SIEMPRE
+# gana sobre lo inferido en docs/api/openapi.json.
+#
+# La key de cada entrada es exactamente "MÉTODO /path", con el path tal cual
+# aparece en openapi.json (parámetros entre llaves: /api/clientes/{id}).
+# Campos: resumen, descripcion, auth, consumidores, notas, ejemplos.
+#
+# Estado: arranca con 3 endpoints de ejemplo, los 3 reales. El resto se anota
+# en la fase 6 del diseño (docs/superpowers/specs/2026-08-17-portal-docs-apis-design.md).
+
+version: 1
+
+endpoints:
+  "GET /api/calles/buscar":
+    resumen: Busca calles del nomenclátor por texto y devuelve el CALID
+    descripcion: |
+      Puente nomenclátor ↔ OSM. Busca calles por nombre aproximado dentro de un
+      departamento/ciudad y devuelve las candidatas con su CALID (el id que
+      entiende el AS400) además del nombre OSM, la localidad y el estado del
+      match.
+
+      `formato=texto` devuelve líneas separadas por pipe en vez de JSON: es lo
+      que consume el VB6, que no parsea JSON.
+    auth: x-api-key (CALLES_API_KEY) — o JWT del panel, para el picker de la pantalla de revisión
+    consumidores:
+      - VB6 (alta y edición de direcciones de cliente)
+      - Pantalla /dashboard/calles-match del propio Goya
+    notas: |
+      La key va en el .env del server, no en el repo. El guard
+      (CallesApiKeyGuard) compara con timingSafeEqual y deja pasar también a
+      cualquier request con un JWT decodificable, así la pantalla de revisión
+      no necesita la key.
+    ejemplos:
+      - titulo: curl (JSON)
+        lenguaje: bash
+        codigo: |
+          curl -H "x-api-key: $CALLES_API_KEY" \
+            "https://goya-dev.glp.riogas.com.uy/api/calles/buscar?q=rivera&depto=Montevideo"
+      - titulo: curl (formato texto para VB6)
+        lenguaje: bash
+        codigo: |
+          curl -H "x-api-key: $CALLES_API_KEY" \
+            "https://goya-dev.glp.riogas.com.uy/api/calles/buscar?q=rivera&depto=Montevideo&formato=texto"
+
+  "GET /api/docs/spec":
+    resumen: Catálogo de APIs mergeado (openapi.json + estas anotaciones)
+    descripcion: |
+      El endpoint que alimenta este mismo portal. Devuelve el documento OpenAPI
+      3.1 versionado en el repo con las notas a mano aplicadas encima.
+    auth: JWT + permiso docs:view en GOYA (verificado contra secapi en cada request)
+    consumidores:
+      - La página /dashboard/docs
+    notas: |
+      La heurística del generador lo marca como "ninguna" porque el archivo del
+      handler no menciona ningún header de auth — el gate vive en
+      src/lib/docs/root-guard.ts. Otro caso donde la anotación corrige lo
+      inferido. Es fail-closed: si secapi no contesta responde 503.
+
+  "POST /api/zonas/sync/webhook":
+    resumen: Entrada del espejo de zonas que empuja TrackMovil
+    descripcion: |
+      TrackMovil (app 5) llama a este webhook cuando cambia una zona operativa
+      en su Supabase, para que el espejo de Goya quede al día sin esperar al
+      pull. Acepta una zona suelta o `{ zonas: [...] }`.
+    auth: x-api-key (ZONAS_SYNC_API_KEY)
+    consumidores:
+      - TrackMovil (RiogasTracking, app 5)
+    notas: |
+      El generador lo lista como "sin declarar" porque el guard es propio
+      (SyncApiKeyGuard) y no hay decorador de Swagger que lo describa: la
+      autenticación real es el header x-api-key. Si ZONAS_SYNC_API_KEY no está
+      en el .env del server, el endpoint responde 401 a todo.
+    ejemplos:
+      - titulo: curl
+        lenguaje: bash
+        codigo: |
+          curl -X POST -H "x-api-key: $ZONAS_SYNC_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"zonas":[{"id":107,"nombre":"Centro"}]}' \
+            "https://goya-dev.glp.riogas.com.uy/api/zonas/sync/webhook"
+
+  "POST /api/sorteo-publico/participar":
+    resumen: Envío del formulario público de sorteos (sin sesión)
+    descripcion: |
+      Recibe el formulario que abre el QR del sorteo. El código del sorteo y el
+      id de dispositivo salen de cookies httpOnly, nunca del body. Antes de
+      tocar el backend aplica dos trampas anti-bot: honeypot de campo (`hp`) y
+      honeypot temporal (`sorteo_t0`, envíos demasiado rápidos).
+    auth: ninguna del lado del navegador — es público a propósito
+    consumidores:
+      - Público final desde el QR impreso (/sorteo)
+    notas: |
+      El generador lo marca como "x-api-key" porque el archivo menciona ese
+      header: la key (SORTEOS_PUBLIC_API_KEY) la agrega ESTE handler hacia el
+      backend NestJS, no la manda el navegador. Es justamente el tipo de dato
+      que la heurística no puede inferir.
+    ejemplos:
+      - titulo: curl (necesita las cookies que setea /sorteo)
+        lenguaje: bash
+        codigo: |
+          curl -X POST -H "Content-Type: application/json" \
+            -b "sorteo_codigo=ABC123; sorteo_device=uuid; sorteo_t0=1723900000000" \
+            -d '{"nombre":"Juan","telefono":"099123456"}' \
+            "https://goya-dev.glp.riogas.com.uy/api/sorteo-publico/participar"

@@ -173,6 +173,9 @@ importers:
       geolib:
         specifier: ^3.3.4
         version: 3.3.4
+      js-yaml:
+        specifier: ^5.2.0
+        version: 5.2.0
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4

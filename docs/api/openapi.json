@@ -1,0 +1,3072 @@
+{
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/{path}": {
+      "get": {
+        "tags": [
+          "front:proxy"
+        ],
+        "summary": "GET /api/{path}",
+        "description": "",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "Segmentos restantes de la ruta (catch-all)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/[...path]/route.ts",
+        "x-goya-auth": "ninguna"
+      },
+      "post": {
+        "tags": [
+          "front:proxy"
+        ],
+        "summary": "POST /api/{path}",
+        "description": "",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "Segmentos restantes de la ruta (catch-all)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/[...path]/route.ts",
+        "x-goya-auth": "ninguna"
+      },
+      "put": {
+        "tags": [
+          "front:proxy"
+        ],
+        "summary": "PUT /api/{path}",
+        "description": "",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "Segmentos restantes de la ruta (catch-all)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/[...path]/route.ts",
+        "x-goya-auth": "ninguna"
+      },
+      "patch": {
+        "tags": [
+          "front:proxy"
+        ],
+        "summary": "PATCH /api/{path}",
+        "description": "",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "Segmentos restantes de la ruta (catch-all)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/[...path]/route.ts",
+        "x-goya-auth": "ninguna"
+      },
+      "delete": {
+        "tags": [
+          "front:proxy"
+        ],
+        "summary": "DELETE /api/{path}",
+        "description": "",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "Segmentos restantes de la ruta (catch-all)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/[...path]/route.ts",
+        "x-goya-auth": "ninguna"
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "front:auth"
+        ],
+        "summary": "Login → SecuritySuite (secapi). Mismo patrón que TrackMovil:",
+        "description": "Login → SecuritySuite (secapi). Mismo patrón que TrackMovil:\nel front postea acá y este handler reenvía a {SECAPI_URL}/api/db/login con\n{ UserName, Password, Sistema }. Devuelve el JSON de secapi { success, token, user, ... }.\nHost por .env (SECAPI_URL): dev → secapi-dev.glp.riogas.com.uy, prod → secapi.riogas.com.uy",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/auth/login/route.ts",
+        "x-goya-auth": "ninguna"
+      }
+    },
+    "/api/auth/menuApp": {
+      "post": {
+        "tags": [
+          "front:auth"
+        ],
+        "summary": "menuApp → SecuritySuite (secapi), mismo patrón que el login.",
+        "description": "menuApp → SecuritySuite (secapi), mismo patrón que el login.\nEl front postea acá; este handler consulta GET {SECAPI_URL}/api/db/menu?aplicacionId=N\ncon el token de la cookie (el menú es por usuario/app). Devuelve { success, menu:[...] }\ncon la forma que mapMenuItem ya entiende (key/label/path/icon/type/order/children).\n(El POST /api/Menu de GeneXus devuelve vacío para goya; por eso usamos /api/db/menu.)",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/auth/menuApp/route.ts",
+        "x-goya-auth": "JWT (cookie token)"
+      }
+    },
+    "/api/calles/buscar": {
+      "get": {
+        "operationId": "CallesController_buscar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    },
+    "/api/calles/esquinas": {
+      "get": {
+        "operationId": "CallesController_esquinasDe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    },
+    "/api/calles/estado": {
+      "get": {
+        "operationId": "CallesController_estado",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    },
+    "/api/calles/matches": {
+      "get": {
+        "operationId": "CallesController_listarMatches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/calles/matches/{id}": {
+      "patch": {
+        "operationId": "CallesController_revisar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisarMatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/calles/matches/{id}/mapa": {
+      "get": {
+        "operationId": "CallesController_mapa",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/calles/osm/{id}": {
+      "get": {
+        "operationId": "CallesController_calleOsm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/calles/recargar": {
+      "post": {
+        "operationId": "CallesController_recargar",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/calles/resolver": {
+      "get": {
+        "operationId": "CallesController_resolver",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "calles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    },
+    "/api/catalogos/categorias-precio": {
+      "get": {
+        "operationId": "CatalogosController_categoriasPrecio",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "catalogos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/catalogos/departamentos": {
+      "get": {
+        "operationId": "CatalogosController_departamentos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "catalogos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/catalogos/localidades": {
+      "get": {
+        "operationId": "CatalogosController_localidades",
+        "parameters": [
+          {
+            "name": "departamentoId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "catalogos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/catalogos/puestos": {
+      "get": {
+        "operationId": "CatalogosController_puestos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "catalogos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/catalogos/tipos-cliente": {
+      "get": {
+        "operationId": "CatalogosController_tiposCliente",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "catalogos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/catalogos/zonas": {
+      "get": {
+        "operationId": "CatalogosController_zonas",
+        "parameters": [
+          {
+            "name": "puestoId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "catalogos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/clientes": {
+      "get": {
+        "operationId": "ClientesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "post": {
+        "operationId": "ClientesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClienteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/clientes/{id}": {
+      "get": {
+        "operationId": "ClientesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "patch": {
+        "operationId": "ClientesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClienteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "ClientesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/clientes/{id}/direcciones": {
+      "post": {
+        "operationId": "DireccionesController_add",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DireccionInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/clientes/{id}/direcciones/{dirId}": {
+      "patch": {
+        "operationId": "DireccionesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "dirId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDireccionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "DireccionesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "dirId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/clientes/{id}/telefonos": {
+      "post": {
+        "operationId": "TelefonosController_add",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelefonoInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/clientes/{id}/telefonos/{telId}": {
+      "patch": {
+        "operationId": "TelefonosController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "telId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTelefonoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "TelefonosController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "telId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "clientes"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/docs/spec": {
+      "get": {
+        "tags": [
+          "front:docs"
+        ],
+        "summary": "GET /api/docs/spec — catálogo de APIs de GOYA (solo root).",
+        "description": "GET /api/docs/spec — catálogo de APIs de GOYA (solo root).\n\nDevuelve docs/api/openapi.json mergeado con docs/api/anotaciones.yaml. El\ndocumento se sirve desde el JSON versionado y no del Swagger vivo del\nbackend, que está apagado cuando NODE_ENV=production.\n\nEl gate es requireRoot: verifica contra secapi en cada request y es\nfail-closed (si secapi no responde, 503, no se abre). Ver src/lib/docs/root-guard.ts.",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/docs/spec/route.ts",
+        "x-goya-auth": "ninguna"
+      }
+    },
+    "/api/fleteras": {
+      "get": {
+        "operationId": "FleterasController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fleteras"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/fleteras/{id}": {
+      "get": {
+        "operationId": "FleterasController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fleteras"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/fleteras/filtros": {
+      "get": {
+        "operationId": "FleterasController_filtros",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fleteras"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/fleteras/kpis": {
+      "get": {
+        "operationId": "FleterasController_kpis",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fleteras"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Backend activo"
+          }
+        },
+        "summary": "Health check general",
+        "tags": [
+          "health"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar",
+        "x-goya-tambien-en-front": {
+          "archivo": "src/app/api/health/route.ts",
+          "auth": "ninguna",
+          "descripcion": "Health check endpoint para Docker"
+        }
+      }
+    },
+    "/api/health/db": {
+      "get": {
+        "operationId": "HealthController_checkDb",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Base de datos conectada"
+          }
+        },
+        "summary": "Check de conexión a la base de datos",
+        "tags": [
+          "health"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    },
+    "/api/identificacion": {
+      "post": {
+        "operationId": "IdentificacionController_identificar",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentificarBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "identificacion"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles": {
+      "get": {
+        "operationId": "MovilesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}": {
+      "get": {
+        "operationId": "MovilesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "patch": {
+        "operationId": "MovilesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMovilDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/duplicar": {
+      "post": {
+        "operationId": "MovilesController_duplicar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/escenarios": {
+      "post": {
+        "operationId": "EscenariosController_add",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EscenarioInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/escenarios/{subId}": {
+      "patch": {
+        "operationId": "EscenariosController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EscenarioInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "EscenariosController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/productos": {
+      "post": {
+        "operationId": "ProductosController_add",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductoInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/productos/{subId}": {
+      "patch": {
+        "operationId": "ProductosController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductoInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "ProductosController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/puntos": {
+      "post": {
+        "operationId": "PuntosController_add",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PuntoInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/puntos/{subId}": {
+      "patch": {
+        "operationId": "PuntosController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PuntoInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "PuntosController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/servicios": {
+      "post": {
+        "operationId": "ServiciosController_add",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicioInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/{id}/servicios/{subId}": {
+      "patch": {
+        "operationId": "ServiciosController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicioInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "ServiciosController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "subId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/catalogos": {
+      "get": {
+        "operationId": "MovilesController_catalogos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/filtros": {
+      "get": {
+        "operationId": "MovilesController_filtros",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/moviles/kpis": {
+      "get": {
+        "operationId": "MovilesController_kpis",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "moviles"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/personas/{id}": {
+      "get": {
+        "operationId": "PersonasController_find360",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "personas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/personas/{id}/canonical": {
+      "patch": {
+        "operationId": "PersonasController_setCanonical",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCanonicalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "personas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/personas/split": {
+      "post": {
+        "operationId": "PersonasController_split",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistroIdsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "personas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/personas/unify": {
+      "post": {
+        "operationId": "PersonasController_unify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistroIdsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "personas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/puestos": {
+      "get": {
+        "operationId": "PuestosController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "puestos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "post": {
+        "operationId": "PuestosController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePuestoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "puestos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/puestos/{id}": {
+      "get": {
+        "operationId": "PuestosController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "puestos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "patch": {
+        "operationId": "PuestosController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePuestoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "puestos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/puestos/filtros": {
+      "get": {
+        "operationId": "PuestosController_filtros",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "puestos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/puestos/kpis": {
+      "get": {
+        "operationId": "PuestosController_kpis",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "puestos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/solicitar-acceso": {
+      "post": {
+        "tags": [
+          "front:solicitar-acceso"
+        ],
+        "summary": "Route handler: crea una solicitud de acceso en SecuritySuite (secapi).",
+        "description": "Route handler: crea una solicitud de acceso en SecuritySuite (secapi).\nEl front (pantalla /no-autorizado) postea acá; este handler reenvía a secapi\ncon el token de la cookie. El host de secapi sale de SECAPI_URL (.env):\n  dev  → https://secapi-dev.glp.riogas.com.uy\n  prod → https://secapi.riogas.com.uy",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/solicitar-acceso/route.ts",
+        "x-goya-auth": "JWT (cookie token)"
+      }
+    },
+    "/api/sorteo-publico/estado": {
+      "get": {
+        "tags": [
+          "front:sorteo-publico"
+        ],
+        "summary": "Estado del código guardado en la cookie `sorteo_codigo`.",
+        "description": "Estado del código guardado en la cookie `sorteo_codigo`.\nAdemás siembra las cookies del dispositivo (`sorteo_device`) y del instante\nen que se sirvió el formulario (`sorteo_t0`, usado como honeypot temporal).",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/sorteo-publico/estado/route.ts",
+        "x-goya-auth": "x-api-key"
+      }
+    },
+    "/api/sorteo-publico/participar": {
+      "post": {
+        "tags": [
+          "front:sorteo-publico"
+        ],
+        "summary": "Envío del formulario público. El código y el dispositivo salen de cookies",
+        "description": "Envío del formulario público. El código y el dispositivo salen de cookies\nhttpOnly (nunca del body) y acá se aplican las dos trampas anti-bot antes de\ntocar el backend: honeypot de campo (`hp`) y honeypot temporal (`sorteo_t0`).",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/sorteo-publico/participar/route.ts",
+        "x-goya-auth": "x-api-key"
+      }
+    },
+    "/api/sorteos": {
+      "get": {
+        "operationId": "SorteosAdminController_listar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "post": {
+        "operationId": "SorteosAdminController_crear",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSorteoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos-descarga/{path}": {
+      "get": {
+        "tags": [
+          "front:sorteos-descarga"
+        ],
+        "summary": "Descargas grandes de Sorteos (ZIP de QRs y CSV de participaciones).",
+        "description": "Descargas grandes de Sorteos (ZIP de QRs y CSV de participaciones).\n\nNo pasan por el catch-all `/api/[...path]`: ese proxy acumula la respuesta\nentera en un Buffer antes de contestar, y un lote de 10.000 QRs son cientos\nde MB por descarga en la RAM del proceso Next. Acá el body del backend se\npipea tal cual (`NextResponse(resp.body)`), preservando el backpressure que\nimplementa el controller Nest.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "Segmentos restantes de la ruta (catch-all)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Ver el handler"
+          }
+        },
+        "x-goya-origen": "front (Next route handler)",
+        "x-goya-archivo": "src/app/api/sorteos-descarga/[...path]/route.ts",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}": {
+      "get": {
+        "operationId": "SorteosAdminController_detalle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "patch": {
+        "operationId": "SorteosAdminController_actualizar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSorteoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}/activar": {
+      "post": {
+        "operationId": "SorteosAdminController_activar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}/cancelar": {
+      "post": {
+        "operationId": "SorteosAdminController_cancelar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}/finalizar": {
+      "post": {
+        "operationId": "SorteosAdminController_finalizar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}/lotes": {
+      "post": {
+        "operationId": "SorteosAdminController_crearLote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearLoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "get": {
+        "operationId": "SorteosAdminController_listarLotes",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}/lotes/{loteId}/zip": {
+      "get": {
+        "operationId": "SorteosAdminController_zipDelLote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "loteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}/participaciones": {
+      "get": {
+        "operationId": "SorteosAdminController_listarParticipaciones",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/{id}/participaciones/export": {
+      "get": {
+        "operationId": "SorteosAdminController_exportarParticipaciones",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/participaciones/{id}/entregar": {
+      "post": {
+        "operationId": "SorteosAdminController_marcarPremioEntregado",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sorteos"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/sorteos/publico/estado": {
+      "get": {
+        "operationId": "SorteosPublicoController_estado",
+        "parameters": [
+          {
+            "name": "codigo",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "sorteos-publico"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    },
+    "/api/sorteos/publico/participar": {
+      "post": {
+        "operationId": "SorteosPublicoController_participar",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticiparDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "sorteos-publico"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    },
+    "/api/workbench/sugerencias": {
+      "get": {
+        "operationId": "WorkbenchController_listar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "workbench"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/workbench/sugerencias/{id}/aceptar": {
+      "post": {
+        "operationId": "WorkbenchController_aceptar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "workbench"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/workbench/sugerencias/{id}/deshacer": {
+      "post": {
+        "operationId": "WorkbenchController_deshacer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "workbench"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/workbench/sugerencias/{id}/rechazar": {
+      "post": {
+        "operationId": "WorkbenchController_rechazar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "workbench"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/zonas": {
+      "get": {
+        "operationId": "ZonasController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "post": {
+        "operationId": "ZonasController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateZonaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/zonas/{id}": {
+      "patch": {
+        "operationId": "ZonasController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateZonaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      },
+      "delete": {
+        "operationId": "ZonasController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/zonas/{id}/duplicar": {
+      "post": {
+        "operationId": "ZonasController_duplicar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/zonas/puestos": {
+      "get": {
+        "operationId": "ZonasController_puestos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/zonas/sync/pull": {
+      "post": {
+        "operationId": "ZonasController_syncPull",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/zonas/sync/push": {
+      "post": {
+        "operationId": "ZonasController_syncPush",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "JWT (Bearer)"
+      }
+    },
+    "/api/zonas/sync/webhook": {
+      "post": {
+        "operationId": "ZonasController_syncWebhook",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "zonas"
+        ],
+        "x-goya-origen": "backend (NestJS)",
+        "x-goya-auth": "sin declarar"
+      }
+    }
+  },
+  "info": {
+    "title": "Riogas Gestión API",
+    "description": "Catálogo de APIs de GOYA (app 3). Backend NestJS (prefijo /api) + route handlers del front Next.\nGenerado por `pnpm docs:api`; no editar a mano — las descripciones y ejemplos van en docs/api/anotaciones.yaml.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Health check"
+    },
+    {
+      "name": "clientes",
+      "description": "Gestión de clientes"
+    },
+    {
+      "name": "zonas",
+      "description": "Gestión de zonas"
+    },
+    {
+      "name": "usuarios",
+      "description": "Gestión de usuarios"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "CreateClienteDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateClienteDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TelefonoInputDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateTelefonoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DireccionInputDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateDireccionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateMovilDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ProductoInputDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PuntoInputDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ServicioInputDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "EscenarioInputDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreatePuestoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdatePuestoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateZonaDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateZonaDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SetCanonicalDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegistroIdsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "IdentificarBodyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ParticiparDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateSorteoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateSorteoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CrearLoteDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RevisarMatchDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  "x-goya-generador": "backend/scripts/generate-openapi.ts"
+}

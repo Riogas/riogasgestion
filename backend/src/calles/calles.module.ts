@@ -6,6 +6,8 @@ import { EsquinasService } from './esquinas.service';
 @Module({
   controllers: [CallesController],
   providers: [CallesService, EsquinasService, CallesApiKeyGuard],
-  exports: [CallesService],
+  // El módulo `mostrador` reusa los dos: un solo índice de calles en memoria y
+  // una sola caché de Nominatim para toda la app.
+  exports: [CallesService, EsquinasService],
 })
 export class CallesModule {}

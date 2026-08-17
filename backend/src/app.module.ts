@@ -15,6 +15,7 @@ import { CoberturaModule } from './cobertura/cobertura.module';
 import { IdentificacionModule } from './identificacion/identificacion.module';
 import { SorteosModule } from './sorteos/sorteos.module';
 import { CallesModule } from './calles/calles.module';
+import { MostradorModule } from './mostrador/mostrador.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { CallesModule } from './calles/calles.module';
     IdentificacionModule,
     SorteosModule,
     CallesModule,
+    MostradorModule,
     // TODO: Agregar módulos a medida que se migran las APIs
     // UsuariosModule,
     // AsignacionesModule,

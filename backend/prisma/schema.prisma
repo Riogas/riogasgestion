@@ -966,3 +966,23 @@ model SorteoParticipacion {
   @@index([sorteoId, deviceId, createdAt])
   @@map("sorteo_participacion")
 }
+
+// ── Ficha de mostrador (injerto AS400 ↔ goya, spec 2026-08-14) ──────────────
+// GXCALDTA no tiene triggers: el "quién tocó qué" lo dejamos nosotros. Una fila
+// por intento de guardado, con el diff {campo:{antes,despues}} y el resultado
+// de cada mitad (AS400 / Postgres). También se escribe cuando algo falla.
+model FichaAuditoria {
+  id        Int      @id @default(autoincrement())
+  clienteId Int
+  operador  String   @db.VarChar(15)
+  origen    String   @db.VarChar(20)
+  campos    Json
+  as400Ok   Boolean
+  pgOk      Boolean
+  error     String?  @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  @@index([clienteId])
+  @@index([createdAt])
+  @@map("ficha_auditoria")
+}

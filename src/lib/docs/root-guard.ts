@@ -153,25 +153,48 @@ type Verificacion =
  *   JsonWebTokenError  → 401 TOKEN_INVALIDO  (firma que no cierra, token
  *                        malformado, alg distinto de HS256, `nbf` en el futuro)
  */
+function esHexPuro(s: string): boolean {
+  return s.length % 2 === 0 && /^[0-9a-f]+$/i.test(s);
+}
+
+/**
+ * El ecosistema tiene DOS emisores que firman con el MISMO valor de secreto
+ * pero derivan bytes distintos: GeneXus (el login de la UI de secapi) hace
+ * `Hex.decode(secreto)` — 32 bytes con un secreto de 64 hex — y secapi
+ * `/api/db/login`, que es por donde entra Goya, lo firma como UTF-8 — 64 bytes.
+ * Probamos las dos derivaciones del mismo secreto; no amplía la superficie
+ * (ambas claves salen del secreto, que el atacante sigue sin tener).
+ */
+function clavesCandidatas(secreto: string): Array<string | Buffer> {
+  const claves: Array<string | Buffer> = [secreto];
+  if (esHexPuro(secreto)) claves.push(Buffer.from(secreto, "hex"));
+  return claves;
+}
+
 function verificarToken(token: string, secreto: string): Verificacion {
-  try {
-    const payload = jwt.verify(token, secreto, { algorithms: ALGORITMOS });
-    // Un JWT con payload string (no JSON) no sirve para identificar a nadie.
-    if (typeof payload !== "object" || payload === null) {
+  let vencido = false;
+  for (const clave of clavesCandidatas(secreto)) {
+    try {
+      const payload = jwt.verify(token, clave, { algorithms: ALGORITMOS });
+      // Un JWT con payload string (no JSON) no sirve para identificar a nadie.
+      if (typeof payload !== "object" || payload === null) {
+        return { ok: false, status: 401, code: "TOKEN_INVALIDO" };
+      }
+      return { ok: true, payload: payload as PayloadJwt };
+    } catch (err) {
+      // TokenExpiredError solo se tira si la firma cerró: era la clave correcta.
+      if (err instanceof jwt.TokenExpiredError) {
+        vencido = true;
+        continue;
+      }
+      // Firma que no cierra con esta clave: puede cerrar con la otra derivación.
+      if (err instanceof jwt.JsonWebTokenError) continue;
+      // `jwt.verify` también tira TypeError si el token no es un string: no
+      // depende de la clave, corta acá.
       return { ok: false, status: 401, code: "TOKEN_INVALIDO" };
     }
-    return { ok: true, payload: payload as PayloadJwt };
-  } catch (err) {
-    // TokenExpiredError extiende JsonWebTokenError: primero el específico.
-    if (err instanceof jwt.TokenExpiredError) {
-      return { ok: false, status: 401, code: "TOKEN_VENCIDO" };
-    }
-    if (err instanceof jwt.JsonWebTokenError) {
-      return { ok: false, status: 401, code: "TOKEN_INVALIDO" };
-    }
-    // `jwt.verify` también tira TypeError si el token no es un string.
-    return { ok: false, status: 401, code: "TOKEN_INVALIDO" };
   }
+  return { ok: false, status: 401, code: vencido ? "TOKEN_VENCIDO" : "TOKEN_INVALIDO" };
 }
 
 function usernameDelPayload(payload: PayloadJwt): string {

@@ -101,6 +101,43 @@ describe("requireRoot", () => {
     assert.equal(r.code, "TOKEN_INVALIDO");
   });
 
+  // GeneXus (el login de la UI de secapi) firma con el secreto hex-decodificado;
+  // secapi /api/db/login (por donde entra Goya) lo firma como UTF-8. El guard
+  // tiene que aceptar los dos, porque el mismo usuario puede llegar por cualquiera.
+  it("con secreto hex acepta el token estilo GeneXus (hex-decode)", async () => {
+    process.env.JWT_SECRET = "a3f1c0de4b5e6f7089abcdef0123456789abcdef0123456789abcdef01234567";
+    const estado = stubSecapi(() => respuestaSecapi("GRANTED", "ROOT"));
+    const genexus = jwt.sign({ username: "dmedaglia", sistema: "GOYA" }, Buffer.from(process.env.JWT_SECRET!, "hex"), { expiresIn: "1h" });
+
+    const r = await requireRoot(solicitud(genexus));
+
+    assert.equal(r.ok, true);
+    assert.equal(estado.llamadas, 1);
+  });
+
+  it("con secreto hex sigue aceptando el token estilo /api/db/login (UTF-8)", async () => {
+    process.env.JWT_SECRET = "a3f1c0de4b5e6f7089abcdef0123456789abcdef0123456789abcdef01234567";
+    stubSecapi(() => respuestaSecapi("GRANTED", "ROOT"));
+
+    const r = await requireRoot(solicitud(token("dmedaglia", {}, process.env.JWT_SECRET)));
+
+    assert.equal(r.ok, true);
+  });
+
+  it("con secreto hex, otra clave hex sigue siendo 401 TOKEN_INVALIDO", async () => {
+    process.env.JWT_SECRET = "a3f1c0de4b5e6f7089abcdef0123456789abcdef0123456789abcdef01234567";
+    const estado = stubSecapi(() => respuestaSecapi("GRANTED", "ROOT"));
+    const impostor = jwt.sign({ username: "dmedaglia" }, Buffer.from("ff".repeat(32), "hex"), { expiresIn: "1h" });
+
+    const r = await requireRoot(solicitud(impostor));
+
+    assert.equal(r.ok, false);
+    if (r.ok) return;
+    assert.equal(r.status, 401);
+    assert.equal(r.code, "TOKEN_INVALIDO");
+    assert.equal(estado.llamadas, 0);
+  });
+
   it("un token vencido es 401 TOKEN_VENCIDO y NO llega a secapi", async () => {
     const estado = stubSecapi(() => respuestaSecapi("GRANTED", "ROOT"));
 

@@ -624,7 +624,11 @@ export class MostradorService {
 
     return {
       calleNomenclator: calle?.nombre ?? null,
-      calleOsm: osm?.nombre ?? null,
+      // Solo se publica el nombre OSM cuando el match está confirmado. Un match
+      // en revisión puede apuntar a otra calle homónima a kilómetros (pasa con
+      // CALID 4069): mostrarlo como chip le haría creer al operador que la
+      // dirección está verificada cuando todavía está en la cola de revisión.
+      calleOsm: confirmado ? (osm?.nombre ?? null) : null,
       // Con match confirmado manda el nombre OSM; si no, el del nomenclator
       // (y recién si el nomenclator no tiene nada, lo que haya de OSM).
       calleMostrar: (confirmado ? osm?.nombre : null) ?? calle?.nombre ?? osm?.nombre ?? null,

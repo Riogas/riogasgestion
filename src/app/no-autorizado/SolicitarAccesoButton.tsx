@@ -4,9 +4,9 @@ import { useState } from "react";
 import { RUTA_LOGIN_SESION_EXPIRADA } from "@/lib/sesion";
 
 type Props = { code: string; ruta: string; nombre: string };
-// "sesion-vencida" y "no-configurado" son callejones sin salida distintos del
-// error genérico: no se arreglan reintentando el envío, así que tienen su propia
-// pantalla en vez del formulario con un mensaje en rojo.
+// "sesion-vencida", "usuario-inactivo" y "no-configurado" son callejones sin
+// salida distintos del error genérico: no se arreglan reintentando el envío, así
+// que tienen su propia pantalla en vez del formulario con un mensaje en rojo.
 type Estado =
   | "idle"
   | "form"
@@ -14,6 +14,7 @@ type Estado =
   | "ok"
   | "error"
   | "sesion-vencida"
+  | "usuario-inactivo"
   | "no-configurado";
 
 export default function SolicitarAccesoButton({ code, ruta, nombre }: Props) {
@@ -33,6 +34,13 @@ export default function SolicitarAccesoButton({ code, ruta, nombre }: Props) {
       if (r.ok && d?.ok) {
         setEstado("ok");
         setMsg("Solicitud enviada. Te avisaremos cuando se apruebe.");
+        return;
+      }
+
+      // El usuario no está activo en SecuritySuite: no es la sesión, y ofrecerle
+      // "volver a entrar" lo manda a un loop (el login lo deja pasar igual).
+      if (d?.motivo === "USUARIO_NO_ACTIVO") {
+        setEstado("usuario-inactivo");
         return;
       }
 
@@ -72,6 +80,19 @@ export default function SolicitarAccesoButton({ code, ruta, nombre }: Props) {
         >
           Volver a entrar
         </a>
+      </div>
+    );
+  }
+
+  if (estado === "usuario-inactivo") {
+    return (
+      <div className="flex-1 px-5 py-2 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-center text-xs">
+        Tu usuario no está activo en SecuritySuite, así que no se puede tramitar
+        el permiso. Avisá a Sistemas con el código{" "}
+        <code className="rounded bg-background border border-border px-1 py-0.5">
+          USUARIO_NO_ENCONTRADO
+        </code>
+        .
       </div>
     );
   }

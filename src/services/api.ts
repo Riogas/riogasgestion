@@ -1,7 +1,7 @@
 import { api, overpassApi } from "@/lib/axios";
 import { withApiLogging, setSentryUser, clearSentryUser } from "@/lib/sentryHelpers";
 import { setAuthToken } from "@/lib/authToken";
-import { SesionVencidaError } from "@/lib/sesion";
+import { SesionVencidaError, UsuarioNoActivoError } from "@/lib/sesion";
 
 // Tipos globales
 export type Role = "admin" | "user";
@@ -207,6 +207,14 @@ export const apiGetMenuByRole = async (role: Role): Promise<MenuItem[]> => {
       try {
         ({ data } = await api.post("/auth/menuApp", body));
       } catch (e: any) {
+        // 403 USUARIO_NO_ACTIVO va ANTES que el 401: es el caso en que la sesión
+        // está bien y el usuario no. Si lo tratáramos como sesión vencida, el
+        // Sidebar lo mandaría a /login, el login lo dejaría entrar (secapi sólo
+        // rechaza el estado 'I') y volvería acá: loop sin salida.
+        if (e?.response?.data?.error === "USUARIO_NO_ACTIVO") {
+          console.warn("[api.menuApp] usuario no activo en SecuritySuite");
+          throw new UsuarioNoActivoError(e?.response?.data?.message);
+        }
         if (e?.response?.status === 401) {
           console.warn("[api.menuApp] 401 de secapi → sesión vencida");
           throw new SesionVencidaError(e?.response?.data?.message);

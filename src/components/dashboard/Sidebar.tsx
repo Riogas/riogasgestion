@@ -15,7 +15,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useLoading } from "@/lib/LoadingContext";
 import { clearAuthToken } from "@/lib/authToken";
-import { RUTA_LOGIN_SESION_EXPIRADA, esSesionVencida } from "@/lib/sesion";
+import {
+  RUTA_LOGIN_SESION_EXPIRADA,
+  RUTA_USUARIO_NO_ACTIVO,
+  esSesionVencida,
+  esUsuarioNoActivo,
+} from "@/lib/sesion";
 
 interface Props {
   collapsed: boolean;
@@ -177,6 +182,18 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
           .catch((e) => {
             error("apiGetMenuByRole ERROR:", e?.message, e?.response?.data || e);
             setLoading(false);
+
+            // El usuario no está activo en SecuritySuite. Va PRIMERO porque se
+            // parece a una sesión vencida y no lo es: /login lo dejaría entrar
+            // igual (secapi sólo rechaza el estado 'I') y volvería a quedarse
+            // sin menú, para siempre. Se lo manda a /no-autorizado, que le
+            // explica qué pasa y con qué código reportarlo. La cookie no se
+            // toca: sin token esa pantalla no puede ni confirmar el motivo.
+            if (esUsuarioNoActivo(e)) {
+              warn("usuario no activo en SecuritySuite → /no-autorizado");
+              router.replace(RUTA_USUARIO_NO_ACTIVO);
+              return;
+            }
 
             // Sesión rechazada por secapi. El menú es lo primero que carga el
             // dashboard, así que suele ser lo primero que se entera de que el

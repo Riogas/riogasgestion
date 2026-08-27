@@ -2,6 +2,7 @@
 // All log prefixes ('[MW]') retained intentionally for log continuity.
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { codigoGuardSecapi } from '@/lib/secapiGuard';
 
 // =========================
 // Config
@@ -91,19 +92,30 @@ function decodeJwtPayload(token: string): any | null {
 // =========================
 
 // secapi ya no deja pasar /api/db/* sin JWT verificado, así que "la consulta de
-// permisos falló" dejó de ser una sola cosa. Hay cuatro desenlaces y cada uno
-// pide una salida distinta para el usuario:
-//   RESUELTO      → secapi contestó: tiene (o no) el permiso. Es lo único cacheable.
-//   SESION_MUERTA → 401 (SIN_TOKEN / TOKEN_INVALIDO / TOKEN_VENCIDO / USUARIO_NO_ENCONTRADO):
-//                   el token ya no vale. No es falta de permiso → va a /login.
-//   NO_CONFIGURADO→ 503 SECRETO_NO_CONFIGURADO: a secapi le falta el secreto de
-//                   firma. Ni el permiso ni el login arreglan esto.
-//   SIN_RESPUESTA → timeout, red caída o 5xx genérico: secapi no habló. Acá (y
-//                   solo acá) aplica el fallback por caché vencido.
+// permisos falló" dejó de ser una sola cosa. Hay seis desenlaces y cada uno pide
+// una salida distinta para el usuario. El código que los separa NO está en el
+// body: viaja en el header `x-auth-guard` (ver src/lib/secapiGuard.ts).
+//   RESUELTO        → secapi contestó: tiene (o no) el permiso. Lo único cacheable.
+//   SESION_MUERTA   → 401 SIN_TOKEN / TOKEN_INVALIDO / TOKEN_VENCIDO: el token ya
+//                     no vale. No es falta de permiso → va a /login, y volver a
+//                     entrar efectivamente lo arregla.
+//   USUARIO_INACTIVO→ 401 USUARIO_NO_ENCONTRADO: el token está bien pero el
+//                     usuario no está activo en SecuritySuite. Volver a loguearse
+//                     NO lo arregla (el login sólo rechaza estado 'I', así que
+//                     entra igual) → mandarlo a /login sería un loop sin salida.
+//   NO_CONFIGURADO  → 503 SECRETO_NO_CONFIGURADO: a secapi le falta el secreto de
+//                     firma. Permanente: ni el permiso ni el login arreglan esto.
+//   ERROR_SERVICIO  → 5xx CON respuesta (ERROR_GUARD u otro): secapi habló y dijo
+//                     "no pude decidir". Es transitorio, pero es fail-closed a
+//                     propósito del lado de secapi → no se sirve caché.
+//   SIN_RESPUESTA   → timeout o red caída: secapi no habló. Acá (y sólo acá)
+//                     aplica el fallback por caché vencido.
 type ResultadoPermiso =
   | { estado: 'RESUELTO'; permitido: boolean }
   | { estado: 'SESION_MUERTA' }
+  | { estado: 'USUARIO_INACTIVO' }
   | { estado: 'NO_CONFIGURADO' }
+  | { estado: 'ERROR_SERVICIO'; codigo: string }
   | { estado: 'SIN_RESPUESTA' };
 
 // Caché en memoria del chequeo de permisos: secapi se consultaba en CADA
@@ -153,17 +165,18 @@ async function checkPermisoCached(
     return { estado: 'RESUELTO', permitido: false };
   }
 
-  if (resultado.estado === 'SESION_MUERTA') {
-    // El token está muerto: cualquier veredicto guardado para él es basura.
-    // Si no se borra, el usuario vuelve a entrar y durante lo que queda de TTL
-    // el caché lo deja navegar con una sesión que secapi ya rechaza.
-    permisoCache.delete(key);
-    return resultado;
-  }
-
-  if (resultado.estado === 'NO_CONFIGURADO') {
-    // No se cachea: es un estado del servidor, se arregla afuera y queremos
-    // que el próximo request lo vea arreglado enseguida.
+  if (resultado.estado !== 'RESUELTO') {
+    // Nada de esto es un veredicto de permiso, así que no se cachea: son
+    // estados del token o del servidor, se arreglan afuera y queremos que el
+    // próximo request los vea arreglados enseguida.
+    //
+    // Tampoco hay nada que invalidar acá: sólo se llega a este punto cuando NO
+    // había entrada vigente, y la key es hash(token)|pathname, o sea que el
+    // token que vuelva de un login nuevo estrena key. Lo que sí queda abierto
+    // —y este borrado nunca cubrió— es la ventana del TTL positivo: un token
+    // que ya tiene un GRANTED cacheado sigue navegando hasta 5 min después de
+    // que secapi lo empiece a rechazar, porque el caché contesta antes de
+    // preguntar.
     return resultado;
   }
 
@@ -231,24 +244,41 @@ async function apiCheckPermisoEdge(
       json = {};
     }
 
-    // 401 = el token no vale (firma vieja, vencido o usuario inexistente).
-    // Ojo: esto ES una respuesta de secapi, no una caída → no dispara el
-    // fallback por caché; el usuario tiene que volver a loguearse.
+    // El motivo real viene en el header `x-auth-guard`; el body sólo trae un
+    // mensaje para humanos ("Tu sesión no es válida, volvé a iniciar sesión").
+    // Sin esto, los 401 y los 503 son indistinguibles entre sí.
+    const codigo = codigoGuardSecapi(resp.headers, json);
+    console.log('[MW] x-auth-guard:', codigo ?? '(no vino)');
+
+    // 401 = el token no vale. Ojo: esto ES una respuesta de secapi, no una
+    // caída → no dispara el fallback por caché.
     if (resp.status === 401) {
-      console.log('[MW] → sesión muerta (401):', json?.error ?? '(sin error)');
+      // USUARIO_NO_ENCONTRADO no se arregla volviendo a entrar: el login de
+      // secapi sólo rechaza el estado 'I', así que el usuario loguea bien y
+      // vuelve a comer 401. Mandarlo a /login lo deja girando para siempre.
+      if (codigo === 'USUARIO_NO_ENCONTRADO') {
+        console.error('[MW] → usuario no activo en SecuritySuite');
+        return { estado: 'USUARIO_INACTIVO' };
+      }
+      console.log('[MW] → sesión muerta (401):', codigo ?? '(sin código)');
       return { estado: 'SESION_MUERTA' };
     }
 
-    // 503 con SECRETO_NO_CONFIGURADO = a secapi le falta JWT_SECRET. Cualquier
-    // otro 5xx sí es "secapi no está" y se trata como caída (caché vencido).
-    if (resp.status === 503 && json?.error === 'SECRETO_NO_CONFIGURADO') {
+    // 503 SECRETO_NO_CONFIGURADO = a secapi le falta JWT_SECRET. Permanente.
+    if (resp.status === 503 && codigo === 'SECRETO_NO_CONFIGURADO') {
       console.error('[MW] → secapi sin secreto de firma configurado');
       return { estado: 'NO_CONFIGURADO' };
     }
 
+    // Cualquier otro 5xx CON respuesta no es "secapi no está": es secapi
+    // contestando que no pudo decidir (ERROR_GUARD es su fail-closed explícito
+    // para cuando, por ejemplo, Postgres no contesta). Servir acá el permiso
+    // positivo del caché sería invertir esa decisión de seguridad y dejar pasar
+    // a alguien que secapi no autorizó. Se corta, pero con un mensaje honesto:
+    // es transitorio y reintentar sí sirve.
     if (resp.status >= 500) {
-      console.error('[MW] → secapi devolvió', resp.status, '→ se trata como caída');
-      return { estado: 'SIN_RESPUESTA' };
+      console.error('[MW] → secapi no pudo decidir:', resp.status, codigo ?? '(sin código)');
+      return { estado: 'ERROR_SERVICIO', codigo: codigo ?? `HTTP_${resp.status}` };
     }
 
     // 403 y demás respuestas no-ok: secapi contestó y dijo que no.
@@ -278,34 +308,106 @@ async function apiCheckPermisoEdge(
   }
 }
 
-// Pantalla de corte para el 503 SECRETO_NO_CONFIGURADO. Se responde HTML plano
-// desde el proxy (no una redirección) a propósito: cualquier ruta a la que lo
-// mandemos vuelve a pasar por acá y vuelve a fallar → loop. Sin Tailwind porque
-// esto no pasa por el render de la app.
-function respuestaSecapiNoConfigurado(): NextResponse {
+// Pantallas de corte del proxy. Se responde HTML plano (no una redirección) a
+// propósito: cualquier ruta a la que mandemos al usuario vuelve a pasar por acá
+// y vuelve a fallar → loop. Sin Tailwind porque esto no pasa por el render de la
+// app.
+function escaparHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function respuestaCorte(opts: {
+  status: number;
+  titulo: string;
+  parrafos: string[];
+  codigo: string;
+  /** Ruta a reintentar. Sólo para fallas transitorias. */
+  reintentar?: string;
+}): NextResponse {
+  const cuerpo = opts.parrafos
+    .map(
+      (p) =>
+        `<p style="margin:0 0 .75rem;line-height:1.6;color:#aab2bd">${p}</p>`,
+    )
+    .join('\n    ');
+  const boton = opts.reintentar
+    ? `<p style="margin:1.25rem 0 0"><a href="${escaparHtml(opts.reintentar)}" style="display:inline-block;padding:.5rem 1.1rem;border-radius:.5rem;background:#2b6cb0;color:#fff;text-decoration:none;font-weight:600">Reintentar</a></p>`
+    : '';
   const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Servicio de seguridad no disponible</title></head>
+<title>${escaparHtml(opts.titulo)}</title></head>
 <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1115;color:#e6e8eb;font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
   <main style="max-width:34rem;padding:2.5rem;border:1px solid #262b33;border-radius:1rem;background:#161a21">
-    <h1 style="margin:0 0 .75rem;font-size:1.35rem">Servicio de seguridad no disponible</h1>
-    <p style="margin:0 0 .75rem;line-height:1.6;color:#aab2bd">
-      SecuritySuite no tiene configurado su secreto de firma, así que no puede validar
-      ninguna sesión. No es un problema de tu usuario ni de tus permisos, y volver a
-      iniciar sesión no lo soluciona.
-    </p>
+    <h1 style="margin:0 0 .75rem;font-size:1.35rem">${escaparHtml(opts.titulo)}</h1>
+    ${cuerpo}
     <p style="margin:0;line-height:1.6;color:#aab2bd">
-      Avisá a Sistemas indicando este código: <code style="background:#0f1115;border:1px solid #262b33;border-radius:.35rem;padding:.15rem .4rem">SECRETO_NO_CONFIGURADO</code>
+      Código para reportar: <code style="background:#0f1115;border:1px solid #262b33;border-radius:.35rem;padding:.15rem .4rem">${escaparHtml(opts.codigo)}</code>
     </p>
+    ${boton}
   </main>
 </body></html>`;
   return new NextResponse(html, {
-    status: 503,
+    status: opts.status,
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-store',
     },
+  });
+}
+
+// 503 SECRETO_NO_CONFIGURADO: a secapi le falta JWT_SECRET.
+function respuestaSecapiNoConfigurado(): NextResponse {
+  return respuestaCorte({
+    status: 503,
+    titulo: 'Servicio de seguridad no disponible',
+    parrafos: [
+      'SecuritySuite no tiene configurado su secreto de firma, así que no puede validar ' +
+        'ninguna sesión. No es un problema de tu usuario ni de tus permisos, y volver a ' +
+        'iniciar sesión no lo soluciona.',
+      'Avisá a Sistemas: esto se arregla del lado del servidor.',
+    ],
+    codigo: 'SECRETO_NO_CONFIGURADO',
+  });
+}
+
+// 401 USUARIO_NO_ENCONTRADO: el token está bien firmado y vigente, pero secapi
+// no encuentra al usuario con estado 'A'. No va a /login porque el login lo deja
+// entrar igual (sólo rechaza el estado 'I') y volvería acá en el próximo click:
+// es un callejón sin salida y hay que decirlo, con el código a mano.
+function respuestaUsuarioNoActivo(usuario: string): NextResponse {
+  const quien = usuario ? ` (<strong>${escaparHtml(usuario)}</strong>)` : '';
+  return respuestaCorte({
+    status: 403,
+    titulo: 'Tu usuario no está activo',
+    parrafos: [
+      `SecuritySuite reconoce tu sesión, pero tu usuario${quien} no figura como activo, ` +
+        'así que no puede autorizar ninguna pantalla.',
+      'Volver a iniciar sesión no lo cambia: el alta la tiene que reactivar Sistemas.',
+    ],
+    codigo: 'USUARIO_NO_ENCONTRADO',
+  });
+}
+
+// 5xx con respuesta: secapi contestó que no pudo decidir. Transitorio → se
+// ofrece reintentar, pero no se deja pasar mientras tanto (secapi es
+// fail-closed a propósito en ERROR_GUARD).
+function respuestaSecapiSinVeredicto(codigo: string, ruta: string): NextResponse {
+  return respuestaCorte({
+    status: 503,
+    titulo: 'No pudimos verificar tus permisos',
+    parrafos: [
+      'SecuritySuite no pudo resolver si tenés acceso a esta pantalla. No es tu usuario ' +
+        'ni tus permisos: es una falla momentánea del servicio de seguridad.',
+      'Por seguridad no te dejamos pasar sin esa respuesta. Probá de nuevo en un momento; ' +
+        'si sigue igual, avisá a Sistemas.',
+    ],
+    codigo,
+    reintentar: ruta,
   });
 }
 
@@ -406,6 +508,22 @@ export async function proxy(request: NextRequest) {
   // para reportarlo.
   if (resultado.estado === 'NO_CONFIGURADO') {
     return respuestaSecapiNoConfigurado();
+  }
+
+  // 4c) El usuario no está activo en SecuritySuite. NO va a /login: ese camino
+  // es un loop (el login sólo rechaza el estado 'I', así que entra bien y vuelve
+  // a chocar acá) y encima le mentiría con "tu sesión venció". Tampoco es "no
+  // tenés permiso": ningún permiso lo destraba. Pantalla propia y código para
+  // reportar.
+  if (resultado.estado === 'USUARIO_INACTIVO') {
+    return respuestaUsuarioNoActivo(userName);
+  }
+
+  // 4d) secapi contestó un 5xx: no pudo decidir. Se corta igual que antes del
+  // caché (fail-closed), pero sin decirle "no tenés permiso" a alguien que
+  // capaz lo tiene, y ofreciendo el reintento que en este caso sí sirve.
+  if (resultado.estado === 'ERROR_SERVICIO') {
+    return respuestaSecapiSinVeredicto(resultado.codigo, pathname);
   }
 
   const permitido = resultado.permitido;

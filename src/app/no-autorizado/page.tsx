@@ -1,5 +1,5 @@
 // src/app/no-autorizado/page.tsx
-import { LockKeyhole, TimerOff } from "lucide-react";
+import { LockKeyhole, TimerOff, UserX } from "lucide-react";
 import Image from "next/image";
 import { headers, cookies } from "next/headers";
 import CopyClipboard from "./CopyClipboard";
@@ -80,6 +80,37 @@ export default async function NoAutorizado({ searchParams }: PageProps) {
           >
             Volver a entrar
           </a>
+        </div>
+      </div>
+    );
+  }
+
+  // El token es válido pero el usuario no está activo en SecuritySuite. Es un
+  // callejón sin salida y hay que decirlo: NO se le ofrece "volver a entrar"
+  // porque el login lo deja pasar igual (sólo rechaza el estado 'I') y volvería
+  // a chocar con el mismo 401 en el próximo click. Tampoco sirve "Solicitar
+  // acceso": ningún permiso destraba un usuario inactivo.
+  if (estadoSesion === "USUARIO_INACTIVO") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="surface-glass rounded-2xl shadow-lg p-10 max-w-lg w-full flex flex-col items-center animate-scale-in">
+          <UserX size={60} className="text-primary mb-4" />
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Tu usuario no está activo
+          </h1>
+          <p className="text-muted-foreground mb-6 text-center">
+            SecuritySuite reconoce tu sesión, pero tu usuario{" "}
+            <span className="font-medium text-foreground">{userName}</span> no
+            figura como activo, así que no puede autorizarte ninguna pantalla.
+            Volver a iniciar sesión no lo cambia: el alta la tiene que reactivar
+            Sistemas.
+          </p>
+          <div className="w-full rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground text-center">
+            Código para reportar:{" "}
+            <code className="rounded bg-background border border-border px-1.5 py-0.5">
+              USUARIO_NO_ENCONTRADO
+            </code>
+          </div>
         </div>
       </div>
     );

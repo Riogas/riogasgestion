@@ -28,6 +28,7 @@
 // Contrato:  requireRoot(request) → { ok: true, usuario } | { ok: false, status, code }
 import type { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
+import { codigoGuardSecapi } from "@/lib/secapiGuard";
 
 /**
  * Default público que trae el código de secapi cuando `JWT_SECRET` no está
@@ -214,7 +215,14 @@ function usernameDelPayload(payload: PayloadJwt): string {
 async function consultarSecapi(
   token: string,
   secapi: string,
-): Promise<{ permitido: boolean; razon: string } | null> {
+): Promise<{
+  permitido: boolean;
+  razon: string;
+  /** Status HTTP, sólo cuando secapi rechazó el request (no-2xx bajo 500). */
+  status?: number;
+  /** Código del guard de secapi (header `x-auth-guard`), si vino. */
+  codigoGuard?: string | null;
+} | null> {
   try {
     // Mismo contrato que src/proxy.ts:
     //   body → { AplicacionId, permisos: [{ ObjetoKey, AccionKey }] }
@@ -240,7 +248,20 @@ async function consultarSecapi(
     // portal: el cuerpo de una respuesta de error no es una autorización.
     // 5xx es "no pude verificar" → fail-closed (503). El resto deniega.
     if (resp.status >= 500) return null;
-    if (!resp.ok) return { permitido: false, razon: `HTTP_${resp.status}` };
+    // Un no-2xx acá NO es "no sos root": es secapi rechazando la credencial
+    // (401 TOKEN_INVALIDO = firmamos con otro secreto que el suyo, 401
+    // USUARIO_NO_ENCONTRADO = el usuario no está activo, 403 SIN_POLITICA = la
+    // ruta quedó sin política). Sigue siendo fail-closed, pero el motivo se
+    // arrastra para que el aviso no acuse al permiso equivocado. El código va
+    // en el header `x-auth-guard`, no en el body.
+    if (!resp.ok) {
+      return {
+        permitido: false,
+        razon: `HTTP_${resp.status}`,
+        status: resp.status,
+        codigoGuard: codigoGuardSecapi(resp.headers),
+      };
+    }
 
     const texto = await resp.text();
     let json: Record<string, unknown> = {};
@@ -335,6 +356,21 @@ export async function requireRoot(
   // vencida. Y no se cachea el fallo, para reintentar en el request siguiente.
   if (respuesta === null) {
     return { ok: false, status: 503, code: "SECAPI_INACCESIBLE" };
+  }
+
+  // secapi rechazó la credencial en vez de contestar el permiso. No se cachea
+  // (es un estado del token o de la configuración, se arregla afuera) y no se
+  // reporta como NO_ROOT, que mandaría a pedir un permiso que no es el problema.
+  if (respuesta.status && respuesta.status >= 400) {
+    const code = respuesta.codigoGuard
+      ? `SECAPI_${respuesta.codigoGuard}`
+      : `SECAPI_HTTP_${respuesta.status}`;
+    console.error("[docs/root-guard] secapi rechazó la credencial:", code);
+    // El status hacia afuera sigue siendo 403: para el que llama al portal esto
+    // es "denegado", y devolver el status de secapi (400/404/…) le haría creer
+    // que su request estaba mal. Lo que cambia es el CÓDIGO, que antes decía
+    // NO_ROOT y mandaba a pedir un permiso que no era el problema.
+    return { ok: false, status: 403, code };
   }
 
   // Poda simple para que el Map no crezca sin límite (mismo criterio que proxy.ts)

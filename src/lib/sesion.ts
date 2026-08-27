@@ -30,7 +30,47 @@ export class SesionVencidaError extends Error {
  * pasan por la misma capa.
  */
 export function esSesionVencida(error: unknown): boolean {
+  if (error instanceof UsuarioNoActivoError) return false;
   if (error instanceof SesionVencidaError) return true;
   const e = error as { sesionVencida?: boolean; status?: number; response?: { status?: number } };
   return e?.sesionVencida === true || e?.status === 401 || e?.response?.status === 401;
+}
+
+// ── Usuario dado de baja ────────────────────────────────────────────────────
+//
+// secapi responde 401 USUARIO_NO_ENCONTRADO cuando el token está perfecto pero
+// el usuario no figura con estado 'A'. Parece una sesión vencida y no lo es: su
+// login sólo rechaza el estado 'I', así que el usuario vuelve a entrar sin
+// problema y come 401 en la próxima llamada. Mandarlo a /login es un loop
+// infinito con un cartel falso ("tu sesión venció"), así que necesita su propio
+// error, su propio destino y un código para reportar.
+//
+// Los route handlers lo devuelven como 403 { error: "USUARIO_NO_ACTIVO" } a
+// propósito: si saliera 401, cualquier capa que trate los 401 como sesión
+// vencida lo volvería a mandar a /login.
+export const RUTA_USUARIO_NO_ACTIVO = "/no-autorizado";
+
+/** Error de usuario inactivo en SecuritySuite (HTTP 403 USUARIO_NO_ACTIVO). */
+export class UsuarioNoActivoError extends Error {
+  readonly status = 403;
+  readonly usuarioNoActivo = true;
+
+  constructor(
+    message = "Tu usuario no está activo en SecuritySuite. Avisá a Sistemas (USUARIO_NO_ENCONTRADO).",
+  ) {
+    super(message);
+    this.name = "UsuarioNoActivoError";
+  }
+}
+
+/** ¿Este error es "el usuario no está activo"? */
+export function esUsuarioNoActivo(error: unknown): boolean {
+  if (error instanceof UsuarioNoActivoError) return true;
+  const e = error as {
+    usuarioNoActivo?: boolean;
+    response?: { data?: { error?: string } };
+  };
+  return (
+    e?.usuarioNoActivo === true || e?.response?.data?.error === "USUARIO_NO_ACTIVO"
+  );
 }

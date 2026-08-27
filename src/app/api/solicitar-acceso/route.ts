@@ -4,6 +4,7 @@
 //   dev  → https://secapi-dev.glp.riogas.com.uy
 //   prod → https://secapi.riogas.com.uy
 import { NextRequest, NextResponse } from "next/server";
+import { codigoGuardSecapi } from "@/lib/secapiGuard";
 
 const SECAPI_URL = (
   process.env.SECAPI_URL || "https://secapi-dev.glp.riogas.com.uy"
@@ -68,20 +69,32 @@ export async function POST(req: NextRequest) {
       data = { raw };
     }
 
-    const errorSecapi = (data as { error?: string })?.error;
+    // El código del guard viaja en el header `x-auth-guard`, no en el body (el
+    // body de una denegación trae prosa para el usuario final).
+    const codigoSecapi = codigoGuardSecapi(resp.headers, data);
 
     // La solicitud viaja con el MISMO token que hizo que el usuario terminara en
     // /no-autorizado. Si ese token es el problema, esto no puede funcionar nunca:
     // hay que decirle que vuelva a entrar, no dejarlo reintentando un formulario
     // condenado. Se marca el motivo para que el botón sepa qué ofrecer.
     if (resp.status === 401) {
+      // Salvo que el problema sea el usuario y no el token: ahí volver a entrar
+      // no arregla nada y ofrecerlo es mandarlo a un loop.
+      if (codigoSecapi === "USUARIO_NO_ENCONTRADO") {
+        return NextResponse.json(
+          { ok: false, motivo: "USUARIO_NO_ACTIVO", status: resp.status, data },
+          { status: 403 },
+        );
+      }
       return NextResponse.json(
         { ok: false, motivo: "SESION_VENCIDA", status: resp.status, data },
         { status: 401 },
       );
     }
 
-    if (resp.status === 503 && errorSecapi === "SECRETO_NO_CONFIGURADO") {
+    // Sólo el 503 permanente lleva este motivo; el 503 transitorio (ERROR_GUARD)
+    // cae al passthrough de abajo y el botón lo muestra como error reintentable.
+    if (resp.status === 503 && codigoSecapi === "SECRETO_NO_CONFIGURADO") {
       return NextResponse.json(
         { ok: false, motivo: "SECAPI_NO_CONFIGURADO", status: resp.status, data },
         { status: 503 },

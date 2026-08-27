@@ -28,6 +28,18 @@ const MENSAJES: Record<string, string> = {
     "verificar el permiso. El portal queda cerrado hasta que se configure.",
   SECAPI_INACCESIBLE:
     "No se pudo verificar el permiso contra SecuritySuite. El portal no se abre sin esa verificación.",
+  // Prefijo SECAPI_: el rechazo lo puso el guard de SecuritySuite, no la
+  // verificación local de acá. Antes todos estos caían en NO_ROOT y mandaban a
+  // pedir un permiso que no era el problema.
+  SECAPI_TOKEN_INVALIDO:
+    "SecuritySuite rechazó la firma del token que este servidor considera válido: JWT_SECRET no coincide " +
+    "con la de SecuritySuite. Es configuración del servidor, no tu usuario.",
+  SECAPI_TOKEN_VENCIDO: "La sesión venció para SecuritySuite. Entrá de nuevo al panel.",
+  SECAPI_USUARIO_NO_ENCONTRADO:
+    "Tu usuario no figura activo en SecuritySuite. Volver a entrar no lo cambia: el alta la tiene que " +
+    "reactivar Sistemas.",
+  SECAPI_SECRETO_NO_CONFIGURADO:
+    "SecuritySuite no tiene configurado su secreto de firma y no puede autorizar nada. Avisá a Sistemas.",
 };
 
 function Aviso({ titulo, detalle }: { titulo: string; detalle: string }) {

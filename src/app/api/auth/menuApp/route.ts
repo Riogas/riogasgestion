@@ -26,6 +26,17 @@ export async function POST(req: NextRequest) {
   }
   const aplicacionId = Number(body?.AplicacionId) > 0 ? Number(body.AplicacionId) : APP_ID;
 
+  // Sin cookie no hay menú posible: secapi ya no devuelve el árbol completo a
+  // los anónimos y no hay de dónde sacarlo (el POST /api/Menu de GeneXus viene
+  // vacío para goya). Se corta acá con el mismo motivo que el 401 de secapi
+  // para que el front lo trate igual y ofrezca volver a entrar.
+  if (!token) {
+    return NextResponse.json(
+      { error: "SESION_VENCIDA", message: "No hay sesión: volvé a iniciar sesión." },
+      { status: 401 },
+    );
+  }
+
   try {
     const res = await fetch(`${SECAPI_URL}/api/db/menu?aplicacionId=${aplicacionId}`, {
       method: "GET",
@@ -37,6 +48,36 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await res.json().catch(() => ({}));
+    const errorSecapi = (data as { error?: string })?.error;
+
+    // 401 = token rechazado por secapi. Antes esto terminaba en un menú vacío y
+    // sin explicación (el front se comía el error): el usuario quedaba con la
+    // app abierta, sin barra lateral y sin saber que su sesión murió. Se marca
+    // el motivo para que el front lo propague como sesión vencida.
+    if (res.status === 401) {
+      return NextResponse.json(
+        {
+          error: "SESION_VENCIDA",
+          message: "La sesión venció. Volvé a iniciar sesión.",
+          detail: errorSecapi, // TOKEN_INVALIDO / TOKEN_VENCIDO / SIN_TOKEN / USUARIO_NO_ENCONTRADO
+        },
+        { status: 401 },
+      );
+    }
+
+    // A secapi le falta el secreto de firma: no es la sesión del usuario, es el
+    // servidor. Volver a loguearse no lo arregla, así que va con su propio motivo.
+    if (res.status === 503 && errorSecapi === "SECRETO_NO_CONFIGURADO") {
+      return NextResponse.json(
+        {
+          error: "SECAPI_NO_CONFIGURADO",
+          message:
+            "El servicio de seguridad no está configurado. No es tu sesión: avisá a Sistemas.",
+        },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json(data, { status: res.ok ? 200 : res.status });
   } catch (err) {
     return NextResponse.json(

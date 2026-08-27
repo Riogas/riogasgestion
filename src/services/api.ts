@@ -1,6 +1,7 @@
 import { api, overpassApi } from "@/lib/axios";
 import { withApiLogging, setSentryUser, clearSentryUser } from "@/lib/sentryHelpers";
 import { setAuthToken } from "@/lib/authToken";
+import { SesionVencidaError } from "@/lib/sesion";
 
 // Tipos globales
 export type Role = "admin" | "user";
@@ -197,7 +198,21 @@ export const apiGetMenuByRole = async (role: Role): Promise<MenuItem[]> => {
       console.log("[api.menuApp] POST /auth/menuApp body=", body, "role=", role);
 
       // menuApp ahora va a SecuritySuite (secapi) vía route handler, igual que el login.
-      const { data } = await api.post("/auth/menuApp", body);
+      // El 401 se traduce a SesionVencidaError: sin token verificado secapi no
+      // devuelve nada y no hay fallback (el POST /api/Menu de GeneXus viene
+      // vacío para goya). Tragarlo como "menú vacío" dejaba al usuario sin barra
+      // lateral y sin enterarse de que su sesión murió; el llamador tiene que
+      // poder distinguirlo para mandarlo a volver a entrar.
+      let data: any;
+      try {
+        ({ data } = await api.post("/auth/menuApp", body));
+      } catch (e: any) {
+        if (e?.response?.status === 401) {
+          console.warn("[api.menuApp] 401 de secapi → sesión vencida");
+          throw new SesionVencidaError(e?.response?.data?.message);
+        }
+        throw e;
+      }
       console.log("[api.menuApp] raw axios data keys=", typeof data === "object" ? Object.keys(data || {}) : typeof data);
 
       const parsed = safeParseMenuEnvelope(data);

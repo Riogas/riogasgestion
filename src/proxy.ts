@@ -90,6 +90,22 @@ function decodeJwtPayload(token: string): any | null {
 // API de permisos
 // =========================
 
+// secapi ya no deja pasar /api/db/* sin JWT verificado, así que "la consulta de
+// permisos falló" dejó de ser una sola cosa. Hay cuatro desenlaces y cada uno
+// pide una salida distinta para el usuario:
+//   RESUELTO      → secapi contestó: tiene (o no) el permiso. Es lo único cacheable.
+//   SESION_MUERTA → 401 (SIN_TOKEN / TOKEN_INVALIDO / TOKEN_VENCIDO / USUARIO_NO_ENCONTRADO):
+//                   el token ya no vale. No es falta de permiso → va a /login.
+//   NO_CONFIGURADO→ 503 SECRETO_NO_CONFIGURADO: a secapi le falta el secreto de
+//                   firma. Ni el permiso ni el login arreglan esto.
+//   SIN_RESPUESTA → timeout, red caída o 5xx genérico: secapi no habló. Acá (y
+//                   solo acá) aplica el fallback por caché vencido.
+type ResultadoPermiso =
+  | { estado: 'RESUELTO'; permitido: boolean }
+  | { estado: 'SESION_MUERTA' }
+  | { estado: 'NO_CONFIGURADO' }
+  | { estado: 'SIN_RESPUESTA' };
+
 // Caché en memoria del chequeo de permisos: secapi se consultaba en CADA
 // navegación de forma bloqueante y sin timeout — si secapi andaba lento, toda
 // la app quedaba "cargando". El permiso por (token, ruta) cambia poco: se
@@ -109,30 +125,46 @@ async function permisoCacheKey(token: string, pathname: string): Promise<string>
   return `${hex}|${pathname}`;
 }
 
+// Devuelve todo menos SIN_RESPUESTA: la caída de secapi se resuelve acá adentro
+// (caché vencido o denegar) y no llega al llamador.
 async function checkPermisoCached(
   pathname: string,
   code: string,
   token: string
-): Promise<boolean> {
+): Promise<Exclude<ResultadoPermiso, { estado: 'SIN_RESPUESTA' }>> {
   const key = await permisoCacheKey(token, pathname);
   const cached = permisoCache.get(key);
   const now = Date.now();
 
   if (cached && cached.expiresAt > now) {
     log('permiso desde caché:', cached.permitido);
-    return cached.permitido;
+    return { estado: 'RESUELTO', permitido: cached.permitido };
   }
 
-  const permitido = await apiCheckPermisoEdge(pathname, code, token);
+  const resultado = await apiCheckPermisoEdge(pathname, code, token);
 
-  if (permitido === null) {
+  if (resultado.estado === 'SIN_RESPUESTA') {
     // secapi caído o timeout: usar último valor conocido aunque esté vencido
     // (mejor stale que bloquear la operativa); sin historia → denegar.
     if (cached) {
       log('secapi no respondió → usando caché vencido:', cached.permitido);
-      return cached.permitido;
+      return { estado: 'RESUELTO', permitido: cached.permitido };
     }
-    return false;
+    return { estado: 'RESUELTO', permitido: false };
+  }
+
+  if (resultado.estado === 'SESION_MUERTA') {
+    // El token está muerto: cualquier veredicto guardado para él es basura.
+    // Si no se borra, el usuario vuelve a entrar y durante lo que queda de TTL
+    // el caché lo deja navegar con una sesión que secapi ya rechaza.
+    permisoCache.delete(key);
+    return resultado;
+  }
+
+  if (resultado.estado === 'NO_CONFIGURADO') {
+    // No se cachea: es un estado del servidor, se arregla afuera y queremos
+    // que el próximo request lo vea arreglado enseguida.
+    return resultado;
   }
 
   // Poda simple para que el Map no crezca sin límite
@@ -143,18 +175,18 @@ async function checkPermisoCached(
   }
 
   permisoCache.set(key, {
-    permitido,
-    expiresAt: now + (permitido ? PERMISO_TTL_MS : PERMISO_NEG_TTL_MS),
+    permitido: resultado.permitido,
+    expiresAt: now + (resultado.permitido ? PERMISO_TTL_MS : PERMISO_NEG_TTL_MS),
   });
-  return permitido;
+  return resultado;
 }
 
-// Devuelve true/false según secapi, o null si secapi no respondió (error/timeout).
+// Clasifica la respuesta de secapi (ver ResultadoPermiso).
 async function apiCheckPermisoEdge(
   pathname: string,
   _code: string,
   token: string
-): Promise<boolean | null> {
+): Promise<ResultadoPermiso> {
   try {
     const objetoKey = getObjetoKey(pathname); // p.ej. "clientes"
     const accionKey = 'view';
@@ -192,14 +224,35 @@ async function apiCheckPermisoEdge(
     const raw = await resp.text();
     console.log('[MW] Raw body:', raw);
 
-    if (!resp.ok) return false;
-
     let json: any = {};
     try {
       json = raw ? JSON.parse(raw) : {};
     } catch {
-      return false;
+      json = {};
     }
+
+    // 401 = el token no vale (firma vieja, vencido o usuario inexistente).
+    // Ojo: esto ES una respuesta de secapi, no una caída → no dispara el
+    // fallback por caché; el usuario tiene que volver a loguearse.
+    if (resp.status === 401) {
+      console.log('[MW] → sesión muerta (401):', json?.error ?? '(sin error)');
+      return { estado: 'SESION_MUERTA' };
+    }
+
+    // 503 con SECRETO_NO_CONFIGURADO = a secapi le falta JWT_SECRET. Cualquier
+    // otro 5xx sí es "secapi no está" y se trata como caída (caché vencido).
+    if (resp.status === 503 && json?.error === 'SECRETO_NO_CONFIGURADO') {
+      console.error('[MW] → secapi sin secreto de firma configurado');
+      return { estado: 'NO_CONFIGURADO' };
+    }
+
+    if (resp.status >= 500) {
+      console.error('[MW] → secapi devolvió', resp.status, '→ se trata como caída');
+      return { estado: 'SIN_RESPUESTA' };
+    }
+
+    // 403 y demás respuestas no-ok: secapi contestó y dijo que no.
+    if (!resp.ok) return { estado: 'RESUELTO', permitido: false };
 
     const resultados: any[] = Array.isArray(json?.resultados)
       ? json.resultados
@@ -218,11 +271,42 @@ async function apiCheckPermisoEdge(
       val === 'GRANTED' || val === true || val === 'S' || val === 'GRANTED';
 
     console.log('[MW] → permitido?', permitido);
-    return permitido;
+    return { estado: 'RESUELTO', permitido };
   } catch (err) {
     console.error('[MW] Error checando permiso (timeout/red):', err);
-    return null;
+    return { estado: 'SIN_RESPUESTA' };
   }
+}
+
+// Pantalla de corte para el 503 SECRETO_NO_CONFIGURADO. Se responde HTML plano
+// desde el proxy (no una redirección) a propósito: cualquier ruta a la que lo
+// mandemos vuelve a pasar por acá y vuelve a fallar → loop. Sin Tailwind porque
+// esto no pasa por el render de la app.
+function respuestaSecapiNoConfigurado(): NextResponse {
+  const html = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Servicio de seguridad no disponible</title></head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1115;color:#e6e8eb;font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
+  <main style="max-width:34rem;padding:2.5rem;border:1px solid #262b33;border-radius:1rem;background:#161a21">
+    <h1 style="margin:0 0 .75rem;font-size:1.35rem">Servicio de seguridad no disponible</h1>
+    <p style="margin:0 0 .75rem;line-height:1.6;color:#aab2bd">
+      SecuritySuite no tiene configurado su secreto de firma, así que no puede validar
+      ninguna sesión. No es un problema de tu usuario ni de tus permisos, y volver a
+      iniciar sesión no lo soluciona.
+    </p>
+    <p style="margin:0;line-height:1.6;color:#aab2bd">
+      Avisá a Sistemas indicando este código: <code style="background:#0f1115;border:1px solid #262b33;border-radius:.35rem;padding:.15rem .4rem">SECRETO_NO_CONFIGURADO</code>
+    </p>
+  </main>
+</body></html>`;
+  return new NextResponse(html, {
+    status: 503,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+    },
+  });
 }
 
 // =========================
@@ -283,15 +367,48 @@ export async function proxy(request: NextRequest) {
   // 4) Consultar permisos con pathname + code + token  ✅
   // En desarrollo, permitir tokens mock
   const isDevelopment = process.env.NODE_ENV === 'development';
-  let permitido = false;
-  
+  let resultado: Exclude<ResultadoPermiso, { estado: 'SIN_RESPUESTA' }>;
+
   if (isDevelopment && token?.startsWith('mock-jwt-token')) {
     log('🧪 Token mock detectado en desarrollo - permiso automático');
-    permitido = true;
+    resultado = { estado: 'RESUELTO', permitido: true };
   } else {
-    permitido = await checkPermisoCached(pathname, code, token);
+    resultado = await checkPermisoCached(pathname, code, token);
   }
-  
+
+  log('resultado permiso:', resultado);
+
+  // 4a) Sesión muerta ≠ falta de permiso. Mandarlo a /no-autorizado con la
+  // cookie viva era el callejón sin salida: la pantalla no ofrece volver a
+  // entrar y refrescar repite el mismo 401. Se borra la cookie (así el próximo
+  // request cae en el "sin token → /login" de arriba aunque algo falle) y se
+  // avisa a /login con ?sesion=expirada para que limpie localStorage y explique
+  // por qué lo sacaron.
+  if (resultado.estado === 'SESION_MUERTA') {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('sesion', 'expirada');
+    log('sesión rechazada por secapi → redirect', url.toString());
+    const res = NextResponse.redirect(url);
+    // Con path explícito: la cookie se creó con path=/ y un borrado sin path
+    // usa como default el directorio del request (/dashboard/...), o sea que
+    // no la pisa y la sesión muerta sobrevive.
+    res.cookies.set('token', '', { path: '/', maxAge: 0 });
+    return res;
+  }
+
+  // 4b) secapi sin secreto de firma: es un problema de configuración del
+  // servidor, no del usuario. No se lo manda a /login (el propio /api/db/login
+  // responde 503, quedaría intentando entrar para siempre) ni se le dice "no
+  // tenés permiso" (mandaría a pedir un permiso que ya tiene). Tampoco se cae
+  // al caché vencido como con secapi caído: sin secreto NINGUNA llamada a
+  // secapi de la pantalla va a andar, dejarlo pasar solo esconde la falla más
+  // adentro y más difícil de diagnosticar. Se corta acá, con el código a mano
+  // para reportarlo.
+  if (resultado.estado === 'NO_CONFIGURADO') {
+    return respuestaSecapiNoConfigurado();
+  }
+
+  const permitido = resultado.permitido;
   log('permiso?', permitido);
 
   if (!permitido) {

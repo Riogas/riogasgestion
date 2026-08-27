@@ -18,7 +18,14 @@ const APP_ID = (() => {
 export async function POST(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
   if (!token) {
-    return NextResponse.json({ error: "Sin sesión (token ausente)" }, { status: 401 });
+    return NextResponse.json(
+      {
+        ok: false,
+        motivo: "SESION_VENCIDA",
+        error: "Sin sesión (token ausente)",
+      },
+      { status: 401 },
+    );
   }
 
   let payload: { code?: string; ruta?: string; nombre?: string; motivo?: string };
@@ -59,6 +66,26 @@ export async function POST(req: NextRequest) {
       data = raw ? JSON.parse(raw) : {};
     } catch {
       data = { raw };
+    }
+
+    const errorSecapi = (data as { error?: string })?.error;
+
+    // La solicitud viaja con el MISMO token que hizo que el usuario terminara en
+    // /no-autorizado. Si ese token es el problema, esto no puede funcionar nunca:
+    // hay que decirle que vuelva a entrar, no dejarlo reintentando un formulario
+    // condenado. Se marca el motivo para que el botón sepa qué ofrecer.
+    if (resp.status === 401) {
+      return NextResponse.json(
+        { ok: false, motivo: "SESION_VENCIDA", status: resp.status, data },
+        { status: 401 },
+      );
+    }
+
+    if (resp.status === 503 && errorSecapi === "SECRETO_NO_CONFIGURADO") {
+      return NextResponse.json(
+        { ok: false, motivo: "SECAPI_NO_CONFIGURADO", status: resp.status, data },
+        { status: 503 },
+      );
     }
 
     return NextResponse.json(

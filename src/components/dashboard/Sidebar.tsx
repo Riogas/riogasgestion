@@ -14,6 +14,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useLoading } from "@/lib/LoadingContext";
+import { clearAuthToken } from "@/lib/authToken";
+import { RUTA_LOGIN_SESION_EXPIRADA, esSesionVencida } from "@/lib/sesion";
 
 interface Props {
   collapsed: boolean;
@@ -29,6 +31,9 @@ interface MenuItem extends ApiMenuItem {
 export function Sidebar({ collapsed, setCollapsed }: Props) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // El menú falló porque secapi rechazó el token (no porque el usuario no tenga
+  // opciones). Se muestra mientras se completa la vuelta a /login.
+  const [sesionVencida, setSesionVencida] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [manualCollapsed, setManualCollapsed] = useState<string[]>([]); // padres que el usuario colapsó manualmente
   const [manualExpanded, setManualExpanded] = useState<string[]>([]);   // padres que el usuario abrió manualmente (persistir)
@@ -172,6 +177,18 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
           .catch((e) => {
             error("apiGetMenuByRole ERROR:", e?.message, e?.response?.data || e);
             setLoading(false);
+
+            // Sesión rechazada por secapi. El menú es lo primero que carga el
+            // dashboard, así que suele ser lo primero que se entera de que el
+            // token murió — y /dashboard es ruta pública para el proxy, o sea
+            // que nadie más va a sacar al usuario de acá. Se lo manda a /login
+            // en vez de dejarlo mirando una barra lateral vacía sin explicación.
+            if (esSesionVencida(e)) {
+              warn("sesión vencida al cargar el menú → /login");
+              setSesionVencida(true);
+              clearAuthToken();
+              router.replace(RUTA_LOGIN_SESION_EXPIRADA);
+            }
           });
       } catch (e) {
         error("Error parsing stored user:", e);
@@ -181,6 +198,7 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
       warn("No stored user in localStorage. Skipping menu fetch.");
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Log cambios de loading y pathname
@@ -395,6 +413,26 @@ export function Sidebar({ collapsed, setCollapsed }: Props) {
                   <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
                   <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
                   <div className="h-8 rounded-md bg-muted/60 animate-shimmer" />
+                </div>
+              ) : sesionVencida ? (
+                // Nunca mostrar "sin elementos" cuando el menú vino vacío por un
+                // 401: sin menú y sin explicación es peor que no tener menú.
+                <div className={cn("text-xs px-3 py-4 space-y-2", collapsed && "text-center")}>
+                  {collapsed ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <>
+                      <p className="text-muted-foreground">
+                        Tu sesión venció, por eso no se pudo cargar el menú.
+                      </p>
+                      <a
+                        href={RUTA_LOGIN_SESION_EXPIRADA}
+                        className="inline-block rounded-md bg-primary px-3 py-1.5 text-primary-foreground font-medium hover:opacity-90 transition"
+                      >
+                        Volver a entrar
+                      </a>
+                    </>
+                  )}
                 </div>
               ) : menuItems.length === 0 ? (
                 <div className={cn("text-xs text-muted-foreground px-3 py-4", collapsed && "text-center")}>

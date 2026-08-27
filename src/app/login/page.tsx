@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun, Loader2 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner"; // 👈 Notificaciones visuales
 import { apiLogin } from "@/services/api"; // 👈 Importa tu API
+import { AUTH_COOKIE_MAX_AGE_SEG, clearAuthToken } from "@/lib/authToken";
 import { useRouter } from "next/navigation"; // 👈 Para redirección
 import LogRocket from 'logrocket'; // 👈 Para identificar usuario
 import * as Sentry from '@sentry/nextjs'; // 👈 Para testing de errores
@@ -23,7 +24,34 @@ export default function LoginPage() {
     {},
   );
   const [loading, setLoading] = useState(false);
+  // Llegó acá porque la sesión murió (el middleware / el menú detectaron un 401
+  // de secapi), no porque el usuario haya pedido salir.
+  const [sesionExpirada, setSesionExpirada] = useState(false);
   const router = useRouter();
+
+  // ?sesion=expirada lo ponen el proxy y el Sidebar cuando secapi rechaza el
+  // token. Se lee de window.location en vez de useSearchParams para no obligar
+  // a envolver la página en un <Suspense> (requisito de Next para ese hook).
+  // Además de avisar, hay que barrer las credenciales viejas: si queda el token
+  // muerto en localStorage, axios lo sigue mandando y todo vuelve a dar 401.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("sesion") !== "expirada") return;
+
+    setSesionExpirada(true);
+    try {
+      clearAuthToken();
+      localStorage.removeItem("user");
+      localStorage.removeItem("puesto");
+      localStorage.removeItem("puestos");
+      localStorage.removeItem("puestoActual");
+      document.cookie = "puestoId=; path=/; max-age=0";
+      document.cookie = "PuestoDsc=; path=/; max-age=0";
+    } catch {
+      // noop
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +106,10 @@ export default function LoginPage() {
         console.log("🔑 Token a usar:", token ? "SÍ" : "NO", token?.substring(0, 30) + "...");
         
         // Establecer cookie sin flags problemáticos para localhost
-        document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 30}`;
+        // Misma vida que el exp del JWT de secapi (ver AUTH_COOKIE_MAX_AGE_SEG):
+        // la cookie no puede sobrevivir al token o la sesión queda "viva" para el
+        // middleware y muerta para secapi.
+        document.cookie = `token=${token}; path=/; max-age=${AUTH_COOKIE_MAX_AGE_SEG}`;
         console.log("🍪 Cookie token establecida");
         
         // Verificar que se estableció correctamente
@@ -195,6 +226,14 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold animate-fade-in-up" style={{ animationDelay: '0.25s' }}>Iniciar sesión</h1>
         </div>
+        {sesionExpirada && (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300 animate-fade-in-up"
+          >
+            Tu sesión venció. Volvé a ingresar con tu usuario y contraseña.
+          </div>
+        )}
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
             <Label htmlFor="usuario">Usuario</Label>

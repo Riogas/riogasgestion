@@ -34,6 +34,23 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await res.json().catch(() => ({}));
+
+    // secapi sin JWT_SECRET responde 503 { error: "SECRETO_NO_CONFIGURADO" }:
+    // no trae `message`, así que el front lo mostraba como "Credenciales
+    // inválidas" y el usuario se quedaba probando contraseñas que están bien.
+    // Se traduce a un mensaje que apunta a dónde está el problema real.
+    if (res.status === 503 && (data as { error?: string })?.error === "SECRETO_NO_CONFIGURADO") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "SECAPI_NO_CONFIGURADO",
+          message:
+            "El servicio de seguridad no está configurado (falta el secreto de firma). Tus credenciales están bien: avisá a Sistemas.",
+        },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json(data, { status: res.ok ? 200 : res.status });
   } catch (err) {
     return NextResponse.json(
